@@ -386,6 +386,7 @@ include prov/mlx/Makefile.include
 include prov/shm/Makefile.include
 include prov/tcp/Makefile.include
 include prov/rstream/Makefile.include
+include prov/tofu/Makefile.include
 include prov/hook/Makefile.include
 include prov/hook/perf/Makefile.include
 

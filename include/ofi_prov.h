@@ -240,4 +240,16 @@ PERF_HOOK_INI ;
 #  define NOOP_HOOK_INIT fi_noop_hook_ini()
 NOOP_HOOK_INI ;
 
+/* RIKEN */
+#if (HAVE_TOFU) && (HAVE_TOFU_DL)
+#  define TOFU_INI FI_EXT_INI
+#  define TOFU_INIT NULL
+#elif (HAVE_TOFU)
+#  define TOFU_INI INI_SIG(fi_tofu_ini)
+#  define TOFU_INIT fi_tofu_ini()
+TOFU_INI ;
+#else
+#  define TOFU_INIT NULL
+#endif
+
 #endif /* _OFI_PROV_H_ */

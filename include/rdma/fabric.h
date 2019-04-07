@@ -301,6 +301,7 @@ enum {
 	FI_PROTO_MRAIL,
 	FI_PROTO_RSTREAM,
 	FI_PROTO_RDMA_CM_IB_XRC,
+	FI_PROTO_TOFU,
 };
 
 /* Mode bits */
