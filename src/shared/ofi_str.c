@@ -163,6 +163,9 @@ void ofi_free_string_array(char **s)
 {
 	/* all strings are allocated from the same strdup'ed slab, so just free
 	 * the first element */
+	if (s == NULL) {  /* added by YI 2019/04/09 */
+		return;
+	}
 	if (s != NULL)
 		free(s[0]);
 

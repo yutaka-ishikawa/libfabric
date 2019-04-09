@@ -91,26 +91,26 @@ static int tofu_av_insert(
 	index = av__priv->av__tab.nct++;
 	/* fastlock_release( &av__priv->av__lck ); */
 
-//#ifdef	NOTYET_MPICH_FIX
 	/*
+         * tofu driver uses FI_ADDR_STR format !!
+         *      See struct fi_info tofu_prov_info defined in tofu_attr.c
 	 * man fi_av(3)
 	 *   fi_av_insert
 	 *     When using the FI_ADDR_STR format, the addr parameter
 	 *     should reference an array of strings (char **).
+         * Needs to understand why the following code is incorrect.
+         *      2019/04/09
+         *   if (afmt == FI_ADDR_STR) {
+         *      const char *cp = ((char **)addr)[ic];
+         *      fc = tofu_imp_str_uri_to_name(addr, 0, vnam);
+         *   }
 	 */
-        FI_INFO(&tofu_prov, FI_LOG_AV, "YI: Should be CHECK if it works!!!!\n");
 	if (afmt == FI_ADDR_STR) {
-	    const char *cp = ((char **)addr)[ic];
-
-	    fc = tofu_imp_str_uri_to_name(cp, 0, vnam);
+            fc = tofu_imp_str_uri_to_name(addr, ic, vnam);
+	} else {
+            FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
+	    fc = -1; goto bad;
 	}
-	else {
-	    fc = tofu_imp_str_uri_to_name(addr, ic, vnam);
-	}
-//#else	/* NOTYET_MPICH_FIX */
-	assert(afmt == FI_ADDR_STR);
-	fc = tofu_imp_str_uri_to_name(addr, ic, vnam);
-//#endif	/* NOTYET_MPICH_FIX */
 	if (fc != FI_SUCCESS) {
 	    vnam[0] = vnam[1] = 0;
 	    if (fi_addr != 0) {
@@ -252,7 +252,6 @@ int tofu_av_open(
     assert(fid_dom != 0);
     dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid );
 
-    fprintf(stderr, "YI****** %s: attr(%p)\n", __func__, attr);
     /* tofu_chck_av_attr */
     if (attr != 0) {
         fprintf(stderr,
@@ -261,7 +260,6 @@ int tofu_av_open(
                 attr->type, attr->rx_ctx_bits, attr->count,
                 attr->ep_per_node, attr->name);
 	fc = tofu_chck_av_attr(attr);
-        fprintf(stderr, "YI****** %s: fc(%d)\n", __func__, fc);
 	if (fc != FI_SUCCESS) { goto bad; }
     }
 

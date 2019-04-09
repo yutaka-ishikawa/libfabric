@@ -50,7 +50,7 @@ tofu_getinfo(uint32_t version, const char *node,
     }
 #endif
     /**/
-#if 0
+//#if 0
     printf("tofu_getinfo: NEEDS to fill in data \n");
     fiinfo->src_addr = malloc(fiinfo->src_addrlen);
     fiinfo->dest_addr = malloc(fiinfo->dest_addrlen);
@@ -70,7 +70,7 @@ tofu_getinfo(uint32_t version, const char *node,
       memset(ffinfo->nic, 0, sizeof(struct fid_nic));
       ffinfo->fid.ops =  (struct fi_ops*) malloc(sizeof(struct fi_ops));
     */
-#endif
+//#endif
 
     *info = fiinfo;
     FI_INFO(&tofu_prov, FI_LOG_DEBUG,
@@ -104,7 +104,10 @@ tofu_getinfo(uint32_t version, const char *node,
 static void tofu_fini(void)
 {
     FI_INFO(&tofu_prov, FI_LOG_CORE, "in %s\n", __FILE__);
-    fi_log_fini();
+    /*
+     * Do not need to call this function, maybe 2019/04/09 YI
+     * fi_log_fini();
+     */
     return ;
 }
 

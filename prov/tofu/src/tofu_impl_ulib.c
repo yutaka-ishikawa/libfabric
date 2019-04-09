@@ -158,6 +158,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	    fc = -FI_ENOMEM; goto bad;
 	}
     }
+    fprintf(stderr, "YI****1***** %s icep->vcqh(%lx)\n", __func__, icep->vcqh);
     if ((icep->udat_fs == 0) && (icep->udat_sz > 0)) {
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "YI: Should be CHECK if it works!!!!\n");
 	icep->udat_fs = ulib_udat_fs_create(icep->udat_sz, 0, 0);
@@ -165,6 +166,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	    fc = -FI_ENOMEM; goto bad;
 	}
     }
+    fprintf(stderr, "YI****2***** %s icep->vcqh(%lx)\n", __func__, icep->vcqh);
     if ((icep->cash_fs == 0) && (icep->cash_sz > 0)) {
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "YI: Should be CHECK if it works!!!!\n");
 	icep->cash_fs = ulib_cash_fs_create(icep->cash_sz, 0, 0);
@@ -172,6 +174,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	    fc = -FI_ENOMEM; goto bad;
 	}
     }
+    fprintf(stderr, "YI****3***** %s icep->vcqh(%lx)\n", __func__, icep->vcqh);
 #ifdef	NOTYET
     if ((icep->cash_rb == 0) && (icep->cash_sz > 0)) {
 	icep->cash_rb = rbtNew(0);
@@ -180,14 +183,17 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	}
     }
 #endif	/* NOTYET */
+    fprintf(stderr, "YI****4***** %s icep->vcqh(%lx)\n", __func__, icep->vcqh);
     if (icep->vcqh == 0) {/* Is this really null pointer ? */ 
         /* needs to initialize vcqh */
 	struct tofu_cep *cep_priv = vptr;
 	struct tofu_sep *sep_priv = cep_priv->cep_sep;
 	struct tofu_imp_cep_ulib *icep_pair = 0;
 
+        fprintf(stderr, "YI****4.1***** %s cep_priv->cep_trx(%p)\n", __func__, cep_priv->cep_trx);
 	if (cep_priv->cep_trx != 0) {
 	    icep_pair = &((struct tofu_imp_cep_ulib_s *)cep_priv->cep_trx)->cep_lib;
+            fprintf(stderr, "YI****4.2***** %s icep_pair(%p) icep_pair->vcqh(%lx)\n", __func__, icep_pair, icep_pair->vcqh);
 	}
 	if ((icep_pair != 0) && (icep_pair->vcqh != 0)) {
             /*
@@ -196,6 +202,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
              */
 	    icep->vcqh = icep_pair->vcqh;
             cbuf_alloced = 1;
+            fprintf(stderr, "YI****4.22***** %s cbuf was allocated\n", __func__);
             //cep_priv->cep_idx,
             //icep->vcqh,
             //(cep_priv->cep_trx == 0)? '-':
@@ -207,7 +214,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	} else {
 	    uint64_t niid = -1ULL;
 	    int index = cep_priv->cep_idx;
-            utofu_tni_id_t tni_id = (utofu_tni_id_t)niid;
+            utofu_tni_id_t tni_id;
             const utofu_cmp_id_t c_id = CONF_ULIB_CMP_ID;
             const unsigned long flags =	0
                 /* | UTOFU_VCQ_FLAG_THREAD_SAFE */
@@ -216,9 +223,12 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
             int uc;
 
 	    fc = tofu_imp_ulib_isep_qtni(sep_priv, index, &niid);
+            tni_id = (utofu_tni_id_t)niid;
+            fprintf(stderr, "YI****4.3***** %s fc(%d) tni_id(%d), c_id(%d), flags(0x%lx)\n", __func__, fc, tni_id, c_id, flags);
 	    if (fc != FI_SUCCESS) { goto bad; }
             uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags,
                                               &icep->vcqh);
+            fprintf(stderr, "YI****4.4***** %s uc(%d)\n", __func__, uc);
             if (uc != UTOFU_SUCCESS) { fc = -FI_EBUSY; goto bad; }
             assert(icep->vcqh != 0); /* XXX */
         }
@@ -228,6 +238,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
                 (cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX)? 'T':
                 (cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX)? 'R': 'x');
     }
+    fprintf(stderr, "YI****5***** %s icep->toqc(%p)\n", __func__, icep->toqc);
     if (icep->toqc == 0) {
 	int uc;
         const unsigned int ctag = 10 /* YYY */, dtag = 11 /* YYY */;
@@ -879,6 +890,8 @@ int tofu_imp_str_uri_to_name(
     struct ulib_sep_name name[1];
 
     cp = (const char *)vuri + (index * 64 /* FI_NAME_MAX */ );
+    fprintf(stderr, "YI********* %s: index(%ld) cp=%p\n", __func__, index, cp);
+    fprintf(stderr, "YI********* %s: index(%ld) cp=%s\n", __func__, index, (char*) &cp);
 
     {
 	int nv, iv, mv;
