@@ -142,6 +142,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 {
     int fc = FI_SUCCESS;
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
+    int cbuf_alloced = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "cep %p in %s\n", vptr, __FILE__);
     if ((icep->uexp_fs == 0) && (icep->uexp_sz > 0)) {
@@ -149,10 +150,6 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	if (icep->uexp_fs == 0) {
 	    fc = -FI_ENOMEM; goto bad;
 	}
-        //if (0) {
-        //int ix = ulib_uexp_fs_index(icep->uexp_fs, &icep->uexp_fs->buf[0]);
-        //FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "uexp %d\n", ix);
-        //}
     }
     if ((icep->expd_fs == 0) && (icep->expd_sz > 0)) {
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "YI: Should be CHECK if it works!!!!\n");
@@ -160,10 +157,6 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	if (icep->expd_fs == 0) {
 	    fc = -FI_ENOMEM; goto bad;
 	}
-        //if (0) {
-        //int ix = ulib_expd_fs_index(icep->expd_fs, &icep->expd_fs->buf[0]);
-        //FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "expd %d\n", ix);
-        //}
     }
     if ((icep->udat_fs == 0) && (icep->udat_sz > 0)) {
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "YI: Should be CHECK if it works!!!!\n");
@@ -171,10 +164,6 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	if (icep->udat_fs == 0) {
 	    fc = -FI_ENOMEM; goto bad;
 	}
-        //if (0) {
-        //int ix = ulib_udat_fs_index(icep->udat_fs, &icep->udat_fs->buf[0]);
-        //FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "udat %d\n", ix);
-        //}
     }
     if ((icep->cash_fs == 0) && (icep->cash_sz > 0)) {
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "YI: Should be CHECK if it works!!!!\n");
@@ -191,7 +180,8 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	}
     }
 #endif	/* NOTYET */
-    if (icep->vcqh == 0 /* YYY uintptr_t */ ) {
+    if (icep->vcqh == 0) {/* Is this really null pointer ? */ 
+        /* needs to initialize vcqh */
 	struct tofu_cep *cep_priv = vptr;
 	struct tofu_sep *sep_priv = cep_priv->cep_sep;
 	struct tofu_imp_cep_ulib *icep_pair = 0;
@@ -200,9 +190,12 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	    icep_pair = &((struct tofu_imp_cep_ulib_s *)cep_priv->cep_trx)->cep_lib;
 	}
 	if ((icep_pair != 0) && (icep_pair->vcqh != 0)) {
+            /*
+             * The peer context has been initialized.
+             *  i.e. receiver context against sender context
+             */
 	    icep->vcqh = icep_pair->vcqh;
-            //if (0) {
-            //printf("\t\t%2d copy vcqh %"PRIuPTR" from %c to %c\n",
+            cbuf_alloced = 1;
             //cep_priv->cep_idx,
             //icep->vcqh,
             //(cep_priv->cep_trx == 0)? '-':
@@ -211,58 +204,47 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
             //(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX)? 'T':
             //(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX)? 'R': 'x');
             //}
-	}
-	else {
+	} else {
 	    uint64_t niid = -1ULL;
 	    int index = cep_priv->cep_idx;
+            utofu_tni_id_t tni_id = (utofu_tni_id_t)niid;
+            const utofu_cmp_id_t c_id = CONF_ULIB_CMP_ID;
+            const unsigned long flags =	0
+                /* | UTOFU_VCQ_FLAG_THREAD_SAFE */
+                /* | UTOFU_VCQ_FLAG_EXCLUSIVE */
+                /* | UTOFU_VCQ_FLAG_SESSION_MODE */;
+            int uc;
 
 	    fc = tofu_imp_ulib_isep_qtni(sep_priv, index, &niid);
 	    if (fc != FI_SUCCESS) { goto bad; }
-#ifdef	NOTYET
-	    {
-		utofu_tni_id_t tni_id = (utofu_tni_id_t)niid;
-		const utofu_cmp_id_t c_id = CONF_ULIB_CMP_ID;
-		const unsigned long flags =	0
-					    /* | UTOFU_VCQ_FLAG_THREAD_SAFE */
-					    /* | UTOFU_VCQ_FLAG_EXCLUSIVE */
-					    /* | UTOFU_VCQ_FLAG_SESSION_MODE */
-						;
-		int uc;
-
-		uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags,
-			&icep->vcqh);
-		if (uc != UTOFU_SUCCESS) { fc = -FI_EBUSY; goto bad; }
-		assert(icep->vcqh != 0); /* XXX */
-	    }
-#else	/* NOTYET */
-	    icep->vcqh = niid + 1; /* YYY */
-#endif	/* NOTYET */
-if (0) {
-printf("\t\t%2d crea vcqh %"PRIuPTR" on %c\n",
-cep_priv->cep_idx,
-icep->vcqh,
-(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX)? 'T':
-(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX)? 'R': 'x');
-}
-	}
+            uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags,
+                                              &icep->vcqh);
+            if (uc != UTOFU_SUCCESS) { fc = -FI_EBUSY; goto bad; }
+            assert(icep->vcqh != 0); /* XXX */
+        }
+        fprintf(stderr, "YI******** %s %2d crea vcqh %"PRIuPTR" on %c\n",
+                __func__, cep_priv->cep_idx,
+                icep->vcqh,
+                (cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX)? 'T':
+                (cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX)? 'R': 'x');
     }
     if (icep->toqc == 0) {
 	int uc;
+        const unsigned int ctag = 10 /* YYY */, dtag = 11 /* YYY */;
+        const ulib_shea_ercv_cbak_f func = tofu_imp_ulib_icep_recv_call_back;
+        void *farg = icep;
+
 	uc = ulib_toqc_init(icep->vcqh, &icep->toqc);
 	if (uc != 0) { fc = -FI_EINVAL /* XXX */; goto bad; }
-
-	{
-	    const unsigned int ctag = 10 /* YYY */, dtag = 11 /* YYY */;
-	    const ulib_shea_ercv_cbak_f func = tofu_imp_ulib_icep_recv_call_back;
-	    void *farg = icep;
-	    int uc;
-
-	    uc = ulib_shea_cbuf_enab(&icep->cbuf, icep->vcqh,
-		    ctag, dtag, func, farg);
-	    if (uc != 0) { fc = -FI_EINVAL /* XXX */; goto bad; }
-	}
+        if (cbuf_alloced == 1) {
+            /* the peer's cbuf has been allocated */
+            fprintf(stderr, "YI***** %s cbuf has been allocated\n", __func__);
+        } else {
+            uc = ulib_shea_cbuf_enab(&icep->cbuf, icep->vcqh,
+                                     ctag, dtag, func, farg);
+            if (uc != 0) { fc = -FI_EINVAL /* XXX */; goto bad; }
+        }
     }
-
 bad:
     return fc;
 }
@@ -1473,7 +1455,7 @@ int tofu_imp_ulib_immr_stad_temp(
 size_t tofu_imp_ulib_isep_size(void)
 {
     size_t isiz = sizeof (struct tofu_imp_sep_ulib);
-printf("%s:%d\t%ld\n", __func__, __LINE__, isiz);
+    fprintf(stderr, "YI****** %s:%d\t%ld\n", __func__, __LINE__, isiz);
     return isiz;
 }
 
