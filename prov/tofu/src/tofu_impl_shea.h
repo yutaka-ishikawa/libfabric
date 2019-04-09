@@ -9,8 +9,8 @@
 /* #include <utofu.h> */ /* YYY */
 #include <stdint.h>	    /* for uintptr_t */
 
-
-typedef uintptr_t utofu_vcq_hdl_t;
+// defined in utofu.h
+//typedef uintptr_t utofu_vcq_hdl_t;
 
 //#define UTOFU_SUCCESS	    0
 

@@ -49,7 +49,9 @@ struct ulib_sep_name {
 /* #include "prv.h" */		/* for struct tofu_sep */
 /* #include "utofu.h" */	/* YYY */
 #include <stdint.h>		/* YYY */
-typedef	uint16_t		utofu_tni_id_t;	    /* YYY */
+
+// defined in tofu_impl_internal.h
+//typedef	uint16_t		utofu_tni_id_t;	    /* YYY */
 
 struct tofu_imp_sep_ulib {
     utofu_tni_id_t  tnis[8];

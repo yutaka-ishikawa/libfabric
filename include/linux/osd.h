@@ -57,6 +57,13 @@ static inline int ofi_shm_remap(struct util_shm *shm,
 
 ssize_t ofi_get_hugepage_size(void);
 
+#ifdef FX100
+static inline int ofi_alloc_hugepage_buf(void **memptr, size_t size)
+{
+	return -1;
+}
+
+#else
 static inline int ofi_alloc_hugepage_buf(void **memptr, size_t size)
 {
 	*memptr = mmap(NULL, size, PROT_READ | PROT_WRITE,
@@ -67,6 +74,7 @@ static inline int ofi_alloc_hugepage_buf(void **memptr, size_t size)
 
 	return FI_SUCCESS;
 }
+#endif /* FX100 */
 
 static inline int ofi_free_hugepage_buf(void *memptr, size_t size)
 {
