@@ -252,12 +252,16 @@ int tofu_av_open(
     assert(fid_dom != 0);
     dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid );
 
+    fprintf(stderr, "YI****** %s: attr(%p)\n", __func__, attr);
     /* tofu_chck_av_attr */
     if (attr != 0) {
-printf("%s():%d\tav_type %d bits %d count %ld e/n %ld name %p\n",
-__func__, __LINE__,
-attr->type, attr->rx_ctx_bits, attr->count, attr->ep_per_node, attr->name);
+        fprintf(stderr,
+                "%s():%d\tav_type %d bits %d count %ld e/n %ld name %p\n",
+                __func__, __LINE__,
+                attr->type, attr->rx_ctx_bits, attr->count,
+                attr->ep_per_node, attr->name);
 	fc = tofu_chck_av_attr(attr);
+        fprintf(stderr, "YI****** %s: fc(%d)\n", __func__, fc);
 	if (fc != FI_SUCCESS) { goto bad; }
     }
 

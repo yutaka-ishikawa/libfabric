@@ -24,23 +24,31 @@ tofu_getinfo(uint32_t version, const char *node,
     struct fi_info *fiinfo = 0;
     int fc = -FI_ENOMEM;
 
+    fprintf(stderr, "**** YI %s\n", __func__);
     FI_INFO(&tofu_prov, FI_LOG_CORE, "in %s ; version %08x\n",
             __FILE__, version);
 
     fc = tofu_init_prov_info(hints, &fiinfo);
     if (fc != FI_SUCCESS) {
+        fprintf(stderr, "%s ERROR 1 fc(%d)\n", __func__, fc);
         fc = -FI_ENODATA;
     }
     fc = tofu_chck_prov_info(version, hints, &fiinfo);
     if (fc != 0) {
+        fprintf(stderr, "%s ERROR 2 fc(%d)\n", __func__, fc);
         FI_INFO(&tofu_prov, FI_LOG_CORE, "fail.\n");
         return fc;
     }
+#if 0
     /*
      * YI: NEEDS to check by Hatanaka
      */
     fc = util_getinfo(&tofu_util_prov, version,
                       service, node, flags, hints, info);
+    if (fc != FI_SUCCESS) {
+        fprintf(stderr, "%s ERROR 3 fc(%d)\n", __func__, fc);
+    }
+#endif
     /**/
 #if 0
     printf("tofu_getinfo: NEEDS to fill in data \n");
@@ -89,6 +97,7 @@ tofu_getinfo(uint32_t version, const char *node,
             fiinfo->fabric_attr ? fiinfo->fabric_attr->name : 0,
             fiinfo->fabric_attr ? fiinfo->fabric_attr->prov_name : 0,
             fiinfo->nic);
+    fprintf(stderr, "**** YI %s return %d\n", __func__, fc);
     return fc;
 }
 

@@ -272,12 +272,8 @@ static struct fi_fabric_attr tofu_fabric_attr = {
     .fabric = NULL, /* XXX */
     .name = "tofu", /* YYY TOFU_FABRIC_NAME */
     .prov_name = NULL,
-    .prov_version = FI_VERSION(0,1),
-#ifdef	NOTYET
-    .api_version = FI_VERSION(1,6),
-#else	/* NOTYET */
-    .api_version = FI_VERSION(0,0),
-#endif	/* NOTYET */
+    .prov_version = FI_TOFU_VERSION,
+    .api_version = FI_VERSION(1,7),
 };
 
 /* === struct fi_info ================================================= */
@@ -469,10 +465,19 @@ int tofu_chck_av_attr(
 {
     int fc = FI_SUCCESS;
 
-    FI_DBG( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
+    FI_DBG(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
 
+    /* 
+     * 2019/04/09
+     * users_attr-name is specified if shared is supported
+     * In MPICH, "FI_NAMED_AV_0\" is passed.
+     */
     if (user_attr != 0) {
 	if ((user_attr->flags & FI_EVENT) != 0) { fc = -FI_ENOSYS; goto bad; }
+
+        FI_DBG( &tofu_prov, FI_LOG_AV, "\t%s\n", user_attr->name);
+        fprintf(stderr, "YI***** tofu_chck_av_attr %s\n", user_attr->name);
+
 	if (user_attr->name != 0) { fc = -FI_ENOSYS; goto bad; }
 	if (user_attr->rx_ctx_bits < 0) { fc = -FI_EINVAL; goto bad; }
     }
