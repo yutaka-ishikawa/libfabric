@@ -622,6 +622,8 @@ libdl_done:
 	ofi_register_provider(PERF_HOOK_INIT, NULL);
 	ofi_register_provider(NOOP_HOOK_INIT, NULL);
 
+	ofi_register_provider(TOFU_INIT, NULL);
+
 	ofi_init = 1;
 
 unlock:
