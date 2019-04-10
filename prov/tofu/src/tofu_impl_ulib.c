@@ -14,15 +14,15 @@ extern struct fi_provider		tofu_prov;
 
 #include <stdio.h>			/* for snprintf() */
 
-struct ulib_desc_cash;
+struct ulib_toqc_cash;
 extern int  tofu_imp_ulib_cash_find(
 		struct tofu_imp_cep_ulib *icep,
 		uint64_t tank,
-		struct ulib_desc_cash **pp_cash_tmpl
+		struct ulib_toqc_cash **pp_cash_tmpl
 	    );
 extern void tofu_imp_ulib_cash_free(
 		struct tofu_imp_cep_ulib *icep,
-		struct ulib_desc_cash *cash_tmpl
+		struct ulib_toqc_cash *cash_tmpl
 	    );
 extern int  tofu_imp_ulib_icep_recv_call_back(
 		void *farg, /* icep */
@@ -505,7 +505,7 @@ int tofu_imp_ulib_send_post(
     }
 #endif	/* NOTYET */
     {
-	struct ulib_desc_cash *cash_tmpl = 0;
+	struct ulib_toqc_cash *cash_tmpl = 0;
 	int fc2;
 
 	fc2 = tofu_imp_ulib_cash_find(icep, tmsg->addr, &cash_tmpl);
@@ -538,7 +538,7 @@ int tofu_imp_ulib_send_post_fast(
 {
     int fc = FI_SUCCESS;
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
-    struct ulib_desc_cash *cash_tmpl = 0;
+    struct ulib_toqc_cash *cash_tmpl = 0;
     struct ulib_shea_data *udat = 0;
 
 printf("\t=== %s()\n", __func__);
@@ -561,11 +561,15 @@ printf("\t=== %s()\n", __func__);
     /* data_init_cash() */
     {
 	struct ulib_toqc *toqc = icep->toqc;
-	struct ulib_desc_cash *cash_real = &udat->real;
+	struct ulib_toqc_cash *cash_real = &udat->real;
 
  printf("YI\t=== %s() incompatible pointer !!!!\n", __func__);
 
+#ifdef	NOTYET_NAME_CHNG
 	cash_real->akey = cash_tmpl->akey; /* address key */
+#else	/* NOTYET_NAME_CHNG */
+	cash_real->fi_a = cash_tmpl->fi_a; /* address key */
+#endif	/* NOTYET_NAME_CHNG */
 	cash_real->vpid = cash_tmpl->vpid; /* virtual processor id. */
 
 	assert(toqc != 0);
@@ -573,7 +577,7 @@ printf("\t=== %s()\n", __func__);
     }
     /* udat . real */
     {
-	struct ulib_desc_cash *cash_real = &udat->real;
+	struct ulib_toqc_cash *cash_real = &udat->real;
 
 	// assert(cash_tmpl->addr[ 1 /* local */ ].vcqh != 0); /* YYY */
 	assert(cash_real->addr[ 1 /* local */ ].vcqh == 0);
@@ -617,7 +621,7 @@ void tofu_imp_ulib_icep_shea_esnd_free(
     struct ulib_shea_data *udat = 0 /* esnd->data */ ; /* XXX */ /* YYY */
 
     if (udat != 0) {
-	struct ulib_desc_cash *cash_tmpl;
+	struct ulib_toqc_cash *cash_tmpl;
 
 	cash_tmpl = 0 /* ulib_shea_data_toqc_cash_tmpl(udat) */ ; /* YYY */
 	if (cash_tmpl != 0) {
@@ -1260,11 +1264,11 @@ bad:
 
 /* ------------------------------------------------------------------------ */
 
-static inline struct ulib_desc_cash * tofu_imp_ulib_cash_uref_unsafe(
+static inline struct ulib_toqc_cash * tofu_imp_ulib_cash_uref_unsafe(
     struct dlist_entry *head
 )
 {
-    struct ulib_desc_cash *cash_unref = 0;
+    struct ulib_toqc_cash *cash_unref = 0;
 
     /*
      * An unreferenced (refc == 0) and Least Recently Used (LRU) entry
@@ -1274,10 +1278,10 @@ static inline struct ulib_desc_cash * tofu_imp_ulib_cash_uref_unsafe(
 	struct dlist_entry *curr, *next;
 
 	dlist_foreach_safe(head, curr, next) {
-	    struct ulib_desc_cash *cash;
+	    struct ulib_toqc_cash *cash;
 	    int32_t refc;
 
-	    cash = container_of(curr, struct ulib_desc_cash, list);
+	    cash = container_of(curr, struct ulib_toqc_cash, list);
 
 	    refc = ofi_atomic_get32(&cash->refc);
 	    if (refc != 0) { assert(refc > 0); continue; }
@@ -1295,7 +1299,7 @@ static inline struct ulib_desc_cash * tofu_imp_ulib_cash_uref_unsafe(
 int tofu_imp_ulib_cash_find(
     struct tofu_imp_cep_ulib *icep,
     uint64_t tank /* key */,
-    struct ulib_desc_cash **pp_cash_tmpl
+    struct ulib_toqc_cash **pp_cash_tmpl
 )
 {
     int fc = FI_SUCCESS;
@@ -1311,10 +1315,16 @@ int tofu_imp_ulib_cash_find(
 	struct dlist_entry *curr, *next;
 
 	dlist_foreach_safe(head, curr, next) {
-	    struct ulib_desc_cash *cash_tmpl;
+	    struct ulib_toqc_cash *cash_tmpl;
 
-	    cash_tmpl = container_of(curr, struct ulib_desc_cash, list);
-	    if (cash_tmpl->akey == tank) {
+	    cash_tmpl = container_of(curr, struct ulib_toqc_cash, list);
+	    if (
+#ifdef	NOTYET_NAME_CHNG
+		cash_tmpl->akey == tank
+#else	/* NOTYET_NAME_CHNG */
+		cash_tmpl->fi_a == tank
+#endif	/* NOTYET_NAME_CHNG */
+	    ) {
 		dlist_remove(curr);
 		ofi_atomic_inc32(&cash_tmpl->refc);
 		dlist_insert_head(curr, head);
@@ -1349,7 +1359,7 @@ int tofu_imp_ulib_cash_find(
     /* new cash */
     {
 	struct ulib_cash_fs *cash_fs = icep->cash_fs;
-	struct ulib_desc_cash *cash_tmpl;
+	struct ulib_toqc_cash *cash_tmpl;
 
 	assert(cash_fs != 0);
 	if (freestack_isempty(cash_fs)) {
@@ -1362,19 +1372,23 @@ int tofu_imp_ulib_cash_find(
 	    cash_tmpl = freestack_pop(cash_fs);
 	}
 
-	/* ulib_desc_cash_init(cash_tmpl, tank); */ /* YYY */
+	/* ulib_toqc_cash_init(cash_tmpl, tank); */ /* YYY */
 	{   /* YYY */
+#ifdef	NOTYET_NAME_CHNG
 	    cash_tmpl->akey = tank; /* YYY */
+#else	/* NOTYET_NAME_CHNG */
+	    cash_tmpl->fi_a = tank; /* YYY */
+#endif	/* NOTYET_NAME_CHNG */
 	    ofi_atomic_initialize32(&cash_tmpl->refc, 0); /* XXX YYY */
 	}
         printf("YI   cash_tmpl->vpid = au.tank.pid; no member\n");
-#if 0
+//#if 0
 	/* vpid */
 	{
 	    union ulib_tofa_u au = { .ui64 = tank, };
 	    cash_tmpl->vpid = au.tank.pid;
 	}
-#endif /* 0 */
+//#endif /* 0 */
 
 	ofi_atomic_inc32(&cash_tmpl->refc);
 #ifdef	NOTYET
@@ -1421,7 +1435,7 @@ bad:
 
 void tofu_imp_ulib_cash_free(
     struct tofu_imp_cep_ulib *icep,
-    struct ulib_desc_cash *cash_tmpl
+    struct ulib_toqc_cash *cash_tmpl
 )
 {
     assert(ofi_atomic_get32(&cash_tmpl->refc) > 0);
@@ -1731,7 +1745,7 @@ int ulib_icep_find_cash(
 
 	head = &head_cash /* icep->head_cash */; /* YYY */
 
-	cash_tmpl = DLST_PEEK(head, ulib_toqc_cash, list);
+	cash_tmpl = DLST_PEEK(head, struct ulib_toqc_cash, list);
 	while (cash_tmpl != 0) {
 	    if (cash_tmpl->fi_a == dfia) {
 		DLST_RMOV(head, cash_tmpl, list);
@@ -1795,7 +1809,7 @@ ioav = (void *)icep; /* YYY */
 
 	    head = &head_cash /* icep->head_cash */; /* YYY */
 
-	    cash_tmpl = DLST_LAST(head, ulib_head_cash, ulib_toqc_cash, list);
+	    cash_tmpl = DLST_LAST(head, ulib_head_cash, struct ulib_toqc_cash, list);
 	    assert(cash_tmpl == 0);
 	    if (cash_tmpl->refc > 0) {
 		assert(cash_tmpl->refc == 0); /* YYY */

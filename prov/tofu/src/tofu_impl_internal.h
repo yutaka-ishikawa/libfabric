@@ -6,6 +6,7 @@
 
 #include "tofu_prv.h"
 #include "ulib_shea.h"
+#include "ulib_desc.h"
 #include "ulib_ofif.h"
 #include "ulib_toqc.h"
 #include "ulib_conv.h"

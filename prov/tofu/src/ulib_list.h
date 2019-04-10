@@ -55,12 +55,12 @@
     dlist_empty(HP_)? 0: \
 	DLIST_X_ENTRY( DLIST_X_FIRST(HP_), EN_, FN_) \
     )
-#define DLST_LAST(HP_,EN_,FN_) ( \
+#define DLST_LAST(HP_,HN_,EN_,FN_) ( \
     dlist_empty(HP_)? 0: \
 	DLIST_X_ENTRY( DLIST_X_LAST(HP_), EN_, FN_) \
     )
 #define DLST_NEXT(EP_,HP_,EN_,FN_) ( \
-    (&(EP_)->FN_.next == (HP_))? 0: \
+    ((EP_)->FN_.next == (HP_))? 0: \
 	DLIST_X_ENTRY( &(EP_)->FN_.next, EN_, FN_) \
     )
 
