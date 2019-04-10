@@ -108,7 +108,7 @@ static void tofu_fini(void)
      * Do not need to call this function, maybe 2019/04/09 YI
      * fi_log_fini();
      */
-    return ;
+    return;
 }
 
 struct fi_provider tofu_prov = {
