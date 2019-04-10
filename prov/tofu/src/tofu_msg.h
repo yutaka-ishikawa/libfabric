@@ -178,8 +178,9 @@ static inline int tofu_cep_msg_sendmsg_self(
 
 	wlen = tofu_copy_iovs(iov_dst, ioc_dst, iof_dst, iov_src, ioc_src);
 	FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "wlen %ld\n", wlen);
-        if (wlen <= rlen) {
-            FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "wlen <= rlenn");
+        if (wlen < rlen) {
+            FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "wlen %ld <= rlen %ld\n",
+		wlen, rlen);
             assert(0);
         }
     }

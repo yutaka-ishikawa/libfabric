@@ -412,7 +412,7 @@ int tofu_cep_tx_context(
 	cep_priv->cep_fid.cm		= &tofu_cep_ops_cm;
 	cep_priv->cep_fid.msg           = &tofu_cep_ops_msg;
 	cep_priv->cep_fid.rma   	= &tofu_cep_ops_rma;
-	cep_priv->cep_fid.tagged	= 0; /* fi_ops_tagged */
+	cep_priv->cep_fid.tagged	= &tofu_cep_ops_tag;
 	cep_priv->cep_fid.atomic	= &tofu_cep_ops_atomic;
 
 	/* dlist_init( &cep_priv->cep_ent ); */
@@ -520,7 +520,7 @@ int tofu_cep_rx_context(
 	cep_priv->cep_fid.cm		= &tofu_cep_ops_cm;
 	cep_priv->cep_fid.msg           = &tofu_cep_ops_msg;
 	cep_priv->cep_fid.rma   	= &tofu_cep_ops_rma;
-	cep_priv->cep_fid.tagged	= 0; /* fi_ops_tagged */
+	cep_priv->cep_fid.tagged	= &tofu_cep_ops_tag;
 	cep_priv->cep_fid.atomic	= &tofu_cep_ops_atomic;
 
 	/* dlist_init( &cep_priv->cep_ent ); */

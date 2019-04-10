@@ -392,6 +392,166 @@ static ssize_t tofu_cep_msg_inject(
     return ret;
 }
 
+/* ==================================================================== */
+/* === for struct fi_ops_tagged ======================================= */
+/* ==================================================================== */
+
+static ssize_t tofu_cep_tag_recv(
+    struct fid_ep *fid_ep,
+    void *buf,
+    size_t len,
+    void *desc,
+    fi_addr_t src_addr,
+    uint64_t tag,
+    uint64_t ignore,
+    void *context
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_recvv(
+    struct fid_ep *fid_ep,
+    const struct iovec *iov,
+    void **desc,
+    size_t count,
+    fi_addr_t src_addr,
+    uint64_t tag,
+    uint64_t ignore,
+    void *context
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_recvmsg(
+    struct fid_ep *fid_ep,
+    const struct fi_msg_tagged *msg,
+    uint64_t flags
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_send(
+    struct fid_ep *fid_ep,
+    const void *buf,
+    size_t len,
+    void *desc,
+    fi_addr_t dest_addr,
+    uint64_t tag,
+    void *context
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_sendv(
+    struct fid_ep *fid_ep,
+    const struct iovec *iov,
+    void **desc,
+    size_t count,
+    fi_addr_t dest_addr,
+    uint64_t tag,
+    void *context
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_sendmsg(
+    struct fid_ep *fid_ep,
+    const struct fi_msg_tagged *msg,
+    uint64_t flags
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_inject(
+    struct fid_ep *fid_ep,
+    const void *buf,
+    size_t len,
+    fi_addr_t dest_addr,
+    uint64_t tag
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_senddata(
+    struct fid_ep *fid_ep,
+    const void *buf,
+    size_t len,
+    void *desc,
+    uint64_t data,
+    fi_addr_t dest_addr,
+    uint64_t tag,
+    void *context
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    return ret;
+}
+
+static ssize_t tofu_cep_tag_injectdata(
+    struct fid_ep *fid_ep,
+    const void *buf,
+    size_t len,
+    uint64_t data,
+    fi_addr_t dest_addr,
+    uint64_t tag
+)
+{
+    ssize_t ret = -FI_ENOSYS;
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+if (1) {
+    struct fi_msg_tagged tmsg;
+    struct iovec iovs[1];
+    uint64_t flags = 0
+		    | FI_INJECT
+		    /* FI_REMOTE_CQ_DATA */ /* XXX */
+		    /* | TOFU_NO_COMPLETION */ /* YYY */
+		    /* | TOFU_USE_OP_FLAG */ /* YYY */
+		    ;
+
+    iovs->iov_base  = (void *)buf;
+    iovs->iov_len   = len;
+
+    tmsg.msg_iov    = iovs;
+    tmsg.desc	    = 0;
+    tmsg.iov_count  = 1;
+    tmsg.addr	    = dest_addr;
+    tmsg.tag	    = tag;
+    tmsg.ignore	    = -1ULL;	/* XXX */
+    tmsg.context    = 0;	/* XXX */
+    tmsg.data	    = data;
+
+    ret = tofu_cep_msg_send_common(fid_ep, &tmsg, flags);
+    if (ret != 0) { goto bad; }
+}
+
+bad:
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "fi_errno %ld in %s\n", ret, __FILE__);
+    return ret;
+}
+
+
 struct fi_ops_msg tofu_cep_ops_msg = {
 #ifdef	notdef
     .size	    = sizeof (struct fi_ops_msg),
@@ -415,5 +575,31 @@ struct fi_ops_msg tofu_cep_ops_msg = {
     .inject	    = tofu_cep_msg_inject,
     .senddata	    = fi_no_msg_senddata,
     .injectdata	    = fi_no_msg_injectdata,
+#endif	/* notdef */
+};
+
+struct fi_ops_tagged tofu_cep_ops_tag = {
+#ifdef	notdef
+    .size	    = sizeof (struct fi_ops_tagged),
+    .recv	    = fi_no_tagged_recv,
+    .recvv	    = fi_no_tagged_recvv,
+    .recvmsg	    = fi_no_tagged_recvmsg,
+    .send	    = fi_no_tagged_send,
+    .sendv	    = fi_no_tagged_sendv,
+    .sendmsg	    = fi_no_tagged_sendmsg,
+    .inject	    = fi_no_tagged_inject,
+    .senddata	    = fi_no_tagged_senddata,
+    .injectdata	    = fi_no_tagged_injectdata,
+#else	/* notdef */
+    .size	    = sizeof (struct fi_ops_tagged),
+    .recv	    = tofu_cep_tag_recv,
+    .recvv	    = tofu_cep_tag_recvv,
+    .recvmsg	    = tofu_cep_tag_recvmsg,
+    .send	    = tofu_cep_tag_send,
+    .sendv	    = tofu_cep_tag_sendv,
+    .sendmsg	    = tofu_cep_tag_sendmsg,
+    .inject	    = tofu_cep_tag_inject,
+    .senddata	    = tofu_cep_tag_senddata,
+    .injectdata	    = tofu_cep_tag_injectdata,
 #endif	/* notdef */
 };

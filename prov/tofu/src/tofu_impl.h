@@ -177,6 +177,7 @@ extern struct fi_ops_cm			tofu_sep_ops_cm;
 extern struct fi_ops_cm			tofu_cep_ops_cm;
 
 extern struct fi_ops_msg		tofu_cep_ops_msg;
+extern struct fi_ops_tagged		tofu_cep_ops_tag;
 
 extern struct fi_ops_rma		tofu_cep_ops_rma;
 extern struct fi_ops_atomic		tofu_cep_ops_atomic;
