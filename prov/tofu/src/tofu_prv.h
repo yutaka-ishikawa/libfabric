@@ -70,10 +70,11 @@ struct tofu_cep {
     struct tofu_cq *	cep_recv_cq;
     struct tofu_cntr *	cep_wop_ctr; /* write rma operation */
     struct tofu_cntr *	cep_rop_ctr; /* read  rma operation */
-#ifdef	CONF_TOFU_RECV	/* DONE */
-    struct tofu_recv_fs *   recv_fs;	/* recv msg */
-    struct dlist_entry	    recv_hd;	/* recv msg */
-#endif	/* CONF_TOFU_RECV */
+    struct tofu_recv_fs *   recv_fs;	 /* free list of recv msg */
+    struct dlist_entry	    recv_tag_hd; /* posted recv tag */
+    struct dlist_entry	    recv_msg_hd; /* posted recv msg */
+    struct dlist_entry	    unexp_tag_hd; /* unexpected recv tag */
+    struct dlist_entry	    unexp_msg_hd; /* unexpected recv msg */
 };
 
 #endif	/* _TOFU_PRV_H */

@@ -50,28 +50,16 @@ tofu_getinfo(uint32_t version, const char *node,
     }
 #endif
     /**/
-//#if 0
-    printf("tofu_getinfo: NEEDS to fill in data \n");
+    fprintf(stderr, "YI****** tofu_getinfo: NEEDS to fill in the src_addr and dest_addr fields or set size sero\n"); fflush(stderr);
     fiinfo->src_addr = malloc(fiinfo->src_addrlen);
     fiinfo->dest_addr = malloc(fiinfo->dest_addrlen);
-    if (fiinfo->ep_attr) {
-        fiinfo->ep_attr->auth_key = (uint8_t*) malloc(128);
-    }
-    if (fiinfo->domain_attr) {
-        fiinfo->domain_attr->auth_key = (uint8_t*) malloc(128);
-    }
-    if (fiinfo->fabric_attr) {
-        fiinfo->fabric_attr->prov_name = (char*) malloc(sizeof("tofu") + 1);
-        strcpy(fiinfo->fabric_attr->prov_name, "tofu");
-    }
-    fiinfo->nic = 0;
-    /* if needed ...
-      fiinfo->nic = (struct fid_nic*) malloc(sizeof(struct fid_nic));
-      memset(ffinfo->nic, 0, sizeof(struct fid_nic));
-      ffinfo->fid.ops =  (struct fi_ops*) malloc(sizeof(struct fi_ops));
-    */
-//#endif
-
+    memset(fiinfo->src_addr, 0, fiinfo->src_addrlen);
+    memset(fiinfo->dest_addr, 0, fiinfo->dest_addrlen);
+    fprintf(stderr, "YI****** %s:\n"
+            "\tcaps(0x%lx)\tmode(0x%lx)\taddr_format(%d)\n"
+            "\tsrc_addrlen(%ld)dest_addrlen(%ld)\n",
+            __func__, fiinfo->caps, fiinfo->mode, fiinfo->addr_format,
+            fiinfo->src_addrlen, fiinfo->dest_addrlen); fflush(stderr);
     *info = fiinfo;
     FI_INFO(&tofu_prov, FI_LOG_DEBUG,
             "\n\tinfo(%p)->src_addr: 0x%p\n"

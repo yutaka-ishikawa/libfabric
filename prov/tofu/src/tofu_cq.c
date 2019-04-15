@@ -77,6 +77,7 @@ static ssize_t tofu_cq_read(
 	assert(comp != 0);
 
 	/* copy */
+        fprintf(stderr, "YI********** %s in %s: comp[0].op_context(%p)\n", __func__, __FILE__, comp[0].op_context); fflush(stderr);
 	((struct fi_cq_tagged_entry *)buf)[ient] = comp[0];
 
 	/* advance r.p. by one  */

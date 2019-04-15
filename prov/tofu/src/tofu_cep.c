@@ -420,7 +420,10 @@ int tofu_cep_tx_context(
 	dlist_init( &cep_priv->cep_ent_cq );
 	dlist_init( &cep_priv->cep_ent_ctr );
 #ifdef	CONF_TOFU_RECV	/* DONE */
-	dlist_init( &cep_priv->recv_hd );
+	dlist_init( &cep_priv->recv_tag_hd );
+	dlist_init( &cep_priv->recv_msg_hd );
+	dlist_init( &cep_priv->unexp_tag_hd );
+	dlist_init( &cep_priv->unexp_msg_hd );
 	/* cep_priv->recv_fs = 0; */
 #endif	/* CONF_TOFU_RECV */
 	cep_priv->cep_xop_flg = (attr == 0)? 0UL: attr->op_flags;
@@ -528,7 +531,10 @@ int tofu_cep_rx_context(
 	dlist_init( &cep_priv->cep_ent_cq );
 	dlist_init( &cep_priv->cep_ent_ctr );
 #ifdef	CONF_TOFU_RECV	/* DONE */
-	dlist_init( &cep_priv->recv_hd );
+	dlist_init( &cep_priv->recv_tag_hd );
+	dlist_init( &cep_priv->recv_msg_hd );
+	dlist_init( &cep_priv->unexp_tag_hd );
+	dlist_init( &cep_priv->unexp_msg_hd );
 	/* cep_priv->recv_fs = 0; */
 #endif	/* CONF_TOFU_RECV */
 	cep_priv->cep_xop_flg = (attr == 0)? 0UL: attr->op_flags;

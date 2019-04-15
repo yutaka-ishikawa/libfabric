@@ -57,10 +57,7 @@ DECLARE_FREESTACK(struct tofu_recv_en, tofu_recv_fs); /* see ofi_mem.h */
 OFI_DECLARE_CIRQUE(struct fi_cq_tagged_entry, tofu_ccirq);
 
 /* === structures ===================================================== */
-#ifndef	NOTDEF_PRIV
-
 #include "tofu_prv.h"
-#endif	/* NOTDEF_PRIV */
 
 struct tofu_fabric {
     struct fid_fabric	fab_fid;
@@ -88,19 +85,6 @@ struct tofu_cq {
     struct dlist_entry	cq__hrx;    /* haed for ep tx ctxs */
     struct tofu_ccirq * cq__ccq;    /* _cirq : circular queue */
 };
-#ifdef	NOTDEF_PRIV
-
-struct tofu_mr {
-    struct fid_mr	mr__fid;
-    struct tofu_domain *mr__dom;
-    ofi_atomic32_t	mr__ref;
-    fastlock_t		mr__lck;
-/*  struct dlist_entry	mr__ent; */
-    struct fi_mr_attr	mr__att;
-    uint64_t		mr__flg;
-    struct iovec	mr__iov;
-};
-#endif	/* NOTDEF_PRIV */
 
 struct tofu_cntr {
     struct fid_cntr	ctr_fid;
@@ -127,45 +111,6 @@ struct tofu_av {
 	void *		tab;
     }			av__tab;
 };
-#ifdef	NOTDEF_PRIV
-
-struct tofu_sep {
-    struct fid_ep	sep_fid;
-    struct tofu_domain *sep_dom;
-    ofi_atomic32_t	sep_ref;
-    uint32_t		sep_enb;    /* enabled */
-    fastlock_t		sep_lck;
-/*  struct dlist_entry	sep_ent; */
-    struct dlist_entry	sep_htx;    /* haed for ep tx ctxs */
-    struct dlist_entry	sep_hrx;    /* haed for ep tx ctxs */
-    struct tofu_av *	sep_av_;
-};
-#endif	/* NOTDEF_PRIV */
-#ifdef	NOTDEF_PRIV
-
-struct tofu_cep {
-    struct fid_ep	cep_fid;
-    struct tofu_sep *	cep_sep;
-    ofi_atomic32_t	cep_ref;
-    uint32_t		cep_enb;    /* enabled */
-    int			cep_idx;
-    fastlock_t		cep_lck;
-/*  struct dlist_entry	cep_ent; */
-    uint64_t		cep_xop_flg;
-    struct tofu_cep *	cep_trx;
-    struct dlist_entry	cep_ent_sep;
-    struct dlist_entry	cep_ent_cq;
-    struct dlist_entry	cep_ent_ctr;
-    struct tofu_cq *	cep_send_cq;
-    struct tofu_cq *	cep_recv_cq;
-    struct tofu_cntr *	cep_wop_ctr; /* write rma operation */
-    struct tofu_cntr *	cep_rop_ctr; /* read  rma operation */
-#ifdef	CONF_TOFU_RECV	/* DONE */
-    struct tofu_recv_fs *   recv_fs;	/* recv msg */
-    struct dlist_entry	    recv_hd;	/* recv msg */
-#endif	/* CONF_TOFU_RECV */
-};
-#endif	/* NOTDEF_PRIV */
 
 /* === variables ====================================================== */
 
