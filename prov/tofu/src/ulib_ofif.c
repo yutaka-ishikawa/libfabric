@@ -126,6 +126,7 @@ int ulib_icep_ctrl_enab(struct ulib_icep *icep)
 	}
 	tni_id = isep->tnis[icep->index];
 
+        fprintf(stderr, "YI******** CHECKCHECK tni_id(%d) %s\n", tni_id, __func__);
 	uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 

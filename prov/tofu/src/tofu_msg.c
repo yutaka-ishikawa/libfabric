@@ -1,11 +1,11 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
-#include "tofu_impl.h"
-
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
-
+#include "ulib_conv.h"
+#include "tofu_impl.h"
+#include "tofu_impl_internal.h"
 
 static ssize_t
 tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
@@ -14,9 +14,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
 {
     ssize_t ret = FI_SUCCESS;
     struct tofu_cep *cep_priv = 0;
-#ifdef	CONF_TOFU_RECV
     struct tofu_recv_en *recv_entry;
-#endif	/* CONF_TOFU_RECV */
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
@@ -36,8 +34,6 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     }
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
     /* if (cep_priv->cep_enb == 0) { fc = -FI_EOPBADSTATE; goto bad; } */
-    if (cep_priv == 0) { }
-#ifdef	CONF_TOFU_RECV
     fastlock_acquire( &cep_priv->cep_lck );
     if (freestack_isempty(cep_priv->recv_fs)) {
         fastlock_release( &cep_priv->cep_lck );
@@ -80,32 +76,24 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
         fastlock_release(&cep_priv->cep_lck);
     }
     /* Enqueue posted queue */
+    fastlock_acquire( &cep_priv->cep_lck );
     if (flags & FI_TAGGED) {
         dlist_insert_tail(&recv_entry->entry, &cep_priv->recv_tag_hd);
     } else {
         dlist_insert_tail(&recv_entry->entry, &cep_priv->recv_msg_hd);
     }
     fastlock_release( &cep_priv->cep_lck );
-#endif	/* CONF_TOFU_RECV */
-    fprintf(stderr, "YI****** CONF_TOFU_SHEA is commented out: %s in %s\n",
-            __func__, __FILE__); fflush(stderr);
-#if 0
-#ifdef	CONF_TOFU_SHEA
     {
         const size_t offs_ulib = sizeof (cep_priv[0]);
 	/* YI 2019/04/11
          * uint64_t iflg = flags & ~FI_TAGGED;
          */
-
 	fastlock_acquire( &cep_priv->cep_lck );
 	ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags,
 		tofu_cq_comp_tagged, cep_priv->cep_recv_cq);
 	fastlock_release( &cep_priv->cep_lck );
 	if (ret != 0) { goto bad; }
     }
-#endif	/* CONF_TOFU_SHEA */
-#endif /* 0 */
-
 bad:
     return ret;
 }
@@ -197,9 +185,16 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
                          const struct fi_msg_tagged *msg,
                          uint64_t flags)
 {
-    ssize_t ret = FI_SUCCESS;
-    struct tofu_cep *cep_priv = 0;
+    ssize_t          ret = FI_SUCCESS;
+    struct tofu_cep  *cep_priv = 0;
+    struct tofu_imp_cep_ulib *icep;
+    union ulib_tofa_u   tank;
+    struct tofu_av   *av__priv;
+    fi_addr_t        fi_a = msg->addr;
+    int fc;
+
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
@@ -208,27 +203,27 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
 	ret = -FI_ENOSYS; goto bad;
     }
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
-    /* if (cep_priv->cep_enb != 0) { fc = -FI_EOPBADSTATE; goto bad; } */
-    if (cep_priv == 0) { }
-#ifdef	CONF_TOFU_RECV
-    /* loopback */
-    {
+    /* convert fi_addr to tank */
+    av__priv = cep_priv->cep_sep->sep_av_;
+    fc = tofu_av_lup_tank(av__priv, fi_a, &tank.ui64);
+    if (fc != FI_SUCCESS) { ret = fc; goto bad; }
+    tank.tank.pid = 0; tank.tank.vld = 0; tank.tank.cid = 0;
+    icep = (struct tofu_imp_cep_ulib*) (cep_priv + 1);
+    fprintf(stderr, "YI****** dest tofa(0x%lx) my tofa(0x%lx) in %s\n",
+            tank.ui64, icep->tofa.ui64, __func__);
+    if (icep->tofa.ui64 == tank.ui64) {
 	int fc;
+        FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");
 	fc = tofu_cep_msg_sendmsg_self(cep_priv, msg, flags);
 	if (fc != 0) {
 	    ret = fc; goto bad;
 	}
-    }
-#endif	/* CONF_TOFU_RECV */
-    fprintf(stderr, "YI****** CONF_TOFU_SHEA is commented out: %s in %s\n",
-            __func__, __FILE__); fflush(stderr);
-#if 0
-#ifdef	CONF_TOFU_SHEA
-    {
+    } else {
         const size_t offs_ulib = sizeof (cep_priv[0]);
 	uint64_t iflg = flags & ~FI_TAGGED;
 	uint64_t tank = -1ULL;
 
+        FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***REMOTE SEND\n");
 	/* convert fi_addr to tank */
 	{
 	    struct tofu_av *av__priv;
@@ -307,8 +302,6 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
 	fastlock_release( &cep_priv->cep_lck );
 	if (ret != 0) { goto bad; }
     }
-#endif	/* CONF_TOFU_SHEA */
-#endif /* 0 */
 
 bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "fi_errno %ld\n", ret);

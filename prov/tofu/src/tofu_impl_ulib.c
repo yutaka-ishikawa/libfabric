@@ -138,6 +138,9 @@ void tofu_imp_ulib_fini(void *vptr, size_t offs)
     return ;
 }
 
+/*
+ * context endpoint is enabled
+ */
 int tofu_imp_ulib_enab(void *vptr, size_t offs)
 {
     int fc = FI_SUCCESS;
@@ -218,6 +221,7 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
 	    fc = tofu_imp_ulib_isep_qtni(sep_priv, index, &niid);
             tni_id = (utofu_tni_id_t)niid;
 	    if (fc != FI_SUCCESS) { goto bad; }
+            fprintf(stderr, "YI******** CHECKCHECK tni_id(%d) %s\n", tni_id, __func__);
             uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags,
                                               &icep->vcqh);
             if (uc != UTOFU_SUCCESS) { fc = -FI_EBUSY; goto bad; }
@@ -240,6 +244,29 @@ int tofu_imp_ulib_enab(void *vptr, size_t offs)
                                      ctag, dtag, func, farg);
             if (uc != 0) { fc = -FI_EINVAL /* XXX */; goto bad; }
         }
+    }
+    /* YI added 2019/04/16 */
+    {
+        utofu_vcq_id_t vcqi = -1UL;
+	uint8_t xyz[8];	uint16_t tni[1], tcq[1], cid[1];
+        int uc;
+        uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
+        if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL /* XXX */; goto bad; }
+        uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
+        if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL /* XXX */; goto bad; }
+        icep->tofa.ui64 = 0;
+        icep->tofa.tofa.tux = xyz[0];
+        icep->tofa.tofa.tuy = xyz[1];
+        icep->tofa.tofa.tuz = xyz[2];
+        icep->tofa.tofa.tua = xyz[3];
+        icep->tofa.tofa.tub = xyz[4];
+        icep->tofa.tofa.tuc = xyz[5];
+        icep->tofa.tofa.tni = tni[0];
+        icep->tofa.tofa.tcq = tcq[0];
+        fprintf(stderr, "YI****** self TOFU ADDR ******"
+                " xyz=%2x%2x%2x%2x%2x%2x tni=%x tcq=%x cid=%x tofa.ui64=%lx\n",
+                xyz[0],xyz[1],xyz[2],xyz[3],xyz[4],xyz[5],
+                tni[0], tcq[0], cid[0], icep->tofa.ui64);
     }
 bad:
     return fc;
@@ -271,90 +298,29 @@ int tofu_imp_ulib_gnam(
 
     for (ix = 0; ix < nx; ix++) {
 	void *vptr = ceps[ix];
-#ifdef NOTYET
 	struct tofu_imp_cep_ulib *icep;
-#endif
+	utofu_vcq_id_t vcqi = -1UL;
+	int uc;
 
 	if (vptr == 0) {
 	    tnis[ix] = 255; tcqs[ix] = 255; continue;
 	}
-#ifdef	NOTYET
 	icep = (void *)((uint8_t *)vptr + offs);
 	if (icep->vcqh == 0) {
-#ifdef	notdef
 	    fc = -FI_ENODEV; goto bad;
-#else	/* notdef */
-	    tnis[ix] = 255; tcqs[ix] = 255; continue;
-#endif	/* notdef */
 	}
-	struct utofu_vcq_id_t vcqi = -1UL;
-	struct {
-	    uint8_t xyz[8];
-	    utofu_tni_id_t tni[1];
-	    utofu_cq_id_t tcq[1];
-	    utofu_cmp_id_t cid[1];
-	} i;
-	int uc;
-
 	uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
 	if (uc != UTOFU_SUCCESS) {
-#ifdef	notdef
-	    fc = -FI_ENODEV; goto bad;
-#else	/* notdef */
 	    tnis[ix] = 255; tcqs[ix] = 255; continue;
-#endif	/* notdef */
 	}
-
-	uc = utofu_query_vcq_info(vcqi, i.xyz, i.tni, i.tcq, i.cid);
+	uc = utofu_query_vcq_info(vcqi, xyzabc, &tnis[ix], &tcqs[ix], cid);
 	if (uc != UTOFU_SUCCESS) {
-#ifdef	notdef
-	    fc = -FI_ENODEV; goto bad;
-#else	/* notdef */
 	    tnis[ix] = 255; tcqs[ix] = 255; continue;
-#endif	/* notdef */
 	}
-
-	if (xyzabc[0] == 255) {
-	    xyzabc[0] = i.xyz[0];
-	    xyzabc[1] = i.xyz[1];
-	    xyzabc[2] = i.xyz[2];
-	    xyzabc[3] = i.xyz[3]; /* 1 bit  */
-	    xyzabc[4] = i.xyz[4]; /* 2 bits */
-	    xyzabc[5] = i.xyz[5]; /* 1 bit  */
-	    cid[0]    = i.cid; /* CONF_ULIB_CMP_ID */
-	}
-#ifndef	NDEBUG
-	else {
-	    assert(xyzabc[0] == i.xyz[0]);
-	    assert(xyzabc[1] == i.xyz[1]);
-	    assert(xyzabc[2] == i.xyz[2]);
-	    assert(xyzabc[3] == i.xyz[3]);
-	    assert(xyzabc[4] == i.xyz[4]);
-	    assert(xyzabc[5] == i.xyz[5]);
-	    assert(cid[0]    == i.cid);
-	}
-#endif	/* NDEBUG */
-	tnis[ix] = i.tni[0];
-	tcqs[ix] = i.tcq[0];
-#else	/* NOTYET */
-	if (xyzabc[0] == 255) {
-	    xyzabc[0] = 31;
-	    xyzabc[1] = 31;
-	    xyzabc[2] = 31;
-	    xyzabc[3] = 1;
-	    xyzabc[4] = 2;
-	    xyzabc[5] = 1;
-	    cid[0]    = 7;
-	}
-	tnis[ix] = ix;
-	tcqs[ix] = 10;
-#endif	/* NOTYET */
     }
     if (xyzabc[0] == 255) {
 	fc = -FI_ENODEV; goto bad;
     }
-    /* addr_format == FI_ADDR_STR */
-    /* t://x.y.z.a.b.c/j_id/rank/cmp/ */
     {
 	int wlen, nx2;
 	size_t cz = 128;
@@ -389,7 +355,6 @@ int tofu_imp_ulib_gnam(
 	    cz -= wlen;
 	}
     }
-
 bad:
     return fc;
 }
@@ -1475,52 +1440,33 @@ int tofu_imp_ulib_isep_open(
 )
 {
     int fc = FI_SUCCESS;
+    int uc;
     struct tofu_imp_sep_ulib *isep;
+    utofu_tni_id_t *tnis = 0;
+    size_t ntni = 0;
+    size_t ni, nn = ntni;
+    const size_t mtni = sizeof (isep->tnis) / sizeof (isep->tnis[0]);
 
     isep = &((struct tofu_imp_sep_ulib_s *)sep_priv)->sep_lib;
-if (0) {
-printf("%s:%d\t%p %p\n", __func__, __LINE__, sep_priv, isep);
-}
-    {
-	utofu_tni_id_t *tnis = 0;
-	size_t ntni = 0;
-	int uc;
+    fprintf(stderr, "YI***** %s:%d\t%p %p\n",
+            __func__, __LINE__, sep_priv, isep); fflush(stderr);
 
-#ifdef	NOTYET
-	uc = utofu_get_onesided_tnis( &tnis, &ntni );
-#else	/* NOTYET */
-	{
-	    const size_t nids = 4;
-	    utofu_tni_id_t *tids = malloc(sizeof (tnis[0]) * nids);
-
-	    tids[0] = 0; tids[1] = 1; tids[2] = 2; tids[3] = 3;
-	    tnis = tids;
-	    ntni = nids;
-	}
-	uc = 0;
-#endif	/* NOTYET */
-	if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
-
-	/* isep */
-	{
-	    size_t ni, nn = ntni;
-	    const size_t mtni = sizeof (isep->tnis) / sizeof (isep->tnis[0]);
-
-	    if (nn > mtni) {
-		nn = mtni;
-	    }
-	    /* copy tnis[] and ntni */
-	    for (ni = 0; ni < nn; ni++) {
-		isep->tnis[ni] = tnis[ni];
-	    }
-	    isep->ntni = ntni;
-	    /* free tnis[] */
-	    if (tnis != 0) {
-		free(tnis); tnis = 0;
-	    }
-	    assert(isep->ntni > 0);
-	}
+    uc = utofu_get_onesided_tnis( &tnis, &ntni );
+    if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
+    /* isep */
+    if (nn > mtni) {
+        nn = mtni;
     }
+    /* copy tnis[] and ntni */
+    for (ni = 0; ni < nn; ni++) {
+        isep->tnis[ni] = tnis[ni];
+    }
+    isep->ntni = ntni;
+    /* free tnis[] */
+    if (tnis != 0) {
+        free(tnis); tnis = 0;
+    }
+    assert(isep->ntni > 0);
 bad:
     return fc;
 }

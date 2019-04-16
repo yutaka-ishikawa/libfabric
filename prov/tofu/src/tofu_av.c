@@ -90,22 +90,8 @@ static int tofu_av_insert(
 	/* fastlock_acquire( &av__priv->av__lck ); */
 	index = av__priv->av__tab.nct++;
 	/* fastlock_release( &av__priv->av__lck ); */
-
-	/*
-         * tofu driver uses FI_ADDR_STR format !!
-         *      See struct fi_info tofu_prov_info defined in tofu_attr.c
-	 * man fi_av(3)
-	 *   fi_av_insert
-	 *     When using the FI_ADDR_STR format, the addr parameter
-	 *     should reference an array of strings (char **).
-         * Needs to understand why the following code is incorrect.
-         *      2019/04/09
-         *   if (afmt == FI_ADDR_STR) {
-         *      const char *cp = ((char **)addr)[ic];
-         *      fc = tofu_imp_str_uri_to_name(addr, 0, vnam);
-         *   }
-	 */
 	if (afmt == FI_ADDR_STR) {
+            fprintf(stderr, "YI*****addr = %s\n", (char*)addr); fflush(stderr);
             fc = tofu_imp_str_uri_to_name(addr, ic, vnam);
 	} else {
             FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");

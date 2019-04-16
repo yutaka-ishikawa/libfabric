@@ -227,6 +227,7 @@ struct tofu_imp_cep_ulib {
     size_t cash_sz;
     struct ulib_cash_fs *cash_fs;
     struct dlist_entry cash_hd;
+    union ulib_tofa_u tofa;     /* xyzabc, tni, and tcq are effective */
 #ifdef	NOTYET
     RbtHandle cash_rb;
 #endif	/* NOTYET */
