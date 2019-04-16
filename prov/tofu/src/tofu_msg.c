@@ -12,9 +12,10 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
                          const struct fi_msg_tagged *msg,
                          uint64_t flags)
 {
-    ssize_t ret = FI_SUCCESS;
-    struct tofu_cep *cep_priv = 0;
+    ssize_t             ret = FI_SUCCESS;
+    struct tofu_cep     *cep_priv = 0;
     struct tofu_recv_en *recv_entry;
+    const size_t offs_ulib = sizeof (cep_priv[0]);
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
@@ -22,78 +23,17 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     }
     if ((flags & ( FI_PEEK | FI_CLAIM )) != 0) {
 	ret = -FI_EBADFLAGS; goto bad;
-    }
-    else if ((flags & FI_TRIGGER) != 0) {
+    } else if ((flags & FI_TRIGGER) != 0) {
 	ret = -FI_ENOSYS; goto bad;
     }
-    /* YYY flags: FI_MULTI_RECV */
-    /* YYY flags: FI_COMPLETION with FI_SELECTIVE_COMPLETION */
-    /* YYY msg->addr : FI_DIRECTED_RECV */
     if (msg->iov_count > TOFU_IOV_LIMIT) {
 	ret = -FI_EINVAL; goto bad;
     }
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
-    /* if (cep_priv->cep_enb == 0) { fc = -FI_EOPBADSTATE; goto bad; } */
     fastlock_acquire( &cep_priv->cep_lck );
-    if (freestack_isempty(cep_priv->recv_fs)) {
-        fastlock_release( &cep_priv->cep_lck );
-        return -FI_EAGAIN;
-    }
-    recv_entry = freestack_pop(cep_priv->recv_fs);
-    fastlock_release( &cep_priv->cep_lck );
-    ret = tofu_cep_msg_recv_fill(recv_entry, cep_priv, msg, flags);
-    if (ret != 0) {
-	fastlock_acquire( &cep_priv->cep_lck );
-	freestack_push(cep_priv->recv_fs, recv_entry);
-	fastlock_release( &cep_priv->cep_lck );
-	goto bad;
-    }
-    {
-        struct dlist_entry *dep;
-	struct dlist_entry *match;
-        struct tofu_recv_en *send_entry;
-
-        fastlock_acquire(&cep_priv->cep_lck);
-        dep = (flags & FI_TAGGED) ?
-            &cep_priv->unexp_tag_hd : &cep_priv->unexp_msg_hd;
-        if (!dlist_empty(dep)) {
-            match = dlist_find_first_match(dep,
-                                           tofu_cep_msg_match_recv_en,
-                                           recv_entry);
-            if (match) {
-                dlist_remove(match);
-                send_entry = container_of(match, struct tofu_recv_en, entry);
-                FI_DBG(&tofu_prov, FI_LOG_EP_CTRL,
-                       "send(%p) receive(%p) in %s\n",
-                       send_entry, recv_entry, __func__);
-                tofu_msg_copy_report(cep_priv, recv_entry, send_entry);
-                freestack_push(cep_priv->recv_fs, send_entry);
-                freestack_push(cep_priv->recv_fs, recv_entry);
-                fastlock_release(&cep_priv->cep_lck);
-                return ret;
-            }
-        }
-        fastlock_release(&cep_priv->cep_lck);
-    }
-    /* Enqueue posted queue */
-    fastlock_acquire( &cep_priv->cep_lck );
-    if (flags & FI_TAGGED) {
-        dlist_insert_tail(&recv_entry->entry, &cep_priv->recv_tag_hd);
-    } else {
-        dlist_insert_tail(&recv_entry->entry, &cep_priv->recv_msg_hd);
-    }
-    fastlock_release( &cep_priv->cep_lck );
-    {
-        const size_t offs_ulib = sizeof (cep_priv[0]);
-	/* YI 2019/04/11
-         * uint64_t iflg = flags & ~FI_TAGGED;
-         */
-	fastlock_acquire( &cep_priv->cep_lck );
-	ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags,
+    ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags,
 		tofu_cq_comp_tagged, cep_priv->cep_recv_cq);
-	fastlock_release( &cep_priv->cep_lck );
-	if (ret != 0) { goto bad; }
-    }
+    fastlock_release( &cep_priv->cep_lck );
 bad:
     return ret;
 }

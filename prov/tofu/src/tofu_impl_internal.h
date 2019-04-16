@@ -288,10 +288,9 @@ static inline int tofu_imp_ulib_expd_match_uexp(
     return ret;
 }
 
-static inline void * tofu_imp_ulib_icep_find_uexp(
-    struct tofu_imp_cep_ulib *icep,
-    const struct ulib_shea_expd *expd
-)
+static inline void *
+tofu_imp_ulib_icep_find_uexp(struct tofu_imp_cep_ulib *icep,
+                             const struct ulib_shea_expd *expd)
 {
     void *uexp = 0;
     int is_tagged_msg;
@@ -301,18 +300,14 @@ static inline void * tofu_imp_ulib_icep_find_uexp(
     is_tagged_msg = ((expd->flgs & FI_TAGGED) != 0);
     if (is_tagged_msg) {
 	head = &icep->uexp_head_trcv;
-    }
-    else {
+    } else {
 	head = &icep->uexp_head_mrcv;
     }
     match = dlist_remove_first_match(head, tofu_imp_ulib_expd_match_uexp, expd);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }
-#ifndef	NDEBUG
     dlist_init(match);
-#endif	/* NDEBUG */
-
     uexp = container_of(match, struct ulib_shea_uexp, vspc_list);
 
 bad:
@@ -403,8 +398,7 @@ static inline void tofu_imp_ulib_expd_recv(
 	assert(expd->mblk == 0);
 	expd->mblk  = uexp->mblk;
 	expd->rtag  = uexp->utag;
-    }
-    else {
+    } else {
 	assert(expd->nblk != 0);
 	assert(expd->mblk != 0);
 	assert(expd->rtag == uexp->utag);
@@ -413,8 +407,7 @@ static inline void tofu_imp_ulib_expd_recv(
 #ifndef	NDEBUG
     if ((uexp->flag & ULIB_SHEA_RINF_FLAG_MBLK) != 0) {
 	assert((uexp->nblk + uexp->boff) <= uexp->mblk);
-    }
-    else {
+    } else {
 	assert((uexp->nblk + uexp->boff) <= expd->mblk);
     }
 #endif	/* NDEBUG */
@@ -441,8 +434,7 @@ static inline void tofu_imp_ulib_expd_recv(
 	assert(uexp->boff == 0);
 	assert(uexp->nblk == 0);
 	expd->nblk += 1 /* uexp->nblk */;
-    }
-    else {
+    } else {
 	expd->nblk += uexp->nblk;
     }
 

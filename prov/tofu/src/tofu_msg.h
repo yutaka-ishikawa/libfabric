@@ -155,15 +155,15 @@ tofu_msg_copy_report(struct tofu_cep *cep_priv_rx,
     return fc;
 }
 
-static inline int tofu_cep_msg_sendmsg_self(
-    struct tofu_cep *cep_priv_tx,
-    const struct fi_msg_tagged *msg,
-    uint64_t flags
-)
+static inline int
+tofu_cep_msg_sendmsg_self(struct tofu_cep *cep_priv_tx,
+                          const struct fi_msg_tagged *msg,
+                          uint64_t flags)
 {
     int fc = FI_SUCCESS;
     struct tofu_sep *sep_priv;
     struct tofu_cep *cep_priv_rx = 0;
+    const size_t offs_ulib = sizeof (struct tofu_cep);
     struct tofu_recv_en *recv_entry = 0;
     struct tofu_recv_en send_entry[1]; /* XXX */
 
@@ -207,83 +207,8 @@ static inline int tofu_cep_msg_sendmsg_self(
      * cep_priv_rx is the reciever's context 2019/04/15
      */
     /* recv_entry */
-    {
-	struct dlist_entry *match;
 
-        if (flags & FI_TAGGED) { /* added 2019/04/15 */
-            match = dlist_find_first_match(&cep_priv_rx->recv_tag_hd,
-                                           tofu_cep_msg_match_recv_en,
-                                           send_entry);
-        } else {
-            match = dlist_find_first_match(&cep_priv_rx->recv_msg_hd,
-                                           tofu_cep_msg_match_recv_en,
-                                           send_entry);
-        }
-	if (match != NULL) {
-            /* corresponding receive message has been posted */
-            dlist_remove(match);
-            recv_entry = container_of(match, struct tofu_recv_en, entry);
-            assert(recv_entry->fidp == &cep_priv_rx->cep_fid.fid);
-	} else {
-            /*
-             * An receive post has not been issued and thus not found
-             * Enque the unexpected message queue
-             */
-            fastlock_acquire(&cep_priv_rx->cep_lck);
-            if (freestack_isempty(cep_priv_rx->recv_fs)) {
-                fastlock_release(&cep_priv_rx->cep_lck);
-                recv_entry = 0; fc = -FI_EAGAIN; goto bad;
-            } else {
-                struct dlist_entry *dep;
-                recv_entry = freestack_pop(cep_priv_rx->recv_fs);
-                dep = (flags & FI_TAGGED) ?
-                    &cep_priv_rx->unexp_tag_hd : &cep_priv_rx->unexp_msg_hd;
-                /*
-                 * message is copied to recv entry
-                 */
-                fc = tofu_cep_msg_recv_fill(recv_entry,
-                                            cep_priv_tx, msg, flags);
-                if (fc != 0) {
-                    goto bad;
-                }
-                dlist_insert_tail(&recv_entry->entry, dep);
-            }
-            fastlock_release(&cep_priv_rx->cep_lck);
-            return FI_SUCCESS;
-        }
-    }
-    /* copy: rlen and wlen and  report rx */
-    tofu_msg_copy_report(cep_priv_rx, recv_entry, send_entry);
-    fprintf(stderr, "YI******* commented out 2018/04/14 %s in %s\n",
-            __func__, __FILE__); fflush(stderr);
-#if 0 /* 2018/04/14 */
-    /* report tx */
-    if ( 0
-	|| (cep_priv_tx->cep_xop_flg & FI_SELECTIVE_COMPLETION) == 0
-	|| ((flags & FI_COMPLETION) != 0)
-    ) {
-	struct fi_cq_tagged_entry cq_e[1];
-
-	cq_e->flags	    = FI_SEND;
-	cq_e->op_context    = send_entry->tmsg.context;
-	cq_e->len	    = wlen;
-	cq_e->buf	    = 0 /* send_entry->tmsg.msg_iov[0].iov_base */;
-	cq_e->data	    = 0;
-	cq_e->tag	    = 0 /* send_entry->tmsg.tag */;
-
-	if (cep_priv_tx->cep_send_cq != 0) {
-	    fc = tofu_cq_comp_tagged( cep_priv_tx->cep_send_cq, cq_e );
-	    if (fc != 0) {
-		FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "tx cq %d\n", fc);
-		fc = 0; /* XXX ignored */
-	    }
-	}
-    }
-#endif /* 0 */
-
-    assert(cep_priv_rx->recv_fs != 0);
-    freestack_push( cep_priv_rx->recv_fs, recv_entry );
-
+    tofu_impl_ulib_sendmsg_self(cep_priv_rx, offs_ulib, send_entry);
 bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %d\n", fc);
     return fc;

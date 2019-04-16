@@ -359,74 +359,139 @@ bad:
     return fc;
 }
 
-int tofu_imp_ulib_recv_post(
-    void *vptr,
-    size_t offs,
-    const struct fi_msg_tagged *tmsg,
-    uint64_t flags,
-    tofu_imp_ulib_comp_f func,
-    void *farg
-)
+int
+tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
+                            struct tofu_recv_en *send_entry)
+{
+    int         cf = FI_SUCCESS;
+    struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
+    struct dlist_entry *match;
+
+    if (flags & FI_TAGGED) { /* added 2019/04/15 */
+        match = dlist_find_first_match(&cep_priv_rx->recv_tag_hd,
+                                       tofu_cep_msg_match_recv_en,
+                                       send_entry);
+    } else {
+        match = dlist_find_first_match(&cep_priv_rx->recv_msg_hd,
+                                       tofu_cep_msg_match_recv_en,
+                                       send_entry);
+    }
+    if (match != NULL) {
+        /* corresponding receive message has been posted */
+        dlist_remove(match);
+        recv_entry = container_of(match, struct tofu_recv_en, entry);
+        assert(recv_entry->fidp == &cep_priv_rx->cep_fid.fid);
+    } else {
+        /*
+         * An receive post has not been issued and thus not found
+         * Enque the unexpected message queue
+         */
+        fastlock_acquire(&cep_priv_rx->cep_lck);
+        if (freestack_isempty(cep_priv_rx->recv_fs)) {
+            fastlock_release(&cep_priv_rx->cep_lck);
+            recv_entry = 0; fc = -FI_EAGAIN; goto bad;
+        } else {
+            struct dlist_entry *dep;
+            recv_entry = freestack_pop(cep_priv_rx->recv_fs);
+            dep = (flags & FI_TAGGED) ?
+                &cep_priv_rx->unexp_tag_hd : &cep_priv_rx->unexp_msg_hd;
+            /*
+             * message is copied to recv entry
+             */
+            fc = tofu_cep_msg_recv_fill(recv_entry,
+                                        cep_priv_tx, msg, flags);
+            if (fc != 0) {
+                goto bad;
+            }
+            dlist_insert_tail(&recv_entry->entry, dep);
+        }
+        fastlock_release(&cep_priv_rx->cep_lck);
+        return FI_SUCCESS;
+    }
+    /* copy: rlen and wlen and  report rx */
+    tofu_msg_copy_report(cep_priv_rx, recv_entry, send_entry);
+    fprintf(stderr, "YI******* commented out 2018/04/14 %s in %s\n",
+            __func__, __FILE__); fflush(stderr);
+#if 0 /* 2018/04/14 */
+    /* report tx */
+    if ( 0
+	|| (cep_priv_tx->cep_xop_flg & FI_SELECTIVE_COMPLETION) == 0
+	|| ((flags & FI_COMPLETION) != 0)
+    ) {
+	struct fi_cq_tagged_entry cq_e[1];
+
+	cq_e->flags	    = FI_SEND;
+	cq_e->op_context    = send_entry->tmsg.context;
+	cq_e->len	    = wlen;
+	cq_e->buf	    = 0 /* send_entry->tmsg.msg_iov[0].iov_base */;
+	cq_e->data	    = 0;
+	cq_e->tag	    = 0 /* send_entry->tmsg.tag */;
+
+	if (cep_priv_tx->cep_send_cq != 0) {
+	    fc = tofu_cq_comp_tagged( cep_priv_tx->cep_send_cq, cq_e );
+	    if (fc != 0) {
+		FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "tx cq %d\n", fc);
+		fc = 0; /* XXX ignored */
+	    }
+	}
+    }
+#endif /* 0 */
+    assert(cep_priv_rx->recv_fs != 0);
+    freestack_push( cep_priv_rx->recv_fs, recv_entry );
+}
+
+int tofu_imp_ulib_recv_post(void *vptr,
+                            size_t offs,
+                            const struct fi_msg_tagged *tmsg,
+                            uint64_t flags,
+                            tofu_imp_ulib_comp_f func,
+                            void *farg)
 {
     int fc = FI_SUCCESS;
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
     struct ulib_shea_expd *expd;
+    struct ulib_shea_uexp *uexp;
 
     /* get an expected message */
-    {
-	if (freestack_isempty(icep->expd_fs)) {
-	    fc = -FI_EAGAIN; goto bad;
-	}
-	expd = freestack_pop(icep->expd_fs);
-	assert(expd != 0);
-
-	tofu_imp_ulib_expd_init(expd, tmsg, flags);
-	/* report recv event */
-	expd->func = func;
-	expd->farg = farg;
+    if (freestack_isempty(icep->expd_fs)) {
+        fc = -FI_EAGAIN; goto bad;
     }
+    expd = freestack_pop(icep->expd_fs);
+    assert(expd != 0);
+    tofu_imp_ulib_expd_init(expd, tmsg, flags);
+    /* report recv event */
+    expd->func = func;
+    expd->farg = farg;
 
     /* check unexpected queue */
-    do {
-	struct ulib_shea_uexp *uexp;
-
-	uexp = tofu_imp_ulib_icep_find_uexp(icep, expd);
-	if (uexp == 0) { break; }
-
-	/* update expd */
-	tofu_imp_ulib_expd_recv(expd, uexp);
-
-	/* free uexp->rbuf */
-	tofu_imp_ulib_uexp_rbuf_free(uexp);
-
-	/* free uexp */
-	freestack_push(icep->uexp_fs, uexp);
-
-	/* check if the packet carrys a last fragment */
-	if (tofu_imp_ulib_expd_cond_comp(expd)) {
-	    /* notify recv cq */
-	    tofu_imp_ulib_icep_evnt_expd(icep, expd);
-
-	    freestack_push(icep->expd_fs, expd);
-	    goto bad; /* XXX - is not an error */
-	}
-    } while (1);
-
-    /* queue it */
-    tofu_imp_ulib_icep_link_expd(icep, expd);
-
+    uexp = tofu_imp_ulib_icep_find_uexp(icep, expd);
+    if (uexp == NULL) {
+        /* queue it */
+        tofu_imp_ulib_icep_link_expd(icep, expd);
+    } else {
+        /* update expected queue */
+        tofu_imp_ulib_expd_recv(expd, uexp);
+        /* free uexp->rbuf */
+        tofu_imp_ulib_uexp_rbuf_free(uexp);
+        /* free uexp */
+        freestack_push(icep->uexp_fs, uexp);
+        /* check if the packet carrys the last fragment */
+        if (tofu_imp_ulib_expd_cond_comp(expd)) {
+            /* notify recv cq */
+            tofu_imp_ulib_icep_evnt_expd(icep, expd);
+            freestack_push(icep->expd_fs, expd);
+        }
+    }
 bad:
     return fc;
 }
 
-int tofu_imp_ulib_send_post(
-    void *vptr,
-    size_t offs,
-    const struct fi_msg_tagged *tmsg,
-    uint64_t flags,
-    tofu_imp_ulib_comp_f func,
-    void *farg
-)
+int
+tofu_imp_ulib_send_post(void *vptr, size_t offs,
+                        const struct fi_msg_tagged *tmsg,
+                        uint64_t flags,
+                        tofu_imp_ulib_comp_f func,
+                        void *farg)
 {
     int fc = FI_SUCCESS;
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);

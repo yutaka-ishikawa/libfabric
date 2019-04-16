@@ -76,10 +76,9 @@ static inline void tofu_cq_rem_cep_rx(
     return ;
 }
 
-static inline int tofu_cq_comp_tagged(
-    void *vp_cq__priv /* struct tofu_cq *cq__priv */ ,
-    const struct fi_cq_tagged_entry *cq_e
-)
+static inline int
+tofu_cq_comp_tagged(void *vp_cq__priv /* struct tofu_cq *cq__priv */,
+                    const struct fi_cq_tagged_entry *cq_e)
 {
     int fc = FI_SUCCESS;
     struct tofu_cq *cq__priv = vp_cq__priv;
