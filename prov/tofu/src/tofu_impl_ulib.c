@@ -467,7 +467,6 @@ int tofu_imp_ulib_send_post(
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
     struct ulib_shea_data *udat = 0;
 
-    fprintf(stderr, "YI********  %s() in %s\n", __func__, __FILE__);
     /* udat */
     udat = tofu_imp_ulib_icep_shea_data_qget(icep);
     if (udat == 0) {
@@ -527,7 +526,6 @@ int tofu_imp_ulib_send_post_fast(
     struct ulib_toqc_cash *cash_tmpl = 0;
     struct ulib_shea_data *udat = 0;
 
-    fprintf(stderr, "YI********  %s() in %s\n", __func__, __FILE__); fflush(stderr);
     fc = tofu_imp_ulib_cash_find(icep, tank, &cash_tmpl);
     if (fc != FI_SUCCESS) { goto bad; }
 

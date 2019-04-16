@@ -128,7 +128,7 @@ tofu_msg_copy_report(struct tofu_cep *cep_priv_rx,
     ioc_dst = recv_entry->tmsg.iov_count;
 
     wlen = tofu_copy_iovs(iov_dst, ioc_dst, iof_dst, iov_src, ioc_src);
-    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "wlen %ld\n", wlen);
+    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "wlen(%ld) rlen(%ld)\n", wlen, rlen);
     if (wlen < rlen) {
         FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "wlen %ld <= rlen %ld\n",
 		wlen, rlen);
@@ -144,6 +144,9 @@ tofu_msg_copy_report(struct tofu_cep *cep_priv_rx,
 
     if (cep_priv_rx->cep_recv_cq != 0) {
         fc = tofu_cq_comp_tagged(cep_priv_rx->cep_recv_cq, cq_e);
+        /*
+         * Ask Hatanaka-san why ...
+         */
         if (fc != 0) {
             FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "rx cq %d\n", fc);
             fc = 0; /* XXX ignored */
@@ -170,7 +173,9 @@ static inline int tofu_cep_msg_sendmsg_self(
     assert(cep_priv_tx->cep_sep != 0);
     sep_priv = cep_priv_tx->cep_sep;
 
-    /* send_entry is locally copied here 2019/04/15 */
+    /* send_entry is locally copied here 2019/04/15
+     * Can we avoid this copy ?
+     */
     fc = tofu_cep_msg_recv_fill(send_entry, cep_priv_tx, msg, flags);
     if (fc != 0) {
         goto bad;
@@ -233,6 +238,14 @@ static inline int tofu_cep_msg_sendmsg_self(
                 recv_entry = freestack_pop(cep_priv_rx->recv_fs);
                 dep = (flags & FI_TAGGED) ?
                     &cep_priv_rx->unexp_tag_hd : &cep_priv_rx->unexp_msg_hd;
+                /*
+                 * message is copied to recv entry
+                 */
+                fc = tofu_cep_msg_recv_fill(recv_entry,
+                                            cep_priv_tx, msg, flags);
+                if (fc != 0) {
+                    goto bad;
+                }
                 dlist_insert_tail(&recv_entry->entry, dep);
             }
             fastlock_release(&cep_priv_rx->cep_lck);

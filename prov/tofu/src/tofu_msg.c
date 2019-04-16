@@ -67,6 +67,9 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
             if (match) {
                 dlist_remove(match);
                 send_entry = container_of(match, struct tofu_recv_en, entry);
+                FI_DBG(&tofu_prov, FI_LOG_EP_CTRL,
+                       "send(%p) receive(%p) in %s\n",
+                       send_entry, recv_entry, __func__);
                 tofu_msg_copy_report(cep_priv, recv_entry, send_entry);
                 freestack_push(cep_priv->recv_fs, send_entry);
                 freestack_push(cep_priv->recv_fs, recv_entry);
@@ -523,11 +526,9 @@ tofu_cep_tag_senddata(struct fid_ep *fid_ep,
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
 
-    fprintf(stderr, "YI***NEEDS to check it by Hatanaka-san\n");fflush(stderr);
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;
     dscs[0]	    = desc;
-
     tmsg.msg_iov    = iovs;
     tmsg.desc	    = (desc == 0) ? 0 : dscs;
     tmsg.iov_count  = 1;

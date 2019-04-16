@@ -99,13 +99,11 @@ static inline int tofu_cq_comp_tagged(
     assert(comp != 0);
 
     FI_INFO( &tofu_prov, FI_LOG_CQ, "context %p\n", cq_e->op_context);
-    fprintf(stderr, "YI****** comp(%p) cq_e(%p) cq__ccq(%p) \n", comp, cq_e, cq__priv->cq__ccq);
+
     comp[0] = cq_e[0]; /* structure copy */
-    fprintf(stderr, "YI****** 1 \n"); fflush(stderr);
     
     /* advance w.p. by one  */
     ofi_cirque_commit( cq__priv->cq__ccq );
-    fprintf(stderr, "YI****** 2\n"); fflush(stderr);
 
 bad:
     fastlock_release( &cq__priv->cq__lck );
