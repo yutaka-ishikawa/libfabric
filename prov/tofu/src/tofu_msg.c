@@ -6,6 +6,7 @@
 #include "ulib_shea.h"
 #include "ulib_conv.h"
 #include "tofu_impl.h"
+#include "ulib_ofif.h"
 
 static ssize_t
 tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
@@ -129,7 +130,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
 {
     ssize_t          ret = FI_SUCCESS;
     struct tofu_cep  *cep_priv = 0;
-    struct tofu_imp_cep_ulib *icep;
+    struct ulib_icep *icep;
     union ulib_tofa_u   tank;
     struct tofu_av   *av__priv;
     fi_addr_t        fi_a = msg->addr;
@@ -150,7 +151,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     fc = tofu_av_lup_tank(av__priv, fi_a, &tank.ui64);
     if (fc != FI_SUCCESS) { ret = fc; goto bad; }
     tank.tank.pid = 0; tank.tank.vld = 0; tank.tank.cid = 0;
-    icep = (struct tofu_imp_cep_ulib*) (cep_priv + 1);
+    icep = (struct ulib_icep*) (cep_priv + 1);
     fprintf(stderr, "YI****** dest tofa(0x%lx) my tofa(0x%lx) in %s\n",
             tank.ui64, icep->tofa.ui64, __func__);
     if (icep->tofa.ui64 == tank.ui64) {

@@ -10,6 +10,7 @@
 #include <stddef.h>		/* for size_t */
 #include <stdint.h>		/* for uint64_t */
 #include <sys/uio.h>		/* for struct iovec */
+#include "utofu.h"
 
 struct ulib_sep_tniq {
     uint64_t vers : 3; /* version # */

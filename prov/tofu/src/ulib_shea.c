@@ -1102,7 +1102,7 @@ static inline int   ulib_shea_post_data_data( /* foo12 */
 #endif	/* notdef_perf_0001 */
 static inline void  ulib_shea_recv_info(
 			const void *vp_rpkt,
-			struct ulib_shea_rinf *rinf
+			struct ulib_shea_uexp *rinf
 		    );
 
 /* ulib_shea_data() */
@@ -2320,7 +2320,7 @@ void ulib_shea_recv_hndr_seqn_init( /* obsolated */
 
 static inline void ulib_shea_recv_info(
     const void *vp_rpkt,
-    struct ulib_shea_rinf *rinf
+    struct ulib_shea_uexp *rinf
 )
 {
     const union ulib_shea_ph_u *ph_u = vp_rpkt;
@@ -2332,9 +2332,9 @@ static inline void ulib_shea_recv_info(
 	rinf->srci = ph_u->phlh.srci;
 	rinf->mblk = ph_u->phlh.mblk;
 	rinf->boff = 0;
-	rinf->flag = ULIB_SHEA_RINF_FLAG_MBLK;
-	rinf->flag |= ((ph_u->phlh.tflg != 0)? ULIB_SHEA_RINF_FLAG_TFLG: 0);
-	rinf->flag |= ((ph_u->phlh.zflg != 0)? ULIB_SHEA_RINF_FLAG_ZFLG: 0);
+	rinf->flag = ULIB_SHEA_UEXP_FLAG_MBLK;
+	rinf->flag |= ((ph_u->phlh.tflg != 0)? ULIB_SHEA_UEXP_FLAG_TFLG: 0);
+	rinf->flag |= ((ph_u->phlh.zflg != 0)? ULIB_SHEA_UEXP_FLAG_ZFLG: 0);
     }
     else if (ph_u->phlh.type == ULIB_SHEA_PH_LARGE_CONT) {
 	rinf->utag = ph_u->phlc.utag;
@@ -2342,8 +2342,8 @@ static inline void ulib_shea_recv_info(
 	rinf->mblk = 0;
 	rinf->boff = ph_u->phlc.boff;
 	rinf->flag  = 0;
-	rinf->flag |= ((ph_u->phlc.tflg != 0)? ULIB_SHEA_RINF_FLAG_TFLG: 0);
-	rinf->flag |= ((ph_u->phlc.zflg != 0)? ULIB_SHEA_RINF_FLAG_ZFLG: 0);
+	rinf->flag |= ((ph_u->phlc.tflg != 0)? ULIB_SHEA_UEXP_FLAG_TFLG: 0);
+	rinf->flag |= ((ph_u->phlc.zflg != 0)? ULIB_SHEA_UEXP_FLAG_ZFLG: 0);
     }
     else {
 	/* YYY abort */
@@ -2521,7 +2521,7 @@ int ulib_shea_recv_hndr_prog(
 
     /* callback function */ /* YYY */
     {
-	struct ulib_shea_rinf rinf[1];
+	struct ulib_shea_uexp rinf[1];
 
 	ulib_shea_recv_info(phdr, rinf);
 #ifdef	notdef

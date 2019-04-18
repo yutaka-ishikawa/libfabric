@@ -163,6 +163,7 @@ struct ulib_icep {
     struct dlist_entry          expd_list_trcv; /* fi_msg_tagged */
     struct dlist_entry          expd_list_mrcv; /* fi_msg */
     struct ulib_udat_fs         *udat_fs;
+    union ulib_tofa_u           tofa;           /* TOFu network Address */  
 };
 
 extern int  ulib_isep_open_tnis_info(struct ulib_isep *isep);

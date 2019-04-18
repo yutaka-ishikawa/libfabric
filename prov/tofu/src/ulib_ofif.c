@@ -4,8 +4,8 @@
 #include "ulib_conf.h"
 #include "ulib_dlog.h"	    /* for ENTER_RC_C() */
 
-#include "ulib_ofif.h"	    /* for struct ulib_isep */
 #include "ulib_conv.h"	    /* for struct ulib_epnt_info */
+#include "ulib_ofif.h"	    /* for struct ulib_isep */
 #ifndef	notdef_icep_toqc
 #include "ulib_toqc.h"	    /* for struct ulib_toqc */
 #endif	/* notdef_icep_toqc */
@@ -414,10 +414,10 @@ static inline int ulib_match_rinf_entry(
 )
 {
     int ret;
-    const struct ulib_shea_trcv *trcv = farg;
-    struct ulib_shea_rinf *rinf;
+    const struct ulib_shea_expd *trcv = farg;
+    struct ulib_shea_uexp *rinf;
 
-    rinf = container_of(item, struct ulib_shea_rinf, vspc_list);
+    rinf = container_of(item, struct ulib_shea_uexp, entry);
     ret =
 	((trcv->tmsg.tag | trcv->tmsg.ignore)
 	    == (rinf->utag | trcv->tmsg.ignore))
@@ -429,10 +429,10 @@ static inline int ulib_match_rinf_entry(
  * Matching send message with a message enqueued in unexpected queue
  */
 static inline struct ulib_shea_uexp *
-ulib_find_rinf_entry(struct ulib_icep *icep,
-                     const struct ulib_shea_trcv *trcv)
+ulib_find_uexp_entry(struct ulib_icep *icep,
+                     const struct ulib_shea_expd *trcv)
 {
-    struct ulib_shea_rinf *rval = 0;
+    struct ulib_shea_uexp *rval = 0;
     struct dlist_entry *head;
     struct dlist_entry *match;
 
@@ -442,7 +442,7 @@ ulib_find_rinf_entry(struct ulib_icep *icep,
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }
-    rval = container_of(match, struct ulib_shea_rinf, vspc_list);
+    rval = container_of(match, struct ulib_shea_uexp, entry);
 
 bad:
     return rval;
@@ -451,7 +451,7 @@ bad:
 
 static inline void ulib_icep_link_expd_head(
     struct ulib_icep *icep,
-    struct ulib_shea_trcv *expd
+    struct ulib_shea_expd *expd
 )
 {
     int is_tagged_msg;
@@ -474,7 +474,7 @@ static inline void ulib_icep_link_expd_head(
 
 static inline int ulib_icqu_comp_trcv(
     struct ulib_icqu *icqu,
-    const struct ulib_shea_trcv *expd
+    const struct ulib_shea_expd *expd
 )
 {
     int uc = UTOFU_SUCCESS;
@@ -590,7 +590,7 @@ static inline void ulib_icep_list_expd(
     struct dlist_entry *head, *curr;
     size_t nrcv = 0;
 
-    is_tagged_msg = ((flag & ULIB_SHEA_RINF_FLAG_TFLG) != 0);
+    is_tagged_msg = ((flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0);
     if (is_tagged_msg) {
 	head = &icep->expd_list_trcv;
     }
@@ -599,9 +599,9 @@ static inline void ulib_icep_list_expd(
     }
 
     dlist_foreach(head, curr) {
-	struct ulib_shea_trcv *trcv_curr;
+	struct ulib_shea_expd *trcv_curr;
 
-	trcv_curr = container_of(curr, struct ulib_shea_trcv, entry);
+	trcv_curr = container_of(curr, struct ulib_shea_expd, entry);
 	printf("\t[%03ld] trcv %p %016"PRIx64" %016"PRIx64"\n",
 	    nrcv, trcv_curr, trcv_curr->tmsg.tag, trcv_curr->tmsg.ignore);
 	nrcv++;
@@ -633,7 +633,7 @@ static inline size_t ulib_copy_iovs(
 
 static inline void ulib_icep_recv_rbuf_base(
     struct ulib_icep *icep,
-    const struct ulib_shea_rinf *rinf,
+    const struct ulib_shea_uexp *rinf,
     struct iovec iovs[2]
 )
 {
@@ -662,11 +662,11 @@ static inline void ulib_icep_recv_rbuf_base(
 #ifndef	NOTDEF_RECV_FRAG
 
 static inline void ulib_icep_recv_frag(
-    struct ulib_shea_trcv *trcv,
-    const struct ulib_shea_rinf *rinf
+    struct ulib_shea_expd *trcv,
+    const struct ulib_shea_uexp *rinf
 )
 {
-    if ((rinf->flag & ULIB_SHEA_RINF_FLAG_MBLK) != 0) {
+    if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
 	assert(trcv->nblk == 0);
 	assert(trcv->mblk == 0);
 	trcv->mblk  = rinf->mblk;
@@ -679,7 +679,7 @@ static inline void ulib_icep_recv_frag(
     }
     assert(trcv->nblk == rinf->boff);
 #ifndef	NDEBUG
-    if ((rinf->flag & ULIB_SHEA_RINF_FLAG_MBLK) != 0) {
+    if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
 	assert((rinf->nblk + rinf->boff) <= rinf->mblk);
     }
     else {
@@ -703,8 +703,8 @@ static inline void ulib_icep_recv_frag(
     }
     /* update nblk */
     if (rinf->rbuf.leng == 0) {
-	assert((rinf->flag & ULIB_SHEA_RINF_FLAG_ZFLG) != 0);
-	assert((rinf->flag & ULIB_SHEA_RINF_FLAG_MBLK) != 0);
+	assert((rinf->flag & ULIB_SHEA_UEXP_FLAG_ZFLG) != 0);
+	assert((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0);
 	assert(rinf->mblk == 1);
 	assert(rinf->boff == 0);
 	assert(rinf->nblk == 0);
@@ -728,11 +728,11 @@ trcv, trcv->wlen, trcv->olen);
 
 static inline int ulib_icep_recv_cbak_uexp( /* unexpected */
     struct ulib_icep *icep,
-    const struct ulib_shea_rinf *rinf
+    const struct ulib_shea_uexp *rinf
 )
 {
     int uc = UTOFU_SUCCESS;
-    struct ulib_shea_rinf *uexp;
+    struct ulib_shea_uexp *uexp;
 #ifdef	CONF_ULIB_PERF_SHEA
     uint64_t tick[4];
 #endif	/* CONF_ULIB_PERF_SHEA */
@@ -784,7 +784,7 @@ ulib_uexp_fs_index(icep->uexp_fs, uexp));
 
     /* queue it */
     {
-	struct dlist_entry *uexp_entry = (struct dlist_entry *)&uexp->vspc_list;
+	struct dlist_entry *uexp_entry = (struct dlist_entry *)&uexp->entry;
 
 	assert(sizeof (uexp->vspc_list) <= sizeof (uexp_entry[0]));
 	dlist_init(uexp_entry);
@@ -794,7 +794,7 @@ ulib_uexp_fs_index(icep->uexp_fs, uexp));
 	    struct dlist_entry *head;
 	    int is_tagged_msg;
 
-	    is_tagged_msg = ((rinf->flag & ULIB_SHEA_RINF_FLAG_TFLG) != 0);
+	    is_tagged_msg = ((rinf->flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0);
 	    if (is_tagged_msg) {
 		head = &icep->uexp_list_trcv;
 	    }
@@ -821,8 +821,8 @@ ulib_icep_recv_call_back(void *farg, /* icep */
 {
     int uc = 0;
     struct ulib_icep *icep = farg;
-    const struct ulib_shea_rinf *rinf = vctx;
-    struct ulib_shea_trcv *trcv;
+    const struct ulib_shea_uexp *rinf = vctx;
+    struct ulib_shea_expd *trcv;
 #ifdef	CONF_ULIB_PERF_SHEA
     uint64_t tick[4];
 #endif	/* CONF_ULIB_PERF_SHEA */
@@ -842,14 +842,14 @@ printf("%s():%d\tuexp\n", __func__, __LINE__);
 if (0) {
 printf("\ttrcv %p utag %016"PRIx64" %c%c\n",
 trcv, rinf->utag,
-((rinf->flag & ULIB_SHEA_RINF_FLAG_TFLG) != 0)? 'T': '-',
-((rinf->flag & ULIB_SHEA_RINF_FLAG_ZFLG) != 0)? 'Z': '-');
+((rinf->flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0)? 'T': '-',
+((rinf->flag & ULIB_SHEA_UEXP_FLAG_ZFLG) != 0)? 'Z': '-');
 }
     if (trcv != 0) {
 #ifdef	NOTDEF_RECV_FRAG
 	assert(trcv->nblk == rinf->boff);
 #ifndef	NDEBUG
-	if ((rinf->flag & ULIB_SHEA_RINF_FLAG_MBLK) != 0) {
+	if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
 	    assert((rinf->nblk + rinf->boff) <= rinf->mblk);
 	}
 	else {
@@ -873,7 +873,7 @@ trcv, rinf->utag,
 	}
 	/* check if the packet is a last fragment */
 	{
-	    if ((rinf->flag & ULIB_SHEA_RINF_FLAG_MBLK) != 0) {
+	    if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
 		assert(trcv->mblk == 0);
 		trcv->mblk  = rinf->mblk;
 		assert(trcv->nblk == 0);
@@ -948,8 +948,8 @@ int ulib_icep_shea_recv_post(
 )
 {
     int uc = 0;
-    struct ulib_shea_trcv *expd;
-    struct ulib_shea_rinf *uexp;
+    struct ulib_shea_expd *expd;
+    struct ulib_shea_uexp *uexp;
 #ifdef	CONF_ULIB_PERF_SHEA
     uint64_t tick[4], uexp_time = 0, phdr_time = 0;
 #endif	/* CONF_ULIB_PERF_SHEA */
@@ -965,14 +965,14 @@ int ulib_icep_shea_recv_post(
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
 
-    ulib_shea_trcv_init(expd, tmsg, flags);
+    ulib_shea_expd_init(expd, tmsg, flags);
 
     /* check unexpected queue */
     do {
 #ifdef	CONF_ULIB_PERF_SHEA
 	tick[1] = ulib_tick_time();
 #endif	/* CONF_ULIB_PERF_SHEA */
-	uexp = ulib_find_rinf_entry(icep, expd);
+	uexp = ulib_find_uexp_entry(icep, expd);
 	if (uexp == 0) { break; }
 #ifdef	CONF_ULIB_PERF_SHEA
 	phdr_time += uexp->tims[0];

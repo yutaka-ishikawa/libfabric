@@ -189,30 +189,46 @@ tofu_imp_ulib_icep_link_expd_head(struct ulib_icep *icep,
 }
 
 static inline void
-tofu_imp_ulib_icep_evnt_expd(struct ulib_icep *icep,
-                             const struct ulib_shea_expd *expd)
+ulib_cast_epnt_to_tank(const struct ulib_epnt_info *einf,
+                       struct ulib_tank *tank)
 {
-    if ((expd->func != 0) && (expd->farg != 0)) {
-	struct fi_cq_tagged_entry comp[1];
-	int fc;
+    assert(sizeof (tank[0]) == sizeof (uint64_t));
+    assert(einf->xyz[0] < (1UL << ULIB_TANK_BITS_TUX));
+    tank->tux = einf->xyz[0];
+    assert(einf->xyz[1] < (1UL << ULIB_TANK_BITS_TUY));
+    tank->tuy = einf->xyz[1];
+    assert(einf->xyz[2] < (1UL << ULIB_TANK_BITS_TUZ));
+    tank->tuz = einf->xyz[2];
 
-        fprintf(stderr, "YI******** Raise CQ of Receive: %s\n", __func__);
-	comp->op_context	= expd->tmsg.context;
-	comp->flags		=   FI_RECV
-				    | FI_MULTI_RECV
-				    | (expd->flgs & FI_TAGGED)
-				    ;
-	comp->len		= expd->wlen;
-	comp->buf		= expd->tmsg.msg_iov[0].iov_base;
-	comp->data		= 0;
-	comp->tag		= expd->rtag;
+    assert(einf->xyz[3] < (1UL << ULIB_TANK_BITS_TUA));
+    tank->tua = einf->xyz[3];
+    assert(einf->xyz[4] < (1UL << ULIB_TANK_BITS_TUB));
+    tank->tub = einf->xyz[4];
+    assert(einf->xyz[5] < (1UL << ULIB_TANK_BITS_TUC));
+    tank->tuc = einf->xyz[5];
 
-	fc = (*expd->func)(expd->farg, comp);
-	if (fc != FI_SUCCESS) {
-	}
-    }
+    assert(einf->tni[0] < (1UL << ULIB_TANK_BITS_TNI));
+    tank->tni = einf->tni[0];
+    assert(einf->tcq[0] < (1UL << ULIB_TANK_BITS_TCQ));
+    tank->tcq = einf->tcq[0];
+
+    assert(einf->cid[0] < (1UL << ULIB_TANK_BITS_CID));
+    tank->cid = einf->cid[0];
+    tank->vld = 1;
+    tank->pid = 0 /* einf->pid[0] */ ; /* YYY */
     return ;
 }
+
+static inline void
+ulib_cast_epnt_to_tank_ui64(const struct ulib_epnt_info *einf,
+                            uint64_t *tank_ui64)
+{
+    union ulib_tofa_u tank_u = { .ui64 = 0, };
+    ulib_cast_epnt_to_tank( einf, &tank_u.tank );
+    tank_ui64[0] = tank_u.ui64;
+    return ;
+}
+
 /* END OF STATIC definitions */
 /**************************************************************************/
 
@@ -417,7 +433,7 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
     if (tofu_imp_ulib_expd_cond_comp(expd)) {
         /* notify recv cq */
         fprintf(stderr, "YI****** Notify %s\n", __func__);
-        tofu_imp_ulib_icep_evnt_expd(icep, expd);
+        // tofu_imp_ulib_icep_evnt_expd(icep, expd);
         freestack_push(icep->expd_fs, expd);
     }
 #endif
@@ -678,7 +694,7 @@ int tofu_imp_ulib_icep_recv_call_back(
     }
 
     /* notify recv cq */
-    tofu_imp_ulib_icep_evnt_expd(icep, expd);
+    //tofu_imp_ulib_icep_evnt_expd(icep, expd);
 
     freestack_push(icep->expd_fs, expd);
 
@@ -1250,13 +1266,14 @@ static inline struct ulib_toqc_cash * tofu_imp_ulib_cash_uref_unsafe(
     return cash_unref;
 }
 
-int tofu_imp_ulib_cash_find(
-    struct tofu_imp_cep_ulib *icep,
-    uint64_t tank /* key */,
-    struct ulib_toqc_cash **pp_cash_tmpl
-)
+int
+tofu_imp_ulib_cash_find(struct ulib_icep *icep,
+                        uint64_t tank /* key */,
+                        struct ulib_toqc_cash **pp_cash_tmpl)
 {
     int fc = FI_SUCCESS;
+    fprintf(stderr, "YI******* NEEDS TO IMPLEMENT %s\n", __func__);
+#if 0
 #ifdef	NOTYET
     struct ulib_utof_cash rcsh, lcsh;
 #endif	/* NOTYET */
@@ -1383,18 +1400,17 @@ int tofu_imp_ulib_cash_find(
 
 
 bad:
+#endif /* 0 */
     /* tofu_imp_icep_unlock(icep); */
     return fc;
 }
 
-void tofu_imp_ulib_cash_free(
-    struct tofu_imp_cep_ulib *icep,
-    struct ulib_toqc_cash *cash_tmpl
-)
+void
+tofu_imp_ulib_cash_free(struct ulib_icep *icep,
+                        struct ulib_toqc_cash *cash_tmpl)
 {
     assert(ofi_atomic_get32(&cash_tmpl->refc) > 0);
     ofi_atomic_dec32(&cash_tmpl->refc);
-
     return ;
 }
 
@@ -1435,7 +1451,7 @@ int tofu_imp_ulib_immr_stad_temp(
 
 size_t tofu_imp_ulib_isep_size(void)
 {
-    size_t isiz = sizeof (struct tofu_imp_sep_ulib);
+    size_t isiz = sizeof (struct ulib_isep);
     fprintf(stderr, "YI****** %s:%d\t%ld\n", __func__, __LINE__, isiz);
     return isiz;
 }
@@ -1446,13 +1462,13 @@ int tofu_imp_ulib_isep_open(
 {
     int fc = FI_SUCCESS;
     int uc;
-    struct tofu_imp_sep_ulib *isep;
+    struct ulib_isep *isep;
     utofu_tni_id_t *tnis = 0;
     size_t ntni = 0;
     size_t ni, nn = ntni;
     const size_t mtni = sizeof (isep->tnis) / sizeof (isep->tnis[0]);
 
-    isep = &((struct tofu_imp_sep_ulib_s *)sep_priv)->sep_lib;
+    isep = (struct ulib_isep*) (sep_priv + 1);
     fprintf(stderr, "YI***** %s:%d\t%p %p\n",
             __func__, __LINE__, sep_priv, isep); fflush(stderr);
 
@@ -1653,6 +1669,8 @@ int ulib_icep_find_cash(
 )
 {
     int uc = UTOFU_SUCCESS;
+    fprintf(stderr, "YI******* NEEDS TO IMPLEMENT %s\n", __func__);
+#if 0
     static struct ulib_cash_fs *free_cash_fs = 0; /* YYY */
     static DLST_DECH(ulib_head_cash) head_cash; /* YYY */
     struct ulib_toqc_cash *cash_tmpl;
@@ -1814,5 +1832,6 @@ ioav = (void *)icep; /* YYY */
 
 bad:
     ulib_icep_unlock(icep);
+#endif /* 0 */
     return uc;
 }
