@@ -8,18 +8,13 @@
 
 #include "ulib_conf.h"
 
-#ifdef	CONF_ULIB_OFI
 #include <ofi.h>
 #include <ofi_list.h>
 #include <ofi_mem.h>
-#endif	/* CONF_ULIB_OFI */
-
 #include <stddef.h>	    /* for size_t */
 #include <stdint.h>	    /* for uint64_t */
 
 /* ======================================================================== */
-#ifdef	CONF_ULIB_OFI
-
 #include "ulib_shea.h"
 
 /*
@@ -31,9 +26,6 @@
  *   int ulib_uexp_fs_index(struct ulib_uexp_fs *fs, struct ulib_shea_rinf *en);
  */
 DECLARE_FREESTACK(struct ulib_shea_uexp, ulib_uexp_fs);
-#endif	/* CONF_ULIB_OFI */
-#ifdef	CONF_ULIB_OFI
-
 /* ------------------------------------------------------------------------ */
 #if	defined(CONF_ULIB_FICQ) && (CONF_ULIB_FICQ == CONF_ULIB_FICQ_CIRQ)
 #include <ofi_rbuf.h>	    /* ring buffer */
@@ -72,9 +64,6 @@ DECLARE_FREESTACK(struct ulib_ficq_en, ulib_ficq_fs);
 #error "invalid CONF_ULIB_FICQ"
 #endif	/* defined(CONF_ULIB_FICQ) */
 
-#endif	/* CONF_ULIB_OFI */
-#ifdef	CONF_ULIB_OFI
-
 /* ------------------------------------------------------------------------ */
 #include <ofi_mem.h>	    /* linked list */
 #include <ofi.h>	    /* for container_of () */
@@ -90,7 +79,6 @@ DECLARE_FREESTACK(struct ulib_ficq_en, ulib_ficq_fs);
  *   int ulib_udat_fs_index(struct ulib_udat_fs *fs, struct ulib_shea_data *en);
  */
 DECLARE_FREESTACK(struct ulib_shea_data, ulib_udat_fs);
-#endif	/* CONF_ULIB_OFI */
 
 /* ======================================================================== */
 
@@ -135,12 +123,10 @@ struct ulib_isep {
     size_t ntni;
     struct ulib_icep *head;
 };
-#ifdef	CONF_ULIB_OFI
 
 struct ulib_uexp_fs;
 struct ulib_expd_fs;
 struct ulib_udat_fs;
-#endif	/* CONF_ULIB_OFI */
 
 struct ulib_icep {
     int index;
@@ -168,7 +154,8 @@ struct ulib_icep {
 
 extern int  ulib_isep_open_tnis_info(struct ulib_isep *isep);
 extern int  ulib_icep_ctrl_enab(struct ulib_icep *icep);
-extern int  ulib_icep_close(struct ulib_icep *icep);
+extern void ulib_ofif_icep_init(void *ptr, size_t off);
+extern int  ulib_icep_close(void *ptr, size_t off);
 extern int  ulib_imr__bind_icep(struct ulib_imr_ *imr_, struct ulib_icep *icep);
 extern int  ulib_imr__close(struct ulib_imr_ *imr_);
 
@@ -186,30 +173,9 @@ static inline void ulib_icep_unlock(struct ulib_icep *icep)
 
 /* ======================================================================== */
 
-static inline void ulib_ofif_icep_init(
-    struct ulib_icep *icep
-)
-{
-    icep->index = -1; /* III */
-    icep->enabled = 0;
-    icep->next = 0;
-    icep->isep = 0; /* III */
-    icep->vcqh = 0;
-#ifdef	CONF_ULIB_OFI
-    icep->uexp_fs = 0;
-    dlist_init(&icep->uexp_list_trcv); /* unexpected queue for tagged msg. */
-    dlist_init(&icep->uexp_list_mrcv); /* unexpected queue for msg. */
-    icep->expd_fs = 0;
-    dlist_init(&icep->expd_list_trcv); /* expeced queue */
-    dlist_init(&icep->expd_list_mrcv); /* expeced queue */
-    icep->udat_fs = 0;
-#endif	/* CONF_ULIB_OFI */
-    return ;
-}
 
 /* ======================================================================== */
 #ifdef	CONF_ULIB_OFI
-
 #include <rdma/fi_tagged.h>
 #else	/* CONF_ULIB_OFI */
 struct fi_msg_tagged;

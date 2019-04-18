@@ -17,25 +17,20 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 	/* struct fi_info . addr_format */
 	uint32_t addr_format;
 
-	/*
-	 * man fi_cm(3)
-	 *   fi_getname
-	 *     On input, the addrlen parameter should indicate the size of
-	 *     the addr buffer.
-	 */
 	if (addrlen == 0) {
 	    fc = -FI_EINVAL; goto bad;
 	}
 	blen = addrlen[0];
-printf("%s(,,%ld):%d\n", __func__, blen, __LINE__);
+        fprintf(stderr, "%s(,,%ld):%d\n", __func__, blen, __LINE__); fflush(stderr);
 
 	assert(fid != 0);
 	switch (fid->fclass) {
 	case FI_CLASS_SEP:
+            fprintf(stderr, "YI****** FI_CLASS_SEP\n"); fflush(stderr);
 	    sep_priv = container_of(fid, struct tofu_sep, sep_fid.fid);
-	    if (sep_priv == 0) { }
 	    addr_format = sep_priv->sep_dom->dom_fmt;
 	    if (addr_format != FI_ADDR_STR) {
+                fprintf(stderr, "YI****** NOT FI_ADDR_STR(0x%x)\n", addr_format); fflush(stderr);
 		fc = -FI_EOTHER; goto bad;
 	    }
 	    /* fill ceps[] */
@@ -49,6 +44,7 @@ printf("%s(,,%ld):%d\n", __func__, blen, __LINE__);
 		size_t cl = FI_CLASS_TX_CTX;
 
 		cep_priv = tofu_sep_lup_cep_byi_unsafe(sep_priv, cl, ix);
+                fprintf(stderr, "YI********* cep_priv(%p)\n", cep_priv);
 		if (cep_priv == 0) {
 		    cl = FI_CLASS_RX_CTX;
 		    cep_priv = tofu_sep_lup_cep_byi_unsafe(sep_priv, cl, ix);
@@ -66,6 +62,7 @@ printf("%s(,,%ld):%d\n", __func__, blen, __LINE__);
 
 		nam[0] = 0;
 		fc = tofu_imp_ulib_gnam(ceps, offs_ulib, nam);
+                fprintf(stderr, "YI********* fc(%d)\n", fc);
 		if (fc != FI_SUCCESS) { goto bad; }
 
 		/*
@@ -94,8 +91,10 @@ printf("%s(,,%ld):%d\n", __func__, blen, __LINE__);
 	    }
 	    break;
 	case FI_CLASS_EP:
+            fprintf(stderr, "YI****** FI_CLASS_EP\n"); fflush(stderr);
 	    /* break; */
 	default:
+            fprintf(stderr, "YI****** FI_CLASS_?? (0x%lx)\n", fid->fclass); fflush(stderr);
 	    fc = -FI_EINVAL; goto bad;
 	}
 

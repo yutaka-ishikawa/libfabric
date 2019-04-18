@@ -57,6 +57,7 @@ int ulib_icep_ctrl_enab(struct ulib_icep *icep)
     int uc = UTOFU_SUCCESS;
     struct ulib_isep *isep;
 
+    fprintf(stderr, "YI********** %s is CALLED\n", __func__); fflush(stderr);
     ENTER_RC_C(uc);
 
     if ((icep == 0) || (icep->isep == 0)) {
@@ -161,8 +162,28 @@ int ulib_icep_ctrl_enab(struct ulib_icep *icep)
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
-int ulib_icep_close(struct ulib_icep *icep)
+void
+ulib_ofif_icep_init(void *ptr, size_t off)
 {
+    struct ulib_icep *icep = (struct ulib_icep*) ((char*)ptr + off);
+    icep->index = -1; /* III */
+    icep->enabled = 0;
+    icep->next = 0;
+    icep->isep = 0; /* III */
+    icep->vcqh = 0;
+    icep->uexp_fs = 0;
+    dlist_init(&icep->uexp_list_trcv); /* unexpected queue for tagged msg. */
+    dlist_init(&icep->uexp_list_mrcv); /* unexpected queue for msg. */
+    icep->expd_fs = 0;
+    dlist_init(&icep->expd_list_trcv); /* expeced queue */
+    dlist_init(&icep->expd_list_mrcv); /* expeced queue */
+    icep->udat_fs = 0;
+    return ;
+}
+
+int ulib_icep_close(void *ptr, size_t off)
+{
+    struct ulib_icep *icep = (struct ulib_icep *)((char*)ptr + off);
     int uc = UTOFU_SUCCESS;
 
     ENTER_RC_C(uc);

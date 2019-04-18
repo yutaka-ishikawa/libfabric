@@ -1,11 +1,13 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
-#include "tofu_impl.h"
-
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
-
+#include "tofu_impl.h"
+/* The following ulib interface should be defined in some file 2019/04/18 */
+extern int ulib_icep_ctrl_enab(void*);
+extern void ulib_ofif_icep_init(void *ptr, size_t off);
+extern int  ulib_icep_close(void *ptr, size_t off);
 
 static int tofu_cep_close(struct fid *fid)
 {
@@ -27,12 +29,10 @@ static int tofu_cep_close(struct fid *fid)
     if (cep_priv->cep_recv_cq != 0) {
 	tofu_cq_rem_cep_rx(cep_priv->cep_recv_cq, cep_priv);
     }
-#ifdef	CONF_TOFU_SHEA
     {
 	const size_t offs_ulib = sizeof (cep_priv[0]);
-	tofu_imp_ulib_fini(cep_priv, offs_ulib);
+	ulib_icep_close(cep_priv, offs_ulib);
     }
-#endif	/* CONF_TOFU_SHEA */
     if ( ! dlist_empty( &cep_priv->cep_ent_sep ) ) {
 	if (cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX) {
 	    tofu_sep_rem_cep_tx( cep_priv->cep_sep, cep_priv );
@@ -162,7 +162,8 @@ bad:
     return fc;
 }
 
-/* static */ int tofu_cep_ctrl(struct fid *fid, int command, void *arg)
+/* static */ int
+tofu_cep_ctrl(struct fid *fid, int command, void *arg)
 {
     int fc = FI_SUCCESS;
     struct tofu_cep *cep_priv;
@@ -170,7 +171,6 @@ bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
     cep_priv = container_of(fid, struct tofu_cep, cep_fid.fid);
-    if (cep_priv == 0) { }
 
     switch (command) {
     case FI_ENABLE:
@@ -179,28 +179,14 @@ bad:
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-	    if ( ! cep_priv->cep_send_cq ) {
-	    }
-#ifdef	CONF_TOFU_SHEA
-	    {
-		const size_t offs_ulib = sizeof (cep_priv[0]);
-		tofu_imp_ulib_enab(cep_priv, offs_ulib);
-	    }
-#endif	/* CONF_TOFU_SHEA */
+            ulib_icep_ctrl_enab(cep_priv + 1);
 	    cep_priv->cep_enb = 1;
 	    break;
 	case FI_CLASS_RX_CTX:
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-	    if ( ! cep_priv->cep_recv_cq ) {
-	    }
-#ifdef	CONF_TOFU_SHEA
-	    {
-		const size_t offs_ulib = sizeof (cep_priv[0]);
-		tofu_imp_ulib_enab(cep_priv, offs_ulib);
-	    }
-#endif	/* CONF_TOFU_SHEA */
+            ulib_icep_ctrl_enab(cep_priv + 1);
 	    cep_priv->cep_enb = 1;
 	    break;
 	default:
@@ -374,7 +360,7 @@ tofu_cep_tx_context(struct fid_ep *fid_sep,
     if (cep_priv == 0) {
         fc = -FI_ENOMEM; goto bad;
     }
-    tofu_imp_ulib_init(cep_priv, offs_ulib, 0 /* rx */ , attr /* tx */ );
+    ulib_ofif_icep_init(cep_priv, offs_ulib);
 
     /* initialize cep_priv */
     cep_priv->cep_fid.fid.fclass  = FI_CLASS_TX_CTX;
@@ -455,23 +441,16 @@ int tofu_cep_rx_context(struct fid_ep *fid_sep,
 #else	/* notdef */
     {
 	size_t msiz;
-#ifdef	CONF_TOFU_SHEA
 	size_t offs_ulib;
-#endif	/* CONF_TOFU_SHEA */
 
 	msiz = sizeof (cep_priv[0]);
-#ifdef	CONF_TOFU_SHEA
 	offs_ulib = msiz;
 	msiz += tofu_imp_ulib_size();
-#endif	/* CONF_TOFU_SHEA */
-
 	cep_priv = calloc(1, msiz);
 	if (cep_priv == 0) {
 	    fc = -FI_ENOMEM; goto bad;
 	}
-#ifdef	CONF_TOFU_SHEA
-	tofu_imp_ulib_init(cep_priv, offs_ulib, attr /* rx */ , 0 /* tx */ );
-#endif	/* CONF_TOFU_SHEA */
+	ulib_ofif_icep_init(cep_priv, offs_ulib);
     }
 #endif	/* notdef */
 
