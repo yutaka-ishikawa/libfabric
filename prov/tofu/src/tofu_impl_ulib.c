@@ -642,9 +642,8 @@ tofu_imp_ulib_icep_recv_cbak_uexp(struct ulib_icep *icep,
 
     /* queue it */
     {
-	struct dlist_entry *uexp_entry = (struct dlist_entry *)&uexp->entry;
+	struct dlist_entry *uexp_entry = &uexp->entry;
 
-	assert(sizeof (uexp->vspc_list) <= sizeof (uexp_entry[0]));
 	dlist_init(uexp_entry);
 
 	/* queue it */

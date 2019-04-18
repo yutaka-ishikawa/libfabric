@@ -158,6 +158,10 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
         uc = ulib_toqc_init(icep->vcqh, &icep->toqc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
     }
+    if (icep->cbuf.csiz == 0) {
+	uc = ulib_shea_cbuf_init(&icep->cbuf);
+	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
+    }
     {
 	const unsigned int ctag = 10, dtag = 11;
 	const ulib_shea_ercv_cbak_f func = ulib_icep_recv_call_back;
@@ -184,7 +188,12 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     icep->enabled = 0;
     icep->next = 0;
     icep->isep = 0; /* III */
+    icep->ioav = 0;
     icep->vcqh = 0;
+    icep->toqc = 0;
+    icep->cbuf.csiz = 0;
+    icep->icep_scq = 0;
+    icep->icep_rcq = 0;
     icep->uexp_fs = 0;
     dlist_init(&icep->uexp_list_trcv); /* unexpected queue for tagged msg. */
     dlist_init(&icep->uexp_list_mrcv); /* unexpected queue for msg. */
@@ -192,6 +201,7 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     dlist_init(&icep->expd_list_trcv); /* expeced queue */
     dlist_init(&icep->expd_list_mrcv); /* expeced queue */
     icep->udat_fs = 0;
+    icep->tofa.ui64 = -1UL;
     return ;
 }
 
@@ -819,9 +829,8 @@ ulib_uexp_fs_index(icep->uexp_fs, uexp));
 
     /* queue it */
     {
-	struct dlist_entry *uexp_entry = (struct dlist_entry *)&uexp->entry;
+	struct dlist_entry *uexp_entry = &uexp->entry;
 
-	assert(sizeof (uexp->vspc_list) <= sizeof (uexp_entry[0]));
 	dlist_init(uexp_entry);
 
 	/* queue it */

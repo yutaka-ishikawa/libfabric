@@ -548,7 +548,7 @@ ulib_icep_find_uexp(struct ulib_icep *icep,
     struct dlist_entry *head;
     struct dlist_entry *match;
 
-    head = (uexp->flag & ULIB_SHEA_UEXP_FLAG_TFLG) ?
+    head = (expd->flgs & FI_TAGGED) ?
 	&icep->uexp_list_trcv : &icep->uexp_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_uexp, expd);
     if (match == 0) {
