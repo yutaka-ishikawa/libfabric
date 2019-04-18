@@ -153,7 +153,7 @@ struct ulib_icep {
 };
 
 extern int  ulib_isep_open_tnis_info(struct ulib_isep *isep);
-extern int  ulib_icep_ctrl_enab(struct ulib_icep *icep);
+extern int  ulib_icep_ctrl_enab(void *ptr, size_t off);
 extern void ulib_ofif_icep_init(void *ptr, size_t off);
 extern int  ulib_icep_close(void *ptr, size_t off);
 extern int  ulib_imr__bind_icep(struct ulib_imr_ *imr_, struct ulib_icep *icep);

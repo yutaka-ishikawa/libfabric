@@ -5,7 +5,7 @@
 #include <assert.h>	    /* for assert() */
 #include "tofu_impl.h"
 /* The following ulib interface should be defined in some file 2019/04/18 */
-extern int ulib_icep_ctrl_enab(void*);
+extern int  ulib_icep_ctrl_enab(void *ptr, size_t off);
 extern void ulib_ofif_icep_init(void *ptr, size_t off);
 extern int  ulib_icep_close(void *ptr, size_t off);
 
@@ -179,14 +179,14 @@ tofu_cep_ctrl(struct fid *fid, int command, void *arg)
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-            ulib_icep_ctrl_enab(cep_priv + 1);
+            ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
 	    cep_priv->cep_enb = 1;
 	    break;
 	case FI_CLASS_RX_CTX:
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-            ulib_icep_ctrl_enab(cep_priv + 1);
+            ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
 	    cep_priv->cep_enb = 1;
 	    break;
 	default:

@@ -13,6 +13,8 @@
 
 #include "utofu.h"	    /* for UTOFU_SUCCESS */
 
+#include "tofu_prv.h"	    /* for struct tofu_*() XXX */
+
 #include <assert.h>	    /* for assert() */
 #include <stdlib.h>	    /* for free() */
 #include <stdio.h>	    /* for printf() */
@@ -52,16 +54,28 @@ int ulib_isep_open_tnis_info(struct ulib_isep *isep)
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
-int ulib_icep_ctrl_enab(struct ulib_icep *icep)
+int
+ulib_icep_ctrl_enab(void *ptr, size_t off)
 {
     int uc = UTOFU_SUCCESS;
+    struct ulib_icep *icep = (struct ulib_icep*) ((char*)ptr + off);
     struct ulib_isep *isep;
 
     fprintf(stderr, "YI********** %s is CALLED\n", __func__); fflush(stderr);
     ENTER_RC_C(uc);
 
-    if ((icep == 0) || (icep->isep == 0)) {
+    if (icep == 0) {
 	uc = UTOFU_ERR_INVALID_ARG; RETURN_BAD_C(uc);
+    }
+    /* XXX #include "tofu_prv.h" */
+    if (icep->index < 0) { /* XXX III */
+	struct tofu_cep *cep_priv = ptr;
+	icep->index = cep_priv->cep_idx;
+    }
+    if (icep->isep == 0) { /* XXX III */
+	struct tofu_cep *cep_priv = ptr;
+	icep->isep = (struct ulib_isep *)(cep_priv->cep_sep + 1);
+	assert(icep->isep != 0);
     }
     isep = icep->isep;
     if (icep->enabled != 0) {
