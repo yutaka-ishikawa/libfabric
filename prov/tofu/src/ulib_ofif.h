@@ -30,7 +30,7 @@
  *   void ulib_uexp_fs_free(struct ulib_uexp_fs *fs);
  *   int ulib_uexp_fs_index(struct ulib_uexp_fs *fs, struct ulib_shea_rinf *en);
  */
-DECLARE_FREESTACK(struct ulib_shea_rinf, ulib_uexp_fs);
+DECLARE_FREESTACK(struct ulib_shea_uexp, ulib_uexp_fs);
 #endif	/* CONF_ULIB_OFI */
 #ifdef	CONF_ULIB_OFI
 
@@ -148,23 +148,21 @@ struct ulib_icep {
     struct ulib_icep *next;
     struct ulib_isep *isep;
     struct ulib_ioav *ioav; /* ofi address vector */
-    utofu_vcq_hdl_t vcqh;
-    /* fastlock_t icep_lck; */
-#ifndef	notdef_icep_toqc
-    struct ulib_toqc *toqc;
-    struct ulib_shea_cbuf cbuf;
-#endif	/* notdef_icep_toqc */
-    struct ulib_icqu *icep_scq; /* send cq */
-    struct ulib_icqu *icep_rcq; /* recv cq */
-#ifdef	CONF_ULIB_OFI
-    struct ulib_uexp_fs *uexp_fs;
-    struct dlist_entry uexp_list_trcv;
-    struct dlist_entry uexp_list_mrcv;
-    struct ulib_expd_fs *expd_fs;
-    struct dlist_entry expd_list_trcv; /* fi_msg_tagged */
-    struct dlist_entry expd_list_mrcv; /* fi_msg */
-    struct ulib_udat_fs *udat_fs;
-#endif	/* CONF_ULIB_OFI */
+    utofu_vcq_hdl_t             vcqh;
+    fastlock_t                  icep_lck;
+    struct ulib_toqc            *toqc;
+    struct ulib_shea_cbuf       cbuf;
+    struct ulib_icqu            *icep_scq; /* send cq */
+    struct ulib_icqu            *icep_rcq; /* recv cq */
+    /* unexpected queue */
+    struct ulib_uexp_fs         *uexp_fs;
+    struct dlist_entry          uexp_list_trcv; /* fi_msg_tagged */
+    struct dlist_entry          uexp_list_mrcv; /* fi_msg */
+    /* expected queue */
+    struct ulib_expd_fs         *expd_fs;
+    struct dlist_entry          expd_list_trcv; /* fi_msg_tagged */
+    struct dlist_entry          expd_list_mrcv; /* fi_msg */
+    struct ulib_udat_fs         *udat_fs;
 };
 
 extern int  ulib_isep_open_tnis_info(struct ulib_isep *isep);
@@ -219,12 +217,10 @@ struct fi_msg_tagged;
 #include <assert.h>	    /* for assert() */
 #include <sys/uio.h>	    /* for struct iovec */
 
-struct ulib_shea_trcv {
-#ifdef	CONF_ULIB_OFI
+struct ulib_shea_expd {
     struct dlist_entry entry;
     struct fi_msg_tagged tmsg;
     uint64_t flgs;
-#endif	/* CONF_ULIB_OFI */
     uint32_t mblk;
     uint32_t nblk;
     uint64_t rtag;
@@ -232,9 +228,7 @@ struct ulib_shea_trcv {
     uint32_t olen;
     uint32_t niov;
     struct iovec iovs[2];
-#ifdef	CONF_ULIB_PERF_SHEA
     uint64_t tims[16];
-#endif	/* CONF_ULIB_PERF_SHEA */
 };
 
 /*
@@ -245,63 +239,56 @@ struct ulib_shea_trcv {
  *   void ulib_expd_fs_free(struct ulib_expd_fs *fs);
  *   int ulib_expd_fs_index(struct ulib_expd_fs *fs, struct ulib_shea_trcv *en);
  */
-DECLARE_FREESTACK(struct ulib_shea_trcv, ulib_expd_fs);
+DECLARE_FREESTACK(struct ulib_shea_expd, ulib_expd_fs);
 
 
-static inline void ulib_shea_trcv_init(
-    struct ulib_shea_trcv *trcv,
-    const struct fi_msg_tagged *tmsg,
-    uint64_t flags
-)
+static inline void 
+ulib_shea_expd_init(struct ulib_shea_expd *expd,
+                    const struct fi_msg_tagged *tmsg,
+                    uint64_t flags)
 {
-    trcv->mblk = 0;
-    trcv->nblk = 0;
-    trcv->rtag = 0;
-    trcv->wlen = 0;
-    trcv->olen = 0;
-    /* trcv->flag = 0; */ /* YYY */
-#ifdef	CONF_ULIB_OFI
-#ifndef	NDEBUG
-    dlist_init(&trcv->entry);
-#endif	/* NDEBUG */
-    trcv->flgs = flags; /* | FI_TAGGED */
-    trcv->tmsg = tmsg[0]; /* structure copy */
-    /* (sizeof (trcv->iovs) / sizeof (trcv->iovs[0]) */
+    expd->mblk = 0;
+    expd->nblk = 0;
+    expd->rtag = 0;
+    expd->wlen = 0;
+    expd->olen = 0;
+    /* expd->flag = 0; */ /* YYY */
+    dlist_init(&expd->entry);
+    expd->flgs = flags; /* | FI_TAGGED */
+    expd->tmsg = tmsg[0]; /* structure copy */
+    /* (sizeof (expd->iovs) / sizeof (expd->iovs[0]) */
     assert(tmsg->iov_count <= 2); /* XXX */
     {
 	size_t iv, nv = tmsg->iov_count;
 	for (iv = 0; iv < nv; iv++) {
-	    trcv->iovs[iv].iov_base = tmsg->msg_iov[iv].iov_base;
-	    trcv->iovs[iv].iov_len  = tmsg->msg_iov[iv].iov_len;
+	    expd->iovs[iv].iov_base = tmsg->msg_iov[iv].iov_base;
+	    expd->iovs[iv].iov_len  = tmsg->msg_iov[iv].iov_len;
 	}
-	trcv->niov = nv;
+	expd->niov = nv;
     }
-#endif	/* CONF_ULIB_OFI */
-#ifdef	CONF_ULIB_PERF_SHEA
     {
-	size_t it, nt = sizeof (trcv->tims) / sizeof (trcv->tims[0]);
+	size_t it, nt = sizeof (expd->tims) / sizeof (expd->tims[0]);
 	for (it = 0; it < nt; it++) {
-	    trcv->tims[it] = 0ULL;
+	    expd->tims[it] = 0ULL;
 	}
     }
-#endif	/* CONF_ULIB_PERF_SHEA */
     return ;
 }
 #ifdef	notdef_recv_post
 
-static inline void ulib_shea_trcv_link(
+static inline void ulib_shea_expd_link(
     struct ulib_icep *icep,
-    struct ulib_shea_trcv *trcv
+    struct ulib_shea_expd *expd
 )
 {
-    assert(trcv != 0);
+    assert(expd != 0);
     assert(icep != 0);
 #ifdef	CONF_ULIB_OFI
 #ifndef	NDEBUG
-    assert(dlist_empty(&trcv->entry));
+    assert(dlist_empty(&expd->entry));
 #endif	/* NDEBUG */
-    dlist_insert_tail(&trcv->entry, &icep->expd_list_trcv); /* YYY FI_TAGGED */
-    /* dlist_insert_tail(&trcv->entry, &icep->expd_list_mrcv); */
+    dlist_insert_tail(&expd->entry, &icep->expd_list_expd); /* YYY FI_TAGGED */
+    /* dlist_insert_tail(&expd->entry, &icep->expd_list_mrcv); */
 #endif	/* CONF_ULIB_OFI */
     return ;
 }
@@ -540,5 +527,137 @@ static inline void ulib_icqu_cque_deq_push(struct ulib_icqu *icqu, void *cent)
 }
 #endif	/* defined(CONF_ULIB_FICQ) */
 #endif	/* CONF_ULIB_OFI */
+
+static inline int
+ulib_match_expd(struct dlist_entry *item, const void *farg)
+{
+    int ret;
+    const struct ulib_shea_uexp *uexp = farg;
+    struct ulib_shea_expd *expd;
+
+    expd = container_of(item, struct ulib_shea_expd, entry);
+    ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
+           == (uexp->utag & ~expd->tmsg.ignore));
+    return ret;
+}
+
+static inline struct ulib_shea_expd*
+ulib_icep_find_expd(struct ulib_icep *icep,
+                    const struct ulib_shea_uexp *uexp)
+{
+    struct ulib_shea_expd *expd = 0;
+    struct dlist_entry *head;
+    struct dlist_entry *match;
+
+    head = (uexp->flag & ULIB_SHEA_UEXP_FLAG_TFLG) ?
+	&icep->expd_list_trcv : &icep->expd_list_mrcv;
+    match = dlist_remove_first_match(head, ulib_match_expd, uexp);
+    if (match == 0) {
+	goto bad; /* XXX - is not an error */
+    }
+    expd = container_of(match, struct ulib_shea_expd, entry);
+bad:
+    return expd;
+}
+
+static inline int
+ulib_match_uexp(struct dlist_entry *item, const void *farg)
+{
+    int ret;
+    const struct ulib_shea_expd *expd = farg;
+    struct ulib_shea_uexp *uexp;
+
+    uexp = container_of(item, struct ulib_shea_uexp, entry);
+    ret = ((uexp->utag & ~expd->tmsg.ignore)
+           == (expd->tmsg.tag & ~expd->tmsg.ignore));
+    return ret;
+}
+
+static inline struct ulib_shea_uexp*
+ulib_icep_find_uexp(struct ulib_icep *icep,
+                    const struct ulib_shea_expd *expd)
+{
+    struct ulib_shea_uexp *uexp = 0;
+    struct dlist_entry *head;
+    struct dlist_entry *match;
+
+    head = (uexp->flag & ULIB_SHEA_UEXP_FLAG_TFLG) ?
+	&icep->uexp_list_trcv : &icep->uexp_list_mrcv;
+    match = dlist_remove_first_match(head, ulib_match_uexp, expd);
+    if (match == 0) {
+	goto bad; /* XXX - is not an error */
+    }
+    uexp = container_of(match, struct ulib_shea_uexp, entry);
+bad:
+    return uexp;
+}
+
+/* Should be check if the following functions may be externally used */
+static inline void
+ulib_icep_link_expd(struct ulib_icep *icep,
+                    struct ulib_shea_expd *expd)
+{
+    struct dlist_entry *head;
+    head = (expd->flgs & FI_TAGGED) != 0 ?
+	&icep->expd_list_trcv : &icep->expd_list_mrcv;
+     dlist_insert_tail(&expd->entry, head);
+    return ;
+}
+
+static inline struct ulib_shea_data 
+*ulib_icep_shea_data_qget(struct ulib_icep *icep)
+{
+    struct ulib_shea_data *data = 0;
+
+    if (freestack_isempty(icep->udat_fs)) {
+	goto bad;
+    }
+    data = freestack_pop(icep->udat_fs);
+    assert(data != 0);
+    /* initialize vcqh and stad_data */
+    {
+	struct ulib_toqc_cash *cash_real = &data->real;
+	const uint64_t fi_a = -1ULL /* YYY FI_ADDR_NOTAVAIL */ ;
+
+	ulib_toqc_cash_init(cash_real, fi_a);
+    }
+bad:
+    return data;
+}
+
+static inline void ulib_icep_shea_data_qput(
+    struct ulib_icep *icep,
+    struct ulib_shea_data *data
+)
+{
+    assert(data != 0);
+    /* unregister stad_data */
+    {
+	struct ulib_toqc_cash *cash_real = &data->real;
+	struct ulib_utof_cash *lcsh;
+
+	lcsh = &cash_real->addr[1];
+	if (lcsh->stad_data != (utofu_stadd_t)-1ULL) {
+	    const unsigned long int flag = 0
+					/* | UTOFU_REG_MEM_FLAG_READ_ONLY */
+					;
+	    int uc;
+
+	    uc = utofu_dereg_mem(lcsh->vcqh, lcsh->stad_data, flag);
+	    if (uc != UTOFU_SUCCESS) {
+                fprintf(stderr, "YI******* %s(%"PRIxPTR",%"PRIx64",) = %d\n",
+                        "utofu_dereg_mem",
+                        lcsh->vcqh, lcsh->stad_data, uc);
+                fflush(stdout);
+		/* YYY abort */
+	    }
+	    assert(uc == UTOFU_SUCCESS);
+	    lcsh->stad_data = -1ULL;
+	}
+    }
+    freestack_push(icep->udat_fs, data);
+
+    return ;
+}
 
 #endif	/* _ULIB_OFIF_H */

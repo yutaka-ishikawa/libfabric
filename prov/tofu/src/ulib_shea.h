@@ -539,23 +539,21 @@ struct ulib_shea_rbuf {
     uint32_t leng;
 };
 
-struct ulib_shea_rinf {
-    uint64_t utag;
-    uint32_t mblk;
-    uint32_t nblk;
-    uint32_t boff;
-    uint32_t flag;
-    uint32_t srci;
-    struct ulib_shea_rbuf rbuf;
-    void * vspc_list[2];
-#ifdef	CONF_ULIB_PERF_SHEA
-    uint64_t tims[1];
-#endif	/* CONF_ULIB_PERF_SHEA */
+struct ulib_shea_uexp {
+    struct dlist_entry entry; /* used for dlist */
+    uint64_t utag;                 /* tag */
+    uint32_t mblk;                 /* # of blocks will be received */
+    uint32_t nblk;      /* current # of blocks received */
+    uint32_t boff;      /* current last pointer */
+    uint32_t flag;      /* fi flag */
+    uint32_t srci;      /* for debug perpose (source rank) */
+    struct ulib_shea_rbuf rbuf; /* receive buffer */
+    uint64_t tims[1];   /* used for statistics (time) */
 };
 
-#define ULIB_SHEA_RINF_FLAG_MBLK    0x01
-#define ULIB_SHEA_RINF_FLAG_TFLG    0x02
-#define ULIB_SHEA_RINF_FLAG_ZFLG    0x04
+#define ULIB_SHEA_UEXP_FLAG_MBLK    0x01
+#define ULIB_SHEA_UEXP_FLAG_TFLG    0x02
+#define ULIB_SHEA_UEXP_FLAG_ZFLG    0x04
 
 /* ======================================================================== */
 

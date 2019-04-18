@@ -42,8 +42,8 @@ struct tofu_sep {
     uint32_t		sep_enb;    /* enabled */
     fastlock_t		sep_lck;
 /*  struct dlist_entry	sep_ent; */
-    struct dlist_entry	sep_htx;    /* haed for ep tx ctxs */
-    struct dlist_entry	sep_hrx;    /* haed for ep tx ctxs */
+    struct dlist_entry	sep_htx;    /* head for ep tx ctxs */
+    struct dlist_entry	sep_hrx;    /* head for ep tx ctxs */
     struct tofu_av *	sep_av_;
 };
 
@@ -70,13 +70,9 @@ struct tofu_cep {
     struct tofu_cq *	cep_recv_cq; /* receive completion queue */
     struct tofu_cntr *	cep_wop_ctr; /* write rma operation */
     struct tofu_cntr *	cep_rop_ctr; /* read  rma operation */
-#if 0 /* YI */
-    struct tofu_recv_fs *   recv_fs;	 /* free list of recv msg */
-    struct dlist_entry	    recv_tag_hd; /* posted recv tag */
-    struct dlist_entry	    recv_msg_hd; /* posted recv msg */
-    struct dlist_entry	    unexp_tag_hd; /* unexpected recv tag */
-    struct dlist_entry	    unexp_msg_hd; /* unexpected recv msg */
-#endif
+    /*
+     * see struct ulib_icep for more internal structures in ulib_ofif.h
+     */
 };
 
 #endif	/* _TOFU_PRV_H */

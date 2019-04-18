@@ -394,18 +394,19 @@ tofu_cep_tx_context(struct fid_ep *fid_sep,
     dlist_init( &cep_priv->cep_ent_sep );
     dlist_init( &cep_priv->cep_ent_cq );
     dlist_init( &cep_priv->cep_ent_ctr );
-    /* check index */
+    /* check if CEP of corresponding index has been registered */
     {
-        fprintf(stderr, "YI******** Ask Hatanaka-san what is doing here in %s ?\n", __func__);
 	struct tofu_cep *cep_dup;
 	fastlock_acquire(&sep_priv->sep_lck);
 	cep_dup = tofu_sep_lup_cep_byi_unsafe(sep_priv,
                                               FI_CLASS_TX_CTX, index);
 	fastlock_release(&sep_priv->sep_lck);
 	if (cep_dup != 0) {
+            /* index's CEP has been already registered */
 	    fc = -FI_EBUSY; goto bad;
 	}
     }
+    /* register this CEP in SEP */
     tofu_sep_ins_cep_tx(cep_priv->cep_sep, cep_priv);
 
     /* return fid_cep */

@@ -67,6 +67,7 @@ int ulib_icep_ctrl_enab(struct ulib_icep *icep)
 	uc = UTOFU_ERR_BUSY; RETURN_BAD_C(uc);
     }
 
+    fprintf(stderr, "YI*********** HERE in %s\n", __func__); fflush(stderr);
 #ifdef	CONF_ULIB_OFI
     /* unexpected entries */
     if (icep->uexp_fs == 0) {
@@ -76,6 +77,7 @@ int ulib_icep_ctrl_enab(struct ulib_icep *icep)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
+    fprintf(stderr, "YI*********** UEXP_FS(%p) in %s\n", icep->uexp_fs, __func__); fflush(stderr);
     /* expected entries */
     if (icep->expd_fs == 0) {
 	/* YYY fi_rx_attr . size ? */
@@ -406,54 +408,6 @@ int ulib_foo(struct ulib_icep *icep)
 
 #include "ulib_shea.h"
 
-static inline int ulib_match_expd(
-    struct dlist_entry *item,
-    const void *farg
-)
-{
-    int ret;
-    const struct ulib_shea_rinf *rinf = farg;
-    struct ulib_shea_trcv *expd;
-
-    expd = container_of(item, struct ulib_shea_trcv, entry);
-    ret =
-	((expd->tmsg.tag | expd->tmsg.ignore)
-	    == (rinf->utag | expd->tmsg.ignore))
-	;
-    return ret;
-}
-
-static inline void *ulib_icep_find_expd(
-    struct ulib_icep *icep,
-    const struct ulib_shea_rinf *rinf
-)
-{
-    void *expd = 0;
-    int is_tagged_msg;
-    struct dlist_entry *head;
-    struct dlist_entry *match;
-
-    is_tagged_msg = ((rinf->flag & ULIB_SHEA_RINF_FLAG_TFLG) != 0);
-    if (is_tagged_msg) {
-	head = &icep->expd_list_trcv;
-    }
-    else {
-	head = &icep->expd_list_mrcv;
-    }
-    match = dlist_remove_first_match(head, ulib_match_expd, rinf);
-    if (match == 0) {
-	goto bad; /* XXX - is not an error */
-    }
-#ifndef	NDEBUG
-    dlist_init(match);
-#endif	/* NDEBUG */
-
-    expd = container_of(match, struct ulib_shea_trcv, entry);
-
-bad:
-    return expd;
-}
-
 static inline int ulib_match_rinf_entry(
     struct dlist_entry *item,
     const void *farg
@@ -471,59 +425,29 @@ static inline int ulib_match_rinf_entry(
     return ret;
 }
 
-static inline void *ulib_find_rinf_entry(
-    struct ulib_icep *icep,
-    const struct ulib_shea_trcv *trcv
-)
+/*
+ * Matching send message with a message enqueued in unexpected queue
+ */
+static inline struct ulib_shea_uexp *
+ulib_find_rinf_entry(struct ulib_icep *icep,
+                     const struct ulib_shea_trcv *trcv)
 {
-    void *rval = 0;
-    int is_tagged_msg;
+    struct ulib_shea_rinf *rval = 0;
     struct dlist_entry *head;
     struct dlist_entry *match;
 
-    is_tagged_msg = ((trcv->flgs & FI_TAGGED) != 0);
-    if (is_tagged_msg) {
-	head = &icep->uexp_list_trcv;
-    }
-    else {
-	head = &icep->uexp_list_mrcv;
-    }
+    head = (trcv->flgs & FI_TAGGED) ?
+        &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_rinf_entry, trcv);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }
-#ifndef	NDEBUG
-    dlist_init(match);
-#endif	/* NDEBUG */
-
     rval = container_of(match, struct ulib_shea_rinf, vspc_list);
 
 bad:
     return rval;
 }
 
-static inline void ulib_icep_link_expd(
-    struct ulib_icep *icep,
-    struct ulib_shea_trcv *expd
-)
-{
-    int is_tagged_msg;
-    struct dlist_entry *head;
-
-    is_tagged_msg = ((expd->flgs & FI_TAGGED) != 0);
-    if (is_tagged_msg) {
-	head = &icep->expd_list_trcv;
-    }
-    else {
-	head = &icep->expd_list_mrcv;
-    }
-#ifndef	NDEBUG
-    assert(dlist_empty(&expd->entry));
-#endif	/* NDEBUG */
-    dlist_insert_tail(&expd->entry, head);
-
-    return ;
-}
 
 static inline void ulib_icep_link_expd_head(
     struct ulib_icep *icep,
@@ -890,11 +814,10 @@ bad:
     return uc;
 }
 
-int ulib_icep_recv_call_back(
-    void *farg, /* icep */
-    int r_uc,
-    const void *vctx /* rinf */
-)
+int
+ulib_icep_recv_call_back(void *farg, /* icep */
+                         int r_uc,
+                         const void *vctx /* rinf */)
 {
     int uc = 0;
     struct ulib_icep *icep = farg;
@@ -1156,67 +1079,6 @@ bad:
 }
 
 
-static inline struct ulib_shea_data *ulib_icep_shea_data_qget(
-    struct ulib_icep *icep
-)
-{
-    struct ulib_shea_data *data = 0;
-
-    if (freestack_isempty(icep->udat_fs)) {
-	goto bad;
-    }
-    data = freestack_pop(icep->udat_fs);
-    assert(data != 0);
-#ifdef	CONF_ULIB_SHEA_DATA
-    /* initialize vcqh and stad_data */
-    {
-	struct ulib_toqc_cash *cash_real = &data->real;
-	const uint64_t fi_a = -1ULL /* YYY FI_ADDR_NOTAVAIL */ ;
-
-	ulib_toqc_cash_init(cash_real, fi_a);
-    }
-#endif	/* CONF_ULIB_SHEA_DATA */
-
-bad:
-    return data;
-}
-
-static inline void ulib_icep_shea_data_qput(
-    struct ulib_icep *icep,
-    struct ulib_shea_data *data
-)
-{
-    assert(data != 0);
-#ifdef	CONF_ULIB_SHEA_DATA
-    /* unregister stad_data */
-    {
-	struct ulib_toqc_cash *cash_real = &data->real;
-	struct ulib_utof_cash *lcsh;
-
-	lcsh = &cash_real->addr[1];
-	if (lcsh->stad_data != (utofu_stadd_t)-1ULL) {
-	    const unsigned long int flag = 0
-					/* | UTOFU_REG_MEM_FLAG_READ_ONLY */
-					;
-	    int uc;
-
-	    uc = utofu_dereg_mem(lcsh->vcqh, lcsh->stad_data, flag);
-	    if (uc != UTOFU_SUCCESS) {
-printf("%s(%"PRIxPTR",%"PRIx64",) = %d\n", "utofu_dereg_mem",
-lcsh->vcqh, lcsh->stad_data, uc);
-fflush(stdout);
-		/* YYY abort */
-	    }
-	    assert(uc == UTOFU_SUCCESS);
-	    lcsh->stad_data = -1ULL;
-	}
-    }
-#endif	/* CONF_ULIB_SHEA_DATA */
-    freestack_push(icep->udat_fs, data);
-
-    return ;
-}
-
 #include "ulib_desc.h"	    /* for struct ulib_toqc_cash */
 
 extern int  ulib_icep_find_cash(
@@ -1366,7 +1228,9 @@ fflush(stdout);
     }
 
     /* post */
-    vpp_send_hndl[0] = esnd; esnd = 0; /* ZZZ */
+    if (vpp_send_hndl) {
+        vpp_send_hndl[0] = esnd; esnd = 0; /* ZZZ */
+    }
 
 bad:
     return uc;

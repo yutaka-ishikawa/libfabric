@@ -6,7 +6,6 @@
 #include "ulib_shea.h"
 #include "ulib_conv.h"
 #include "tofu_impl.h"
-#include "tofu_impl_internal.h"
 
 static ssize_t
 tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
@@ -35,8 +34,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
      * Ask Hatanaka san
      */
     fprintf(stderr, "YI***** Completion function must be considered ? in %s\n", __func__);
-    ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags,
-		tofu_cq_comp_tagged, cep_priv->cep_recv_cq);
+    ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags);
     fastlock_release( &cep_priv->cep_lck );
 bad:
     return ret;
@@ -158,93 +156,19 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     if (icep->tofa.ui64 == tank.ui64) {
 	int fc;
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");
-        /* Ask Hatanaka-san, which value offs should be set */
-        fc = tofu_impl_ulib_sendmsg_self(cep_priv, 0 /*offs*/, msg, flags);
+        fc = tofu_impl_ulib_sendmsg_self(cep_priv, sizeof(struct tofu_cep),
+                                         msg, flags);
 	if (fc != 0) {
 	    ret = fc; goto bad;
 	}
     } else {
-        const size_t offs_ulib = sizeof (cep_priv[0]);
-	uint64_t iflg = flags & ~FI_TAGGED;
-	uint64_t tank = -1ULL;
-
-        FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***REMOTE SEND\n");
-	/* convert fi_addr to tank */
-	{
-	    struct tofu_av *av__priv;
-	    fi_addr_t fi_a = msg->addr;
-	    int fc;
-
-	    assert(cep_priv->cep_sep != 0);
-	    av__priv = cep_priv->cep_sep->sep_av_;
-	    assert(av__priv != 0);
-
-	    fc = tofu_av_lup_tank(av__priv, fi_a, &tank);
-	    if (fc != FI_SUCCESS) { ret = fc; goto bad; }
-	}
-
-	/* struct fi_tx_attr . iov_limit >= msg->iov_count */
-	if (msg->iov_count > 1) {
-	    ret = -FI_EINVAL; goto bad;
-	}
-
-	/*
-	 * msg_iov.iov_base ... lsta (uint64_t : utofu_stadd_t)
-	 * msg_iov.iov_len .... tlen (size_t)
-	 * desc ...............      (--> lsta)
-	 * addr ............... tank (uint64_t : struct ulib_tank)
-	 * tag  ............... utag
-	 * ignore .............      (--> unused)
-	 * context ............ ctxt
-	 * data ...............      (--> unused)
-	 */
-	if (1) {
-	    void *ctxt = msg->context;
-	    uint64_t utag = msg->tag;
-	    size_t tlen = 0;
-	    uint64_t lsta;
-	    int fc;
-
-	    if (msg->iov_count <= 0) {
-		/* tlen = 0; */
-		lsta = -1ULL;
-	    }
-	    else if (msg->msg_iov[0].iov_len == 0) {
-		/* tlen = 0; */
-		lsta = -1ULL;
-	    }
-	    else {
-		const struct iovec *iov1 = &msg->msg_iov[0];
-
-		if (msg->desc != 0) {
-		    struct tofu_mr *desc = msg->desc[0];
-		    void *icep = (void *)((uint8_t *)cep_priv + offs_ulib);
-
-		    fc = tofu_imp_ulib_immr_stad(desc, icep, iov1, &lsta);
-		    if (fc != FI_SUCCESS) { ret = fc; goto bad; }
-		}
-		else {
-		    void *icep = (void *)((uint8_t *)cep_priv + offs_ulib);
-
-		    fc = tofu_imp_ulib_immr_stad_temp(icep, iov1, &lsta);
-		    if (fc != FI_SUCCESS) { ret = fc; goto bad; }
-		    iflg |= FI_MULTICAST; /* XXX need to free it */
-		}
-		tlen = iov1->iov_len;
-		assert(lsta != -1ULL);
-	    }
-
-	    fc = tofu_imp_ulib_send_post_fast(cep_priv, offs_ulib,
-		    lsta, tlen, tank, utag, ctxt, iflg,
-		    tofu_cq_comp_tagged, cep_priv->cep_send_cq);
-	    if (fc != 0) { goto bad; }
-	}
-
+        const size_t    offs_ulib = sizeof (cep_priv[0]);
+	uint64_t        iflg = flags & ~FI_TAGGED;
 	/* post it */
-	fastlock_acquire( &cep_priv->cep_lck );
+	fastlock_acquire(&cep_priv->cep_lck);
 	ret = tofu_imp_ulib_send_post(cep_priv, offs_ulib, msg, iflg,
 		tofu_cq_comp_tagged, cep_priv->cep_send_cq);
-	fastlock_release( &cep_priv->cep_lck );
+	fastlock_release(&cep_priv->cep_lck);
 	if (ret != 0) { goto bad; }
     }
 
