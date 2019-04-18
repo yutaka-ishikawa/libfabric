@@ -38,7 +38,8 @@ extern int	tofu_imp_ulib_gnam(
 		);
 extern int      tofu_impl_ulib_sendmsg_self(
                     void *vptr, size_t offs,
-                    struct tofu_recv_en *send_entry);
+                    const struct fi_msg_tagged *tmsg,
+                    uint64_t flags);
 extern int	tofu_imp_ulib_recv_post(
 		    void *vptr,
 		    size_t offs,

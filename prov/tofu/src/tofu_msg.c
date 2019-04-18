@@ -3,6 +3,7 @@
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
+#include "ulib_shea.h"
 #include "ulib_conv.h"
 #include "tofu_impl.h"
 #include "tofu_impl_internal.h"
@@ -33,7 +34,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     /*
      * Ask Hatanaka san
      */
-    fprintf(stderr, "YI***** Completion function must be considered ?\n", __func__);
+    fprintf(stderr, "YI***** Completion function must be considered ? in %s\n", __func__);
     ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags,
 		tofu_cq_comp_tagged, cep_priv->cep_recv_cq);
     fastlock_release( &cep_priv->cep_lck );
@@ -157,7 +158,8 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     if (icep->tofa.ui64 == tank.ui64) {
 	int fc;
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");
-	fc = tofu_impl_ulib_sendmsg_self(cep_priv, offs, msg, flags);
+        /* Ask Hatanaka-san, which value offs should be set */
+        fc = tofu_impl_ulib_sendmsg_self(cep_priv, 0 /*offs*/, msg, flags);
 	if (fc != 0) {
 	    ret = fc; goto bad;
 	}
