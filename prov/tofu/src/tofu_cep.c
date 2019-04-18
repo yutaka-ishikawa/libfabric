@@ -33,11 +33,6 @@ static int tofu_cep_close(struct fid *fid)
 	tofu_imp_ulib_fini(cep_priv, offs_ulib);
     }
 #endif	/* CONF_TOFU_SHEA */
-#ifdef	CONF_TOFU_RECV	/* DONE */
-    if (cep_priv->recv_fs != 0) {
-	tofu_recv_fs_free(cep_priv->recv_fs); cep_priv->recv_fs = 0;
-    }
-#endif	/* CONF_TOFU_RECV */
     if ( ! dlist_empty( &cep_priv->cep_ent_sep ) ) {
 	if (cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX) {
 	    tofu_sep_rem_cep_tx( cep_priv->cep_sep, cep_priv );
@@ -341,24 +336,28 @@ static struct fi_ops_atomic tofu_cep_ops_atomic = {
 };
 #endif	/* NOTDEF_OPS_ATM */
 
-int tofu_cep_tx_context(
-    struct fid_ep *fid_sep,
-    int index,
-    struct fi_tx_attr *attr,
-    struct fid_ep **fid_cep_tx,
-    void *context
-)
+/*
+ * Body of fi_tx_context in Tofu
+ */
+int
+tofu_cep_tx_context(struct fid_ep *fid_sep,
+                    int index,
+                    struct fi_tx_attr *attr,
+                    struct fid_ep **fid_cep_tx,
+                    void *context)
 {
     int fc = FI_SUCCESS;
     struct tofu_sep *sep_priv;
     struct tofu_cep *cep_priv = 0;
+    size_t msiz;
+    size_t offs_ulib;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid_sep != 0);
     if (fid_sep->fid.fclass != FI_CLASS_SEP) {
 	fc = -FI_EINVAL; goto bad;
     }
-    sep_priv = container_of(fid_sep, struct tofu_sep, sep_fid );
+    sep_priv = container_of(fid_sep, struct tofu_sep, sep_fid);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
         sep_priv->sep_dom->dom_fab->fab_fid.api_version);
 
@@ -366,80 +365,48 @@ int tofu_cep_tx_context(
 	struct fi_tx_attr *prov_attr = 0; /* default */
 	uint64_t user_info_mode = 0;
 
-	fc = tofu_chck_cep_tx_attr( prov_attr, attr, user_info_mode);
+	fc = tofu_chck_cep_tx_attr(prov_attr, attr, user_info_mode);
 	if (fc != 0) { goto bad; }
     }
-
-#ifdef	notdef
-    cep_priv = calloc(1, sizeof (cep_priv[0]));
+    msiz = sizeof (cep_priv[0]);
+    offs_ulib = msiz;  msiz += tofu_imp_ulib_size();
+    cep_priv = calloc(1, msiz);
     if (cep_priv == 0) {
-	fc = -FI_ENOMEM; goto bad;
+        fc = -FI_ENOMEM; goto bad;
     }
-#else	/* notdef */
-    {
-	size_t msiz;
-#ifdef	CONF_TOFU_SHEA
-	size_t offs_ulib;
-#endif	/* CONF_TOFU_SHEA */
-
-	msiz = sizeof (cep_priv[0]);
-#ifdef	CONF_TOFU_SHEA
-	offs_ulib = msiz;
-	msiz += tofu_imp_ulib_size();
-#endif	/* CONF_TOFU_SHEA */
-
-	cep_priv = calloc(1, msiz);
-	if (cep_priv == 0) {
-	    fc = -FI_ENOMEM; goto bad;
-	}
-#ifdef	CONF_TOFU_SHEA
-	tofu_imp_ulib_init(cep_priv, offs_ulib, 0 /* rx */ , attr /* tx */ );
-#endif	/* CONF_TOFU_SHEA */
-    }
-#endif	/* notdef */
+    tofu_imp_ulib_init(cep_priv, offs_ulib, 0 /* rx */ , attr /* tx */ );
 
     /* initialize cep_priv */
-    {
-	cep_priv->cep_sep = sep_priv;
-	cep_priv->cep_idx = index;
-	ofi_atomic_initialize32( &cep_priv->cep_ref, 0 );
-	fastlock_init( &cep_priv->cep_lck );
-
-	cep_priv->cep_fid.fid.fclass	= FI_CLASS_TX_CTX;
-	cep_priv->cep_fid.fid.context	= context;
-	cep_priv->cep_fid.fid.ops	= &tofu_cep_fi_ops;
-	cep_priv->cep_fid.ops		= &tofu_cep_ops;
-	cep_priv->cep_fid.cm		= &tofu_cep_ops_cm;
-	cep_priv->cep_fid.msg           = &tofu_cep_ops_msg;
-	cep_priv->cep_fid.rma   	= &tofu_cep_ops_rma;
-	cep_priv->cep_fid.tagged	= &tofu_cep_ops_tag;
-	cep_priv->cep_fid.atomic	= &tofu_cep_ops_atomic;
-
-	/* dlist_init( &cep_priv->cep_ent ); */
-	dlist_init( &cep_priv->cep_ent_sep );
-	dlist_init( &cep_priv->cep_ent_cq );
-	dlist_init( &cep_priv->cep_ent_ctr );
-#ifdef	CONF_TOFU_RECV	/* DONE */
-	dlist_init( &cep_priv->recv_tag_hd );
-	dlist_init( &cep_priv->recv_msg_hd );
-	dlist_init( &cep_priv->unexp_tag_hd );
-	dlist_init( &cep_priv->unexp_msg_hd );
-	/* cep_priv->recv_fs = 0; */
-#endif	/* CONF_TOFU_RECV */
-	cep_priv->cep_xop_flg = (attr == 0)? 0UL: attr->op_flags;
-    }
+    cep_priv->cep_fid.fid.fclass  = FI_CLASS_TX_CTX;
+    cep_priv->cep_fid.fid.context = context;
+    cep_priv->cep_fid.fid.ops   = &tofu_cep_fi_ops;
+    cep_priv->cep_fid.ops	= &tofu_cep_ops;
+    cep_priv->cep_fid.cm	= &tofu_cep_ops_cm;
+    cep_priv->cep_fid.msg       = &tofu_cep_ops_msg;
+    cep_priv->cep_fid.rma   	= &tofu_cep_ops_rma;
+    cep_priv->cep_fid.tagged	= &tofu_cep_ops_tag;
+    cep_priv->cep_fid.atomic	= &tofu_cep_ops_atomic;
+    cep_priv->cep_sep = sep_priv;
+    ofi_atomic_initialize32( &cep_priv->cep_ref, 0 );
+    cep_priv->cep_idx = index;
+    fastlock_init( &cep_priv->cep_lck );
+    cep_priv->cep_xop_flg = (attr == 0)? 0UL: attr->op_flags;
+    dlist_init( &cep_priv->cep_ent_sep );
+    dlist_init( &cep_priv->cep_ent_cq );
+    dlist_init( &cep_priv->cep_ent_ctr );
     /* check index */
     {
+        fprintf(stderr, "YI******** Ask Hatanaka-san what is doing here in %s ?\n", __func__);
 	struct tofu_cep *cep_dup;
-	fastlock_acquire( &sep_priv->sep_lck );
+	fastlock_acquire(&sep_priv->sep_lck);
 	cep_dup = tofu_sep_lup_cep_byi_unsafe(sep_priv,
-		    FI_CLASS_TX_CTX, index);
-	fastlock_release( &sep_priv->sep_lck );
+                                              FI_CLASS_TX_CTX, index);
+	fastlock_release(&sep_priv->sep_lck);
 	if (cep_dup != 0) {
 	    fc = -FI_EBUSY; goto bad;
 	}
     }
-    tofu_sep_ins_cep_tx( cep_priv->cep_sep, cep_priv );
+    tofu_sep_ins_cep_tx(cep_priv->cep_sep, cep_priv);
 
     /* return fid_cep */
     fid_cep_tx[0] = &cep_priv->cep_fid;
@@ -452,13 +419,11 @@ bad:
     return fc;
 }
 
-int tofu_cep_rx_context(
-    struct fid_ep *fid_sep,
-    int index,
-    struct fi_rx_attr *attr,
-    struct fid_ep **fid_cep_rx,
-    void *context
-)
+int tofu_cep_rx_context(struct fid_ep *fid_sep,
+                        int index,
+                        struct fi_rx_attr *attr,
+                        struct fid_ep **fid_cep_rx,
+                        void *context)
 {
     int fc = FI_SUCCESS;
     struct tofu_sep *sep_priv;
@@ -530,32 +495,8 @@ int tofu_cep_rx_context(
 	dlist_init( &cep_priv->cep_ent_sep );
 	dlist_init( &cep_priv->cep_ent_cq );
 	dlist_init( &cep_priv->cep_ent_ctr );
-#ifdef	CONF_TOFU_RECV	/* DONE */
-	dlist_init( &cep_priv->recv_tag_hd );
-	dlist_init( &cep_priv->recv_msg_hd );
-	dlist_init( &cep_priv->unexp_tag_hd );
-	dlist_init( &cep_priv->unexp_msg_hd );
-	/* cep_priv->recv_fs = 0; */
-#endif	/* CONF_TOFU_RECV */
 	cep_priv->cep_xop_flg = (attr == 0)? 0UL: attr->op_flags;
     }
-#ifdef	CONF_TOFU_RECV	/* DONE */
-    {
-	/*
-	 * man fi_endpoint(3)
-	 *   fi_rx_attr . size
-	 *     The size of the context.
-	 *     The size is specified as the minimum number of receive
-	 *     operations that may be posted to the endpoint
-	 *     without the operation returning -FI_EAGAIN.
-	 */
-        FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "YI: Should be CHECK if it works!!!!\n");        
-	cep_priv->recv_fs = tofu_recv_fs_create(64, 0, 0); /* XXX attr->size */
-	if (cep_priv->recv_fs == 0) {
-	    fc = -FI_ENOMEM; goto bad;
-	}
-    }
-#endif	/* CONF_TOFU_RECV */
     /* check index */
     {
 	struct tofu_cep *cep_dup;

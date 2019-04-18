@@ -36,6 +36,9 @@ extern int	tofu_imp_ulib_gnam(
 		    size_t offs,
 		    char nam[128]
 		);
+extern int      tofu_impl_ulib_sendmsg_self(
+                    void *vptr, size_t offs,
+                    struct tofu_recv_en *send_entry);
 extern int	tofu_imp_ulib_recv_post(
 		    void *vptr,
 		    size_t offs,

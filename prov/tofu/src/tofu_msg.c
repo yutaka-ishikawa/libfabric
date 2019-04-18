@@ -14,7 +14,6 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
 {
     ssize_t             ret = FI_SUCCESS;
     struct tofu_cep     *cep_priv = 0;
-    struct tofu_recv_en *recv_entry;
     const size_t offs_ulib = sizeof (cep_priv[0]);
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
@@ -30,7 +29,11 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
 	ret = -FI_EINVAL; goto bad;
     }
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
-    fastlock_acquire( &cep_priv->cep_lck );
+    fastlock_acquire(&cep_priv->cep_lck);
+    /*
+     * Ask Hatanaka san
+     */
+    fprintf(stderr, "YI***** Completion function must be considered ?\n", __func__);
     ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags,
 		tofu_cq_comp_tagged, cep_priv->cep_recv_cq);
     fastlock_release( &cep_priv->cep_lck );
@@ -154,7 +157,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     if (icep->tofa.ui64 == tank.ui64) {
 	int fc;
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");
-	fc = tofu_cep_msg_sendmsg_self(cep_priv, msg, flags);
+	fc = tofu_impl_ulib_sendmsg_self(cep_priv, offs, msg, flags);
 	if (fc != 0) {
 	    ret = fc; goto bad;
 	}

@@ -3,16 +3,22 @@
 
 #ifndef	_TOFU_INT_ULIB_H
 #define _TOFU_INT_ULIB_H
-
+#include <stdint.h>		/* for uint32_t */
+#include <sys/uio.h>		/* for struct iovec */
+#include <ofi.h>                /* for container_of () */
+#include <ofi_list.h>		/* for struct dlist_entry */
+#include <ofi_atom.h>		/* for ofi_atomic32_t */
+#include <ofi_mem.h>            /* for DECLARE_FREESTACK */
+#include <ofi_iov.h>            /* for ofi_copy_to_iov() */
+#include <rdma/fi_tagged.h>	/* for struct fi_msg_tagged */
+#include <rdma/fi_eq.h>		/* for struct fi_cq_tagged_entry */
+#include "tofu_impl_shea.h"	/* for struct ulib_shea_uexp */
 #include "tofu_prv.h"
 #include "ulib_shea.h"
 #include "ulib_desc.h"
 #include "ulib_ofif.h"
 #include "ulib_toqc.h"
 #include "ulib_conv.h"
-/* ======================================================================== */
-
-#include <stdint.h>
 
 struct ulib_sep_tniq {
     uint64_t vers : 3; /* version # */
@@ -45,15 +51,6 @@ struct ulib_sep_name {
     /* struct ulib_sep_tniq tniq; */
 };
 
-/* ------------------------------------------------------------------------ */
-
-/* #include "prv.h" */		/* for struct tofu_sep */
-/* #include "utofu.h" */	/* YYY */
-#include <stdint.h>		/* YYY */
-
-// defined in tofu_impl_internal.h
-//typedef	uint16_t		utofu_tni_id_t;	    /* YYY */
-
 struct tofu_imp_sep_ulib {
     utofu_tni_id_t  tnis[8];
     size_t ntni;
@@ -64,15 +61,7 @@ struct tofu_imp_sep_ulib_s {
     struct tofu_imp_sep_ulib	sep_lib;
 };
 
-/* ------------------------------------------------------------------------ */
-
-#include <ofi_list.h>		/* for struct dlist_entry */
-#include <rdma/fi_tagged.h>	/* for struct fi_msg_tagged */
-#include <rdma/fi_eq.h>		/* for struct fi_cq_tagged_entry */
-
-#include <stdint.h>		/* for uint32_t */
-#include <sys/uio.h>		/* for struct iovec */
-
+#define ULIB_MSG_IOV_LEN         2
 struct ulib_shea_expd {
     struct dlist_entry entry;
     struct fi_msg_tagged tmsg;
@@ -83,7 +72,7 @@ struct ulib_shea_expd {
     uint32_t wlen;
     uint32_t olen;
     uint32_t niov;
-    struct iovec iovs[2];
+    struct iovec iovs[ULIB_MSG_IOV_LEN];
     int (*func)(void *farg, const struct fi_cq_tagged_entry *comp);
     void *farg;
 #ifdef	CONF_ULIB_PERF_SHEA
@@ -91,26 +80,6 @@ struct ulib_shea_expd {
 #endif	/* CONF_ULIB_PERF_SHEA */
 };
 
-/* ------------------------------------------------------------------------ */
-
-#include <ofi_list.h>		/* for struct dlist_entry */
-#include <ofi_atom.h>		/* for ofi_atomic32_t */
-
-#if 0
-struct ulib_utof_cash {
-    uint64_t		    vcqi;
-    uint64_t		    stad;
-    uint64_t		    stad_data;
-    uint8_t		    paid;
-    uintptr_t		    vcqh;
-};
-
-struct ulib_toqd_cash {
-    uint64_t		    desc[8];
-    size_t		    size;
-    uint64_t		    ackd[8];
-};
-#endif
 
 struct ulib_desc_cash {
     struct ulib_utof_cash   addr[2];
@@ -126,77 +95,10 @@ struct ulib_desc_cash {
     struct ulib_toqd_cash   putd[2];
 };
 
-/* ------------------------------------------------------------------------ */
-
-#include <ofi.h>	/* for container_of () */
-#include <ofi_mem.h>	/* for DECLARE_FREESTACK */
-#include <ofi_list.h>	/* for struct dlist_entry */
-#include <ofi_iov.h>	/* for ofi_copy_to_iov() */
-
-#include "tofu_impl_shea.h"		/* for struct ulib_shea_uexp */
-
-/*
- * buffer pool for unexpected entries; see also ofi_mem.h
- *   struct ulib_uexp_fs;
- *   void ulib_uexp_fs_init(struct ulib_uexp_fs *fs, size_t size);
- *   struct ulib_uexp_fs *ulib_uexp_fs_create(size_t size);
- *   void ulib_uexp_fs_free(struct ulib_uexp_fs *fs);
- *   int ulib_uexp_fs_index(struct ulib_uexp_fs *fs, struct ulib_shea_uexp *en);
- */
-#if 0
-DECLARE_FREESTACK(struct ulib_shea_uexp, ulib_uexp_fs);
-#endif
-/* ------------------------------------------------------------------------ */
-
-/* #include <ulib_shea.h> */		/* for struct ulib_shea_expd */
-
-/*
- * buffer pool for expected entries; see also ofi_mem.h
- *   struct ulib_expd_fs;
- *   void ulib_expd_fs_init(struct ulib_expd_fs *fs, size_t size);
- *   struct ulib_expd_fs *ulib_expd_fs_create(size_t size);
- *   void ulib_expd_fs_free(struct ulib_expd_fs *fs);
- *   int ulib_expd_fs_index(struct ulib_expd_fs *fs, struct ulib_shea_expd *en);
- */
-#if 0
-DECLARE_FREESTACK(struct ulib_shea_expd, ulib_expd_fs);
-#endif
-
-/* ------------------------------------------------------------------------ */
-
-#if 0
-/* #include <ulib_shea.h> */		/* for struct ulib_shea_data */
-
-/*
- * buffer pool for user data (send) entries; see also ofi_mem.h
- *   struct ulib_udat_fs;
- *   void ulib_udat_fs_init(struct ulib_udat_fs *fs, size_t size);
- *   struct ulib_udat_fs *ulib_udat_fs_create(size_t size);
- *   void ulib_udat_fs_free(struct ulib_udat_fs *fs);
- *   int ulib_udat_fs_index(struct ulib_udat_fs *fs, struct ulib_shea_data *en);
- */
-DECLARE_FREESTACK(struct ulib_shea_data, ulib_udat_fs);
-#endif
-
-/* ------------------------------------------------------------------------ */
-#ifndef	NOTDEF
-
-/* #include <ulib_shea.h> */		/* for struct ulib_desc_cash */
-#endif	/* NOTDEF */
-
-/*
- * buffer pool for desc cash entries; see also ofi_mem.h
- *   struct ulib_cash_fs;
- *   void ulib_cash_fs_init(struct ulib_cash_fs *fs, size_t size);
- *   struct ulib_cash_fs *ulib_cash_fs_create(size_t size);
- *   void ulib_cash_fs_free(struct ulib_cash_fs *fs);
- *   int ulib_cash_fs_index(struct ulib_cash_fs *fs, struct ulib_desc_cash *en);
- */
 DECLARE_FREESTACK(struct ulib_desc_cash, ulib_cash_fs);
 
 /* ------------------------------------------------------------------------ */
 #ifdef	NOTYET
-
 #include "rbtree.h"
 #endif	/* NOTYET */
 
@@ -240,77 +142,69 @@ struct tofu_imp_cep_ulib_s {
 
 /* ======================================================================== */
 
-static inline void tofu_imp_ulib_expd_init(
-    struct ulib_shea_expd *expd,
-    const struct fi_msg_tagged *tmsg,
-    uint64_t flags
-)
+static inline void
+tofu_imp_ulib_expd_init(struct ulib_shea_expd *expd,
+                const struct fi_msg_tagged *tmsg,
+                int (*func)(void *farg, const struct fi_cq_tagged_entry *comp),
+                void *farg,  uint64_t flags)
 {
+    size_t      iv, nv;
+
+    dlist_init(&expd->entry);
+    expd->tmsg = tmsg[0]; /* structure copy */
+    expd->flgs = flags; /* | FI_TAGGED */
     expd->mblk = 0;
     expd->nblk = 0;
     expd->rtag = 0;
     expd->wlen = 0;
     expd->olen = 0;
-#ifndef	NDEBUG
-    dlist_init(&expd->entry);
-#endif	/* NDEBUG */
-    expd->flgs = flags; /* | FI_TAGGED */
-    expd->tmsg = tmsg[0]; /* structure copy */
-    /* (sizeof (expd->iovs) / sizeof (expd->iovs[0]) */
-    assert(tmsg->iov_count <= 2); /* XXX */
-    {
-	size_t iv, nv = tmsg->iov_count;
-	for (iv = 0; iv < nv; iv++) {
-	    expd->iovs[iv].iov_base = tmsg->msg_iov[iv].iov_base;
-	    expd->iovs[iv].iov_len  = tmsg->msg_iov[iv].iov_len;
-	}
-	expd->niov = nv;
+    expd->func = func;
+    expd->farg = farg;
+
+    nv = tmsg->iov_count;
+    assert(nv <= ULIB_MSG_IOV_LEN); /* XXX */
+    for (iv = 0; iv < nv; iv++) {
+        expd->iovs[iv].iov_base = tmsg->msg_iov[iv].iov_base;
+        expd->iovs[iv].iov_len  = tmsg->msg_iov[iv].iov_len;
     }
-    return ;
+    expd->niov = nv;
+    return;
 }
 
-/* ------------------------------------------------------------------------ */
-
-static inline int tofu_imp_ulib_expd_match_uexp(
-    struct dlist_entry *item,
-    const void *farg
-)
+static inline int
+tofu_imp_ulib_expd_match_uexp(struct dlist_entry *item,
+                              const void *farg)
 {
     int ret;
     const struct ulib_shea_expd *expd = farg;
     struct ulib_shea_uexp *uexp;
 
     uexp = container_of(item, struct ulib_shea_uexp, vspc_list);
-    ret =
-        ((expd->tmsg.tag | expd->tmsg.ignore)
-            == (uexp->utag | expd->tmsg.ignore))
-        ;
+    ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
+           == (uexp->utag & ~expd->tmsg.ignore));
     return ret;
 }
 
-static inline void *
+/*
+ * tofu_imp_ulib_icep_find_uexp(icep, expd)
+ *      looking for a message, arrived in unexpected queue,
+ *      matched with the requested message pattern pointed by expd.
+ */
+static inline struct ulib_shea_uexp *
 tofu_imp_ulib_icep_find_uexp(struct tofu_imp_cep_ulib *icep,
                              const struct ulib_shea_expd *expd)
 {
-    void *uexp = 0;
-    int is_tagged_msg;
-    struct dlist_entry *head;
-    struct dlist_entry *match;
+    struct ulib_shea_uexp  *uexp = 0;
+    struct dlist_entry     *head;
+    struct dlist_entry     *match;
 
-    is_tagged_msg = ((expd->flgs & FI_TAGGED) != 0);
-    if (is_tagged_msg) {
-	head = &icep->uexp_head_trcv;
-    } else {
-	head = &icep->uexp_head_mrcv;
-    }
+    head = (expd->flgs & FI_TAGGED) ?
+        &icep->uexp_head_trcv : &icep->uexp_head_mrcv;
     match = dlist_remove_first_match(head, tofu_imp_ulib_expd_match_uexp, expd);
-    if (match == 0) {
-	goto bad; /* XXX - is not an error */
+    if (match) {
+        dlist_init(match);
+        uexp = container_of(match, struct ulib_shea_uexp, vspc_list);
     }
-    dlist_init(match);
-    uexp = container_of(match, struct ulib_shea_uexp, vspc_list);
-
-bad:
     return uexp;
 }
 
@@ -333,35 +227,22 @@ static inline int tofu_imp_ulib_uexp_match_expd(
     return ret;
 }
 
-static inline void *tofu_imp_ulib_icep_find_expd(
-    struct tofu_imp_cep_ulib *icep,
-    const struct ulib_shea_uexp *uexp
-)
+/*
+ * tofu_imp_ulib_icep_find_expd(icep, uexp)
+ *      looking for a message, registered in expected (posted) queue,
+ *      matched with the requested message pattern pointed by uexp.
+ */
+static inline void *
+tofu_imp_ulib_icep_find_expd(struct tofu_imp_cep_ulib *icep,
+                             const struct ulib_shea_uexp *uexp)
 {
-    void *expd = 0;
-    int is_tagged_msg;
     struct dlist_entry *head;
     struct dlist_entry *match;
 
-    is_tagged_msg = ((uexp->flag & ULIB_SHEA_RINF_FLAG_TFLG) != 0);
-    if (is_tagged_msg) {
-	head = &icep->expd_head_trcv;
-    }
-    else {
-	head = &icep->expd_head_mrcv;
-    }
+    head = (uexp->flag & ULIB_SHEA_RINF_FLAG_TFLG) ?
+        &icep->expd_head_trcv : &icep->expd_head_mrcv;
     match = dlist_remove_first_match(head, tofu_imp_ulib_uexp_match_expd, uexp);
-    if (match == 0) {
-	goto bad; /* XXX - is not an error */
-    }
-#ifndef	NDEBUG
-    dlist_init(match);
-#endif	/* NDEBUG */
-
-    expd = container_of(match, struct ulib_shea_expd, entry);
-
-bad:
-    return expd;
+    return match;
 }
 
 /* ------------------------------------------------------------------------ */
@@ -388,10 +269,9 @@ static inline size_t tofu_imp_ulib_copy_iovs(
 
 /* ------------------------------------------------------------------------ */
 
-static inline void tofu_imp_ulib_expd_recv(
-    struct ulib_shea_expd *expd,
-    const struct ulib_shea_uexp *uexp
-)
+static inline void
+tofu_imp_ulib_expd_recv(struct ulib_shea_expd *expd,
+                        const struct ulib_shea_uexp *uexp)
 {
     if ((uexp->flag & ULIB_SHEA_RINF_FLAG_MBLK) != 0) {
 	assert(expd->nblk == 0);
@@ -449,11 +329,9 @@ static inline int tofu_imp_ulib_expd_cond_comp(
 {
     int rc = 0;
     rc = ((expd->mblk != 0) && (expd->nblk >= expd->mblk));
-#ifndef	NDEBUG
     if (rc != 0) {
 	assert(expd->nblk == expd->mblk);
     }
-#endif	/* NDEBUG */
     return rc;
 }
 
@@ -555,15 +433,15 @@ bad:
 
 /* ------------------------------------------------------------------------ */
 
-static inline void tofu_imp_ulib_icep_evnt_expd(
-    struct tofu_imp_cep_ulib *icep,
-    const struct ulib_shea_expd *expd
-)
+static inline void
+tofu_imp_ulib_icep_evnt_expd(struct tofu_imp_cep_ulib *icep,
+                             const struct ulib_shea_expd *expd)
 {
     if ((expd->func != 0) && (expd->farg != 0)) {
 	struct fi_cq_tagged_entry comp[1];
 	int fc;
 
+        fprintf(stderr, "YI******** Raise CQ of Receive: %s\n", __func__);
 	comp->op_context	= expd->tmsg.context;
 	comp->flags		=   FI_RECV
 				    | FI_MULTI_RECV
@@ -583,50 +461,26 @@ static inline void tofu_imp_ulib_icep_evnt_expd(
 
 /* ------------------------------------------------------------------------ */
 
-static inline void tofu_imp_ulib_icep_link_expd(
-    struct tofu_imp_cep_ulib *icep,
-    struct ulib_shea_expd *expd
-)
+static inline void
+tofu_imp_ulib_icep_link_expd(struct tofu_imp_cep_ulib *icep,
+                             struct ulib_shea_expd *expd)
 {
-    int is_tagged_msg;
     struct dlist_entry *head;
-
-    is_tagged_msg = ((expd->flgs & FI_TAGGED) != 0);
-    if (is_tagged_msg) {
-	head = &icep->expd_head_trcv;
-    }
-    else {
-	head = &icep->expd_head_mrcv;
-    }
-#ifndef	NDEBUG
-    assert(dlist_empty(&expd->entry));
-#endif	/* NDEBUG */
+    head = (expd->flgs & FI_TAGGED) ?
+	&icep->expd_head_trcv : &icep->expd_head_mrcv;
     dlist_insert_tail(&expd->entry, head);
-
-    return ;
+    return;
 }
 
-static inline void tofu_imp_ulib_icep_link_expd_head(
-    struct tofu_imp_cep_ulib *icep,
-    struct ulib_shea_expd *expd
-)
+static inline void
+tofu_imp_ulib_icep_link_expd_head(struct tofu_imp_cep_ulib *icep,
+                                  struct ulib_shea_expd *expd)
 {
-    int is_tagged_msg;
     struct dlist_entry *head;
-
-    is_tagged_msg = ((expd->flgs & FI_TAGGED) != 0);
-    if (is_tagged_msg) {
-	head = &icep->expd_head_trcv;
-    }
-    else {
-	head = &icep->expd_head_mrcv;
-    }
-#ifndef	NDEBUG
-    assert(dlist_empty(&expd->entry));
-#endif	/* NDEBUG */
+    head = (expd->flgs & FI_TAGGED) ?
+	&icep->expd_head_trcv : &icep->expd_head_mrcv;
     dlist_insert_head(&expd->entry, head);
-
-    return ;
+    return;
 }
 
 /* ------------------------------------------------------------------------ */

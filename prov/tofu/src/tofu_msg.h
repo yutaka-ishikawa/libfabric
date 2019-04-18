@@ -85,8 +85,8 @@ static inline size_t tofu_copy_iovs(
     return off - iof_dst;
 }
 #endif	/* NOTDEF_UTIL */
-#ifdef	CONF_TOFU_RECV
 
+#if 0 /**************** YI *******/
 static inline int tofu_cep_msg_match_recv_en(
     struct dlist_entry *item,
     const void *farg
@@ -105,8 +105,6 @@ static inline int tofu_cep_msg_match_recv_en(
 
     return ret;
 }
-#endif	/* CONF_TOFU_RECV */
-#ifdef	CONF_TOFU_RECV
 
 static inline int
 tofu_msg_copy_report(struct tofu_cep *cep_priv_rx,
@@ -164,8 +162,6 @@ tofu_cep_msg_sendmsg_self(struct tofu_cep *cep_priv_tx,
     struct tofu_sep *sep_priv;
     struct tofu_cep *cep_priv_rx = 0;
     const size_t offs_ulib = sizeof (struct tofu_cep);
-    struct tofu_recv_en *recv_entry = 0;
-    struct tofu_recv_en send_entry[1]; /* XXX */
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     assert(cep_priv_tx != 0);
@@ -206,13 +202,11 @@ tofu_cep_msg_sendmsg_self(struct tofu_cep *cep_priv_tx,
     /*
      * cep_priv_rx is the reciever's context 2019/04/15
      */
-    /* recv_entry */
-
-    tofu_impl_ulib_sendmsg_self(cep_priv_rx, offs_ulib, send_entry);
+    tofu_impl_ulib_sendmsg_self(cep_priv_rx, offs_ulib, send_entry, flags);
 bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %d\n", fc);
     return fc;
 }
-#endif	/* CONF_TOFU_RECV */
+#endif	/* 0 YI******************* */
 
 #endif	/* _TOFU_MSG_H */

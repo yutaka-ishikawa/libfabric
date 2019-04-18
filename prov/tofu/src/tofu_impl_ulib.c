@@ -8,9 +8,11 @@
 
 extern struct fi_provider		tofu_prov;
 
+#include "ulib_shea.h"
+#include "ulib_conv.h"
+#include "tofu_impl.h"
 #include "tofu_impl_ulib.h"
 #include "tofu_impl_internal.h"
-#include "ulib_shea.h"
 
 #include <stdio.h>			/* for snprintf() */
 
@@ -36,12 +38,11 @@ size_t tofu_imp_ulib_size(void)
     return sizeof (struct tofu_imp_cep_ulib);
 }
 
-void tofu_imp_ulib_init(
-    void *vptr,
-    size_t offs,
-    const struct fi_rx_attr *rx_attr,
-    const struct fi_tx_attr *tx_attr
-)
+void
+tofu_imp_ulib_init(void *vptr,
+                   size_t offs,
+                   const struct fi_rx_attr *rx_attr,
+                   const struct fi_tx_attr *tx_attr)
 {
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
 
@@ -359,127 +360,112 @@ bad:
     return fc;
 }
 
+/*
+ * YI:  CRITICAL REGION !!!!!!!!!!!!
+ */
 int
 tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
-                            struct tofu_recv_en *send_entry)
+                            const struct fi_msg_tagged *tmsg,
+                            uint64_t flags)
 {
     int         cf = FI_SUCCESS;
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
-    struct dlist_entry *match;
+    void        *match;
+    struct ulib_shea_expd *expd;
+    struct ulib_shea_uexp *sndreq; /* message is copied to sndreq */
 
-    if (flags & FI_TAGGED) { /* added 2019/04/15 */
-        match = dlist_find_first_match(&cep_priv_rx->recv_tag_hd,
-                                       tofu_cep_msg_match_recv_en,
-                                       send_entry);
-    } else {
-        match = dlist_find_first_match(&cep_priv_rx->recv_msg_hd,
-                                       tofu_cep_msg_match_recv_en,
-                                       send_entry);
+
+    if (freestack_isempty(icep->uexp_fs)) {
+	fc = -FI_EAGAIN; goto bad;
     }
-    if (match != NULL) {
-        /* corresponding receive message has been posted */
-        dlist_remove(match);
-        recv_entry = container_of(match, struct tofu_recv_en, entry);
-        assert(recv_entry->fidp == &cep_priv_rx->cep_fid.fid);
-    } else {
+    sendreq = freestack_pop(icep->uexp_fs);
+    /* copy message to sendreq */
+    {
+        sendreq->utag = tmsg->tag;
+        sendreq->mblk = 1;
+        sendreq->nblk = 1;
+        sendreq->boff = 0;
+        sendreq->flag = tmsg->ignore;
+        sendreq->srci = 0; /* ??? Ask Hatanaka-san */
+        assert(tmsg->iov_count == 1); /* must be 1 */
+        sendreq->rbuf.iovs[0] = tmsg->msg_iov[0];
+        sendreq->rbuf.niov = 1;
+        sendreq->rbuf.leng = tmsg->msg_iov[0].iov_len;
+        sendreq->vspc_list[0] = 0;  /* ??? Ask Hatanaka-san */
+    }
+    match = tofu_imp_ulib_icep_find_expd(icep, sndreq);
+    if (match == NULL) {
         /*
-         * An receive post has not been issued and thus not found
+         * A receive request has not been issued and thus not found
          * Enque the unexpected message queue
          */
-        fastlock_acquire(&cep_priv_rx->cep_lck);
-        if (freestack_isempty(cep_priv_rx->recv_fs)) {
-            fastlock_release(&cep_priv_rx->cep_lck);
-            recv_entry = 0; fc = -FI_EAGAIN; goto bad;
-        } else {
-            struct dlist_entry *dep;
-            recv_entry = freestack_pop(cep_priv_rx->recv_fs);
-            dep = (flags & FI_TAGGED) ?
-                &cep_priv_rx->unexp_tag_hd : &cep_priv_rx->unexp_msg_hd;
-            /*
-             * message is copied to recv entry
-             */
-            fc = tofu_cep_msg_recv_fill(recv_entry,
-                                        cep_priv_tx, msg, flags);
-            if (fc != 0) {
-                goto bad;
-            }
-            dlist_insert_tail(&recv_entry->entry, dep);
-        }
-        fastlock_release(&cep_priv_rx->cep_lck);
+        fprintf(stderr, "YI*********** How do I do ? Ask Hatanaka-san\n", __func__);
+        // dlist_insert_tail(&recv_entry->entry, dep);
         return FI_SUCCESS;
     }
-    /* copy: rlen and wlen and  report rx */
-    tofu_msg_copy_report(cep_priv_rx, recv_entry, send_entry);
-    fprintf(stderr, "YI******* commented out 2018/04/14 %s in %s\n",
-            __func__, __FILE__); fflush(stderr);
-#if 0 /* 2018/04/14 */
-    /* report tx */
-    if ( 0
-	|| (cep_priv_tx->cep_xop_flg & FI_SELECTIVE_COMPLETION) == 0
-	|| ((flags & FI_COMPLETION) != 0)
-    ) {
-	struct fi_cq_tagged_entry cq_e[1];
+    /* corresponding posted receive request has been registered */
+    fprintf(stderr, "YI*********** How do I do ? Ask Hatanaka-san\n", __func__);
+    dlist_remove(match);
+    recv_entry = container_of(match, struct ulib_shea_expd, entry);
 
-	cq_e->flags	    = FI_SEND;
-	cq_e->op_context    = send_entry->tmsg.context;
-	cq_e->len	    = wlen;
-	cq_e->buf	    = 0 /* send_entry->tmsg.msg_iov[0].iov_base */;
-	cq_e->data	    = 0;
-	cq_e->tag	    = 0 /* send_entry->tmsg.tag */;
-
-	if (cep_priv_tx->cep_send_cq != 0) {
-	    fc = tofu_cq_comp_tagged( cep_priv_tx->cep_send_cq, cq_e );
-	    if (fc != 0) {
-		FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "tx cq %d\n", fc);
-		fc = 0; /* XXX ignored */
-	    }
-	}
+    /* copy user buffer using requested expected queue */
+    tofu_imp_ulib_expd_recv(recv_entry, sendreq);
+    /* free uexp->rbuf */
+    tofu_imp_ulib_uexp_rbuf_free(uexp);
+    /* free unexpected message */
+    freestack_push(icep->uexp_fs, sendreq);
+    /* check if the packet carrys the last fragment */
+    fprintf(stderr, "YI****** Ask Hatanaka-san in %s\n", __func__);
+    if (tofu_imp_ulib_expd_cond_comp(recv_entry)) {
+        /* notify recv cq */
+        tofu_imp_ulib_icep_evnt_expd(icep, recv_entry);
+        freestack_push(icep->expd_fs, reqv_entry);
     }
-#endif /* 0 */
-    assert(cep_priv_rx->recv_fs != 0);
-    freestack_push( cep_priv_rx->recv_fs, recv_entry );
+    return FI_SUCESS;
 }
 
-int tofu_imp_ulib_recv_post(void *vptr,
-                            size_t offs,
-                            const struct fi_msg_tagged *tmsg,
-                            uint64_t flags,
-                            tofu_imp_ulib_comp_f func,
-                            void *farg)
+/*
+ * tofu_imp_ulib_recv_post() is a critical region
+ *      guaded by the cep_lck variable in struct tofu_cep.
+ */
+int
+tofu_imp_ulib_recv_post(void    *vptr,  size_t   offs,
+                        const struct fi_msg_tagged *tmsg,
+                        uint64_t flags,
+                        tofu_imp_ulib_comp_f func,
+                        void *farg)
 {
     int fc = FI_SUCCESS;
     struct tofu_imp_cep_ulib *icep = (void *)((uint8_t *)vptr + offs);
-    struct ulib_shea_expd *expd;
+    struct ulib_shea_expd *req;
     struct ulib_shea_uexp *uexp;
 
     /* get an expected message */
     if (freestack_isempty(icep->expd_fs)) {
         fc = -FI_EAGAIN; goto bad;
     }
-    expd = freestack_pop(icep->expd_fs);
-    assert(expd != 0);
-    tofu_imp_ulib_expd_init(expd, tmsg, flags);
-    /* report recv event */
-    expd->func = func;
-    expd->farg = farg;
-
+    req = freestack_pop(icep->expd_fs);
+    tofu_imp_ulib_expd_init(req, tmsg, func, farg, flags);
     /* check unexpected queue */
-    uexp = tofu_imp_ulib_icep_find_uexp(icep, expd);
+    uexp = tofu_imp_ulib_icep_find_uexp(icep, req);
     if (uexp == NULL) {
-        /* queue it */
-        tofu_imp_ulib_icep_link_expd(icep, expd);
+        /* Not found a corresponding message in unexepcted queue,
+         * thus insert this request to expected queue */
+        tofu_imp_ulib_icep_link_expd(icep, req);
     } else {
-        /* update expected queue */
-        tofu_imp_ulib_expd_recv(expd, uexp);
+        /* Found a corresponding message in unexpected queue,
+         * copy user buffer using requested expected queue */
+        tofu_imp_ulib_expd_recv(req, uexp);
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
-        /* free uexp */
+        /* free unexpected message */
         freestack_push(icep->uexp_fs, uexp);
         /* check if the packet carrys the last fragment */
-        if (tofu_imp_ulib_expd_cond_comp(expd)) {
+        fprintf(stderr, "YI****** Ask Hatanaka-san in %s\n", __func__);
+        if (tofu_imp_ulib_expd_cond_comp(req)) {
             /* notify recv cq */
-            tofu_imp_ulib_icep_evnt_expd(icep, expd);
-            freestack_push(icep->expd_fs, expd);
+            tofu_imp_ulib_icep_evnt_expd(icep, req);
+            freestack_push(icep->expd_fs, req);
         }
     }
 bad:
