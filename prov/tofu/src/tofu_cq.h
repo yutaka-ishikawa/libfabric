@@ -85,7 +85,7 @@ tofu_cq_comp_tagged(void *vp_cq__priv /* struct tofu_cq *cq__priv */,
     struct fi_cq_tagged_entry *comp;
 
     FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
-    fastlock_acquire( &cq__priv->cq__lck );
+    // fastlock_acquire( &cq__priv->cq__lck );
 
     assert(cq__priv->cq__ccq != 0);
     if (ofi_cirque_isfull( cq__priv->cq__ccq )) {
@@ -105,7 +105,7 @@ tofu_cq_comp_tagged(void *vp_cq__priv /* struct tofu_cq *cq__priv */,
     ofi_cirque_commit( cq__priv->cq__ccq );
 
 bad:
-    fastlock_release( &cq__priv->cq__lck );
+    // fastlock_release( &cq__priv->cq__lck );
     FI_INFO( &tofu_prov, FI_LOG_CQ, "return %d\n", fc);
     return fc;
 }

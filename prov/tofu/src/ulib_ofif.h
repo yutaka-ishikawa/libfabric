@@ -151,6 +151,8 @@ struct ulib_icep {
     DLST_DECH(ulib_head_esnd)   busy_esnd;
     struct ulib_icqu            *icep_scq; /* send cq */
     struct ulib_icqu            *icep_rcq; /* recv cq */
+    void                        *vp_tofu_scq;
+    void                        *vp_tofu_rcq;
     /* unexpected queue */
     struct ulib_uexp_fs         *uexp_fs;
     struct dlist_entry          uexp_list_trcv; /* fi_msg_tagged */

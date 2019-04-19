@@ -14,6 +14,7 @@
 #include "utofu.h"	    /* for UTOFU_SUCCESS */
 
 #include "tofu_prv.h"	    /* for struct tofu_*() XXX */
+#include "tofu_cq.h"	    /* for tofu_cq_comp_tagged() XXX */
 
 #include <assert.h>	    /* for assert() */
 #include <stdlib.h>	    /* for free() */
@@ -101,6 +102,15 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
+/* XXX #include "tofu_prv.h" */
+if (1 /* icep->icep_scq == 0 */) {
+struct tofu_cep *cep_priv = ptr;
+printf("%s:%d\ticep_scq %p cep_send_cq %p\n", __func__, __LINE__,
+icep->icep_scq, cep_priv->cep_send_cq);
+printf("%s:%d\ticep_rcq %p cep_recv_cq %p\n", __func__, __LINE__,
+icep->icep_rcq, cep_priv->cep_recv_cq);
+}
+#ifdef	NOTDEF_NOTUSED
     if ((icep->icep_scq != 0) && (icep->icep_scq->cque == 0)) {
 	/* YYY fi_cq_attr . size */
 	icep->icep_scq->cque = ulib_ficq_fs_create( 512, 0, 0 /* YYY */ );
@@ -115,6 +125,16 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
+#else	/* NOTDEF_NOTUSED */
+    if (icep->vp_tofu_scq == 0) {
+	struct tofu_cep *cep_priv = ptr;
+	icep->vp_tofu_scq = cep_priv->cep_send_cq;
+    }
+    if (icep->vp_tofu_rcq == 0) {
+	struct tofu_cep *cep_priv = ptr;
+	icep->vp_tofu_rcq = cep_priv->cep_recv_cq;
+    }
+#endif	/* NOTDEF_NOTUSED */
     /* transmit entries */
     if (icep->udat_fs == 0) {
 	/* YYY fi_tx_attr . size ? */
@@ -202,6 +222,8 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     DLST_INIT(&icep->busy_esnd);  /* head of busy list */
     icep->icep_scq = 0;
     icep->icep_rcq = 0;
+    icep->vp_tofu_scq = 0;
+    icep->vp_tofu_rcq = 0;
     icep->uexp_fs = 0;
     dlist_init(&icep->uexp_list_trcv); /* unexpected queue for tagged msg. */
     dlist_init(&icep->uexp_list_mrcv); /* unexpected queue for msg. */
@@ -531,6 +553,7 @@ static inline void ulib_icep_link_expd_head(
     return ;
 }
 
+#ifdef	NOTDEF_UNUSED
 static inline int ulib_icqu_comp_trcv(
     struct ulib_icqu *icqu,
     const struct ulib_shea_expd *expd
@@ -584,7 +607,39 @@ bad:
 #endif	/* CONF_ULIB_FICQ */
     return uc;
 }
+#else	/* NOTDEF_UNUSED */
+static inline int ulib_icqu_comp_trcv(
+    void *vp_cq__priv,
+    const struct ulib_shea_expd *expd
+)
+{
+    int uc = UTOFU_SUCCESS;
+    struct fi_cq_tagged_entry cq_e[1];
 
+    cq_e->op_context	= expd->tmsg.context;
+    cq_e->flags		=   FI_RECV
+			    | FI_MULTI_RECV
+			    | (expd->flgs & FI_TAGGED)
+			    ;
+    cq_e->len		= expd->wlen;
+    cq_e->buf		= expd->tmsg.msg_iov[0].iov_base;
+    cq_e->data		= 0;
+    cq_e->tag		= expd->rtag;
+
+    if (vp_cq__priv != 0) {
+	int fc;
+	fc = tofu_cq_comp_tagged(vp_cq__priv, cq_e);
+	if (fc != 0) {
+	    uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
+	}
+    }
+
+bad:
+    return uc;
+}
+#endif	/* NOTDEF_UNUSED */
+
+#ifdef	NOTDEF_UNUSED
 static inline int ulib_icqu_comp_tsnd(
     struct ulib_icqu *icqu,
     const struct ulib_shea_data *udat
@@ -638,6 +693,55 @@ bad:
 #endif	/* CONF_ULIB_FICQ */
     return uc;
 }
+#else	/* NOTDEF_UNUSED */
+static inline int ulib_icqu_comp_tsnd(
+    void *vp_cq__priv,
+    const struct ulib_shea_data *udat
+)
+{
+    int uc = UTOFU_SUCCESS;
+    struct fi_cq_tagged_entry cq_e[1];
+    uint64_t flgs;
+    size_t tlen;
+
+    /* FI_TAGGED */
+    {
+	uint64_t dflg = ulib_shea_data_flag(udat);
+
+	flgs = ((dflg & ULIB_SHEA_DATA_TFLG) != 0)? FI_TAGGED: 0;
+    }
+    /* tlen */
+    {
+	uint32_t nblk, llen;
+
+	nblk = ulib_shea_data_nblk(udat);
+	llen = ulib_shea_data_nblk(udat);
+
+	assert(nblk > 0);
+	tlen = ((nblk - 1) * ULIB_SHEA_DBLK) + llen; /* YYY MACRO ? */
+    }
+
+    cq_e->op_context	= ulib_shea_data_ctxt(udat);
+    cq_e->flags		=   FI_SEND
+			    | flgs
+			    ;
+    cq_e->len		= tlen;
+    cq_e->buf		= 0; /* YYY */
+    cq_e->data		= 0;
+    cq_e->tag		= ulib_shea_data_utag(udat);
+
+    if (vp_cq__priv != 0) {
+	int fc;
+	fc = tofu_cq_comp_tagged(vp_cq__priv, cq_e);
+	if (fc != 0) {
+	    uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
+	}
+    }
+
+bad:
+    return uc;
+}
+#endif	/* NOTDEF_UNUSED */
 #ifdef	DEBUG
 
 static inline void ulib_icep_list_expd(
@@ -984,6 +1088,7 @@ ulib_expd_fs_index(icep->expd_fs, trcv),
 	}
 #endif	/* CONF_ULIB_PERF_SHEA */
 	/* notify recv cq */
+#ifdef	NOTDEF_NOTUSED
 	if (icep->icep_rcq != 0) {
 	    uc = ulib_icqu_comp_trcv(icep->icep_rcq, trcv); /* expd */
 	    if (uc != 0) {
@@ -991,6 +1096,15 @@ ulib_expd_fs_index(icep->expd_fs, trcv),
 		uc = 0; /* YYY severe error */
 	    }
 	}
+#else	/* NOTDEF_NOTUSED */
+	if (icep->vp_tofu_rcq != 0) {
+	    uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, trcv); /* expd */
+	    if (uc != 0) {
+		assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
+		uc = 0; /* YYY severe error */
+	    }
+	}
+#endif	/* NOTDEF_NOTUSED */
 	freestack_push(icep->expd_fs, trcv); /* expd */
 #endif	/* NOTDEF_RECV_FRAG */
     }
@@ -1078,6 +1192,7 @@ ulib_expd_fs_index(icep->expd_fs, expd),
 (long)(uintptr_t)expd->tmsg.context);
 }
 	    /* notify recv cq */
+#ifdef	NOTDEF_NOTUSED
 	    if (icep->icep_rcq != 0) {
 		uc = ulib_icqu_comp_trcv(icep->icep_rcq, expd);
 		if (uc != 0) {
@@ -1085,6 +1200,15 @@ ulib_expd_fs_index(icep->expd_fs, expd),
 		    uc = 0; /* YYY severe error */
 		}
 	    }
+#else	/* NOTDEF_NOTUSED */
+	    if (icep->vp_tofu_rcq != 0) {
+		uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
+		if (uc != 0) {
+		    assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
+		    uc = 0; /* YYY severe error */
+		}
+	    }
+#endif	/* NOTDEF_NOTUSED */
 	    freestack_push(icep->expd_fs, expd);
 	    goto bad; /* XXX - is not an error */
 	}
@@ -1401,6 +1525,9 @@ int ulib_icep_shea_send_prog(
 	    uc = ulib_icep_toqc_sync(icep, 1000);
 	    if (uc != UTOFU_SUCCESS) { goto bad; }
 #endif	/* CONF_ULIB_UTOF_FIX5 */
+#ifdef	NOTDEF_NOTUSED
+printf("%s:%d\tDONE %p scq %p\n", __func__, __LINE__, esnd, icep->icep_scq);
+fflush(stdout);
 	    if (icep->icep_scq != 0) {
 		uc = ulib_icqu_comp_tsnd(icep->icep_scq, esnd->data);
 		if (uc != 0) {
@@ -1408,6 +1535,17 @@ int ulib_icep_shea_send_prog(
 		    uc = 0; /* YYY severe error */
 		}
 	    }
+#else	/* NOTDEF_NOTUSED */
+printf("%s:%d\tDONE %p scq %p\n", __func__, __LINE__, esnd, icep->vp_tofu_scq);
+fflush(stdout);
+	    if (icep->vp_tofu_scq != 0) {
+		uc = ulib_icqu_comp_tsnd(icep->vp_tofu_scq, esnd->data);
+		if (uc != 0) {
+		    assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
+		    uc = 0; /* YYY severe error */
+		}
+	    }
+#endif	/* NOTDEF_NOTUSED */
 #ifdef	CONF_ULIB_PERF_SHEA
 	    if (tims != 0) {
 		struct ulib_shea_data *udat_esnd = esnd->data; /* XXX */
@@ -1444,6 +1582,7 @@ int ulib_icep_shea_send_prog(
 bad:
     return uc;
 }
+#ifdef	NOTDEF_UNUSED
 
 int ulib_icqu_read(
     struct ulib_icqu *icqu,
@@ -1487,4 +1626,5 @@ int ulib_icqu_read(
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
+#endif	/* NOTDEF_UNUSED */
 #endif	/* CONF_ULIB_OFI */
