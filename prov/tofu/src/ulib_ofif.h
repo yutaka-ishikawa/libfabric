@@ -137,7 +137,7 @@ struct ulib_icep {
     utofu_vcq_hdl_t             vcqh;
     fastlock_t                  icep_lck;
     struct ulib_toqc            *toqc;
-    struct ulib_shea_cbuf       cbuf;
+    struct ulib_shea_cbuf       cbuf;      /* eager buffer controlling tofu */
     struct ulib_icqu            *icep_scq; /* send cq */
     struct ulib_icqu            *icep_rcq; /* recv cq */
     /* unexpected queue */
@@ -150,6 +150,7 @@ struct ulib_icep {
     struct dlist_entry          expd_list_mrcv; /* fi_msg */
     struct ulib_udat_fs         *udat_fs;
     union ulib_tofa_u           tofa;           /* TOFu network Address */  
+                                  /* xyzabc, tni, and tcq are effective */
 };
 
 extern int  ulib_isep_open_tnis_info(struct ulib_isep *isep);
@@ -535,6 +536,7 @@ ulib_match_uexp(struct dlist_entry *item, const void *farg)
     struct ulib_shea_uexp *uexp;
 
     uexp = container_of(item, struct ulib_shea_uexp, entry);
+    fprintf(stderr, "YI****** matching uexp: item(%p) uexp->utag(%ld) expd->tmsg.tag(%ld) expd->tmsg.ignore(%ld)\n", item, uexp->utag, expd->tmsg.tag, expd->tmsg.ignore);
     ret = ((uexp->utag & ~expd->tmsg.ignore)
            == (expd->tmsg.tag & ~expd->tmsg.ignore));
     return ret;
@@ -551,6 +553,7 @@ ulib_icep_find_uexp(struct ulib_icep *icep,
     head = (expd->flgs & FI_TAGGED) ?
 	&icep->uexp_list_trcv : &icep->uexp_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_uexp, expd);
+    fprintf(stderr, "YI****** FIND in Unexpected FI_TAGGED(%lld) head(%p) match(%p)\n", expd->flgs & FI_TAGGED, head, match);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }

@@ -30,21 +30,16 @@ static inline void tofu_imp_ulib_icep_recv_rbuf_base(
 {
     uint8_t *real_base;
     const struct ulib_shea_rbuf *rbuf = &uexp->rbuf;
+    uint32_t iiov;
 
     /* assert(icep->cbuf.dptr != 0); */ /* YYY cbuf */
     real_base = 0 /* icep->cbuf.dptr */; /* YYY cbuf */
 
     /* iov_base : offs => base + offs */
-    {
-	uint32_t iiov;
-
-	for (iiov = 0; iiov < rbuf->niov; iiov++) {
-	    uintptr_t offs = (uintptr_t)rbuf->iovs[iiov].iov_base; /* XXX */
-
-	    /* assert((offs + rbuf->iovs[iiov].iov_len) <= icep->cbuf.dsiz); */ /* YYY cbuf */
-	    iovs[iiov].iov_base = real_base + offs;
-	    iovs[iiov].iov_len  = rbuf->iovs[iiov].iov_len;
-	}
+    for (iiov = 0; iiov < rbuf->niov; iiov++) {
+        uintptr_t offs = (uintptr_t)rbuf->iovs[iiov].iov_base; /* XXX */
+        iovs[iiov].iov_base = real_base + offs;
+        iovs[iiov].iov_len  = rbuf->iovs[iiov].iov_len;
     }
 
     return ;
@@ -92,6 +87,7 @@ tofu_imp_ulib_icep_recv_rbuf_copy(
 	if (rbuf_dst->iovs[0].iov_base == 0) {
 	    fc = -FI_ENOMEM; goto bad;
 	}
+        rbuf_dst->alloced = 1;        /* memory is allocated here */
 	rbuf_dst->iovs[0].iov_len = leng;
 	rbuf_dst->niov = 1;
 
@@ -165,9 +161,8 @@ tofu_imp_ulib_expd_recv(struct ulib_shea_expd *expd,
     return ;
 }
 
-static inline int tofu_imp_ulib_expd_cond_comp(
-    struct ulib_shea_expd *expd
-)
+static inline int
+tofu_imp_ulib_expd_cond_comp(struct ulib_shea_expd *expd)
 {
     int rc = 0;
     rc = ((expd->mblk != 0) && (expd->nblk >= expd->mblk));
@@ -226,6 +221,25 @@ ulib_cast_epnt_to_tank_ui64(const struct ulib_epnt_info *einf,
     union ulib_tofa_u tank_u = { .ui64 = 0, };
     ulib_cast_epnt_to_tank( einf, &tank_u.tank );
     tank_ui64[0] = tank_u.ui64;
+    return ;
+}
+
+void
+tofu_imp_ulib_uexp_rbuf_free(struct ulib_shea_uexp *uexp)
+{
+    struct ulib_shea_rbuf *rbuf = &uexp->rbuf;
+    uint32_t iiov;
+
+    for (iiov = 0; iiov < rbuf->niov; iiov++) {
+        if (rbuf->iovs[iiov].iov_len == 0) { continue; }
+        if (rbuf->iovs[iiov].iov_base != 0
+            && rbuf->alloced) {
+            free(rbuf->iovs[iiov].iov_base);
+        }
+        rbuf->iovs[iiov].iov_base = 0;
+        rbuf->iovs[iiov].iov_len = 0;
+    }
+    rbuf->niov = 0;
     return ;
 }
 
@@ -359,22 +373,26 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
                             uint64_t flags)
 {
     int         fc = FI_SUCCESS;
-    struct ulib_icep *icep = (void *)((uint8_t *)vptr + offs);
-    void        *match;
+    struct ulib_icep      *ricep; /* receiver side icep */
+    struct tofu_cep       *tcep = (struct tofu_cep*) vptr;
     struct ulib_shea_expd *expd;
     struct ulib_shea_uexp *sndreq; /* message is copied to sndreq */
+    void        *match;
 
-    fprintf(stderr, "YI********** 1 icep->uexp_fs(%p\n", icep->uexp_fs); fflush(stderr);
-    if (freestack_isempty(icep->uexp_fs)) {
+    /* tofu_cep in the receiver endpoint is pointed by the ctp_trx field,
+     * and its ulib_icep is below the tofu_cep (+ offs) */
+    ricep = (struct ulib_icep*) ((uint8_t*)tcep->cep_trx + offs);
+    fprintf(stderr, "YI**** 1 ricep(%p)\n", ricep); fflush(stderr);
+    if (freestack_isempty(ricep->uexp_fs)) {
         fprintf(stderr, "YI********** 1.1\n"); fflush(stderr);
 	fc = -FI_EAGAIN; return fc;
     }
-    sndreq = freestack_pop(icep->uexp_fs);
+    sndreq = freestack_pop(ricep->uexp_fs);
     /* minimum setting for finding expected message */
     fprintf(stderr, "YI********** 2 %p\n", sndreq); fflush(stderr);
     sndreq->utag = tmsg->tag;
     sndreq->flag = tmsg->ignore;
-    match = ulib_icep_find_expd(icep, sndreq);
+    match = ulib_icep_find_expd(ricep, sndreq);
     fprintf(stderr, "YI********** 3 match(%p)\n", match); fflush(stderr);
     if (match == NULL) {
         /*
@@ -415,7 +433,8 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
         dlist = &sndreq->entry;
         dlist_init(dlist);
         head = (flags & FI_TAGGED) ?
-            &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
+            &ricep->uexp_list_trcv : &ricep->uexp_list_mrcv;
+        fprintf(stderr, "YI****** Enqueued in unexpected FI_TAGGED(%lld) entry(%p) head(%p)\n", flags & FI_TAGGED, dlist, head);
         dlist_insert_tail(dlist, head);
         return FI_SUCCESS;
     }
@@ -428,19 +447,22 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
     /* free uexp->rbuf */
     ulib_uexp_rbuf_free(sndreq);
     /* free unexpected message */
-    freestack_push(icep->uexp_fs, sndreq);
+    freestack_push(ricep->uexp_fs, sndreq);
     /* check if the packet carrys the last fragment */
     if (tofu_imp_ulib_expd_cond_comp(expd)) {
         /* notify recv cq */
         fprintf(stderr, "YI****** Notify %s\n", __func__);
         // tofu_imp_ulib_icep_evnt_expd(icep, expd);
-        freestack_push(icep->expd_fs, expd);
+        freestack_push(ricep->expd_fs, expd);
     }
 #endif
     return FI_SUCCESS;
 }
 
 /*
+ * This function will be discarded.
+ * ulib_icep_shea_recv_post is now used. 2019/04/19
+ * 
  * tofu_imp_ulib_recv_post() is a critical region
  *      guaded by the cep_lck variable in struct tofu_cep.
  */
@@ -467,22 +489,20 @@ tofu_imp_ulib_recv_post(void    *vptr,  size_t   offs,
          * thus insert this request to expected queue */
         ulib_icep_link_expd(icep, req);
     } else {
+        fprintf(stderr, "YI****** NEEDS TO IMPLEMENT %s\n", __func__);
+        if (tofu_imp_ulib_expd_cond_comp(req)) {
+            /* notify recv cq */
+            ulib_icep_recv_call_back(icep, 0,  req);
+            freestack_push(icep->expd_fs, req);
+        }
         /* Found a corresponding message in unexpected queue,
          * copy user buffer using requested expected queue */
-        fprintf(stderr, "YI****** NEEDS TO IMPLEMENT %s\n", __func__);
-#if 0
         tofu_imp_ulib_expd_recv(req, uexp);
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
         /* free unexpected message */
         freestack_push(icep->uexp_fs, uexp);
         /* check if the packet carrys the last fragment */
-        if (tofu_imp_ulib_expd_cond_comp(req)) {
-            /* notify recv cq */
-            tofu_imp_ulib_icep_evnt_expd(icep, req);
-            freestack_push(icep->expd_fs, req);
-        }
-#endif /* 0 */
     }
 bad:
     return fc;
@@ -627,6 +647,8 @@ tofu_imp_ulib_icep_recv_cbak_uexp(struct ulib_icep *icep,
 {
     int fc = FI_SUCCESS;
     struct ulib_shea_uexp *uexp;
+    struct dlist_entry *uexp_entry;
+    struct dlist_entry *head;
 
     if (freestack_isempty(icep->uexp_fs)) {
 	fc = -FI_EAGAIN; goto bad;
@@ -636,26 +658,15 @@ tofu_imp_ulib_icep_recv_cbak_uexp(struct ulib_icep *icep,
 
     /* copy uexp */
     uexp[0] = uexp_orig[0]; /* structure copy */
-
     /* copy rbuf */
     tofu_imp_ulib_icep_recv_rbuf_copy(icep, &uexp->rbuf, uexp_orig);
 
     /* queue it */
-    {
-	struct dlist_entry *uexp_entry = &uexp->entry;
-
-	dlist_init(uexp_entry);
-
-	/* queue it */
-	{
-	    struct dlist_entry *head;
-
-            head = (uexp_orig->flag & ULIB_SHEA_UEXP_FLAG_TFLG) ?
-		&icep->uexp_list_trcv : &icep->uexp_list_mrcv;
-	    dlist_insert_tail(uexp_entry, head);
-	}
-    }
-
+    uexp_entry = &uexp->entry;
+    dlist_init(uexp_entry);
+    head = (uexp_orig->flag & ULIB_SHEA_UEXP_FLAG_TFLG) ?
+        &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
+    dlist_insert_tail(uexp_entry, head);
 bad:
     return fc;
 }
