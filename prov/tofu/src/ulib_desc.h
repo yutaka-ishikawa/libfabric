@@ -11,6 +11,8 @@
 
 #include <stdint.h>
 
+#include <ofi_atom.h>	    /* for ofi_atomic_+() */
+
 /* definitions */
 
 #define ULIB_DESC_UFLG_SAFE ( 0 \
@@ -52,8 +54,7 @@ struct ulib_toqc_cash {
     struct ulib_utof_cash   addr[2]; /* [0] remote [1] local */
     uint64_t		    fi_a;
     uint32_t		    vpid;
-/*  ofi_atomic32_t	    refc; */
-    int32_t		    refc;
+    ofi_atomic32_t	    refc;
     DLST_DECE(ulib_toqc_cash)   list;
     struct ulib_toqd_cash   swap[1];
     struct ulib_toqd_cash   fadd[1];
@@ -65,7 +66,7 @@ struct ulib_toqc_cash {
 #endif	/* CONF_ULIB_SHEA_DATA */
 };
 
-DLST_DEFH(ulib_head_cash, ulib_toqc_cash);
+DLST_DEFH(ulib_head_desc, ulib_toqc_cash);
 
 /* function prototypes */
 struct ulib_utof_cash;
@@ -139,7 +140,6 @@ extern int  ulib_utof_cash_remote(
 
 /* inline functions */
 
-/* #include <ofi_atm.h> */	/* for ofi_atomic_+() */
 #include <assert.h>	/* for assert() */
 #include <string.h>	/* for memset() */
 
@@ -176,8 +176,7 @@ static inline void ulib_toqc_cash_init(
 
     cash->fi_a = fi_a;
     cash->vpid = -1U;
-    /* ofi_atomic_initialize32(&cash->refc, 0); */
-    cash->refc = 0;
+    ofi_atomic_initialize32(&cash->refc, 0);
 
     ulib_toqc_cash_init_desc(cash);
 

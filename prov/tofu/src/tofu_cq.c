@@ -6,6 +6,7 @@
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
+#include "ulib_ofif.h"	    /* for ulib_icep_shea_send_prog() */
 
 static int tofu_cq_close(struct fid *fid)
 {
@@ -62,6 +63,27 @@ static ssize_t tofu_cq_read(
     fastlock_acquire( &cq__priv->cq__lck );
 
     if (ofi_cirque_isempty( cq__priv->cq__ccq )) {
+	{
+	    struct dlist_entry *head = &cq__priv->cq__htx;
+	    struct dlist_entry *curr, *next;
+
+	    dlist_foreach_safe(head, curr, next) {
+		struct tofu_cep *cep_priv;
+		struct ulib_icep *icep;
+		int uc;
+
+		cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
+		assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+		icep = (struct ulib_icep *)(cep_priv + 1);
+
+		uc = ulib_icep_shea_send_prog(icep, 0, 0 /* tims */);
+		if (uc != 0 /* UTOFU_SUCCESS */ ) { }
+	    }
+
+	    if ( ! ofi_cirque_isempty( cq__priv->cq__ccq ) ) {
+	    }
+        }
+
 	ret = -FI_EAGAIN; goto bad;
     }
 

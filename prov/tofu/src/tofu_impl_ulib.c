@@ -1540,10 +1540,8 @@ void ulib_icep_free_cash(
     struct ulib_toqc_cash *cash_tmpl
 )
 {
-    /* assert(ofi_atomic_get32(&cash_tmpl->refc) != 0); */
-    /* ofi_atomic_dec32(&cash_tmpl->refc); */ /* YYY */
-    assert(cash_tmpl->refc != 0);
-    cash_tmpl->refc--;
+    assert(ofi_atomic_get32(&cash_tmpl->refc) != 0);
+    ofi_atomic_dec32(&cash_tmpl->refc);
     return ;
 }
 
@@ -1672,17 +1670,13 @@ bad:
     return uc;
 }
 
-int ulib_icep_find_cash(
+int ulib_icep_find_desc(
     struct ulib_icep *icep,
     fi_addr_t dfia, /* destination fi_addr */
     struct ulib_toqc_cash **pp_cash_tmpl
 )
 {
     int uc = UTOFU_SUCCESS;
-    fprintf(stderr, "YI******* NEEDS TO IMPLEMENT %s\n", __func__);
-#if 0
-    static struct ulib_cash_fs *free_cash_fs = 0; /* YYY */
-    static DLST_DECH(ulib_head_cash) head_cash; /* YYY */
     struct ulib_toqc_cash *cash_tmpl;
     struct ulib_oav_addr rava, lava;
     utofu_stadd_t rsta, lsta;
@@ -1690,28 +1684,19 @@ int ulib_icep_find_cash(
     utofu_stadd_t rsta_data, lsta_data;
 #endif	/* CONF_ULIB_SHEA_DAT1 */
 
-    ulib_icep_lock(icep);
-    /* icep_open() */
-    if (free_cash_fs == 0) {
-	DLST_INIT(&head_cash); /* YYY */
-	free_cash_fs = ulib_cash_fs_create( 512, 0, 0 /* YYY */ ); /* YYY */
-	if (free_cash_fs == 0) {
-	    uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
-	}
-    }
+    /* ulib_icep_lock(icep); */
 
     /* find a cash by fi_addr */
     {
-	DLST_DECH(ulib_head_cash) *head;
+	DLST_DECH(ulib_head_desc) *head;
 
-	head = &head_cash /* icep->head_cash */; /* YYY */
+	head = &icep->cash_list_desc;
 
 	cash_tmpl = DLST_PEEK(head, struct ulib_toqc_cash, list);
 	while (cash_tmpl != 0) {
 	    if (cash_tmpl->fi_a == dfia) {
 		DLST_RMOV(head, cash_tmpl, list);
-		/* ofi_atomic_inc32(&cash_tmpl->refc); */ /* YYY */
-		cash_tmpl->refc++;
+		ofi_atomic_inc32(&cash_tmpl->refc);
 		DLST_INSH(head, cash_tmpl, list);
 		/* return */
 		pp_cash_tmpl[0] = cash_tmpl;
@@ -1761,26 +1746,25 @@ ioav = (void *)icep; /* YYY */
      * is allocated for new entry if the free list is empty
      */
     {
-	struct ulib_cash_fs *cash_fs;
+	struct ulib_desc_fs *cash_fs;
 
-	cash_fs = free_cash_fs /* icep->cash_fs */; /* YYY */
+	cash_fs = icep->desc_fs;
 
 	if (freestack_isempty(cash_fs)) {
-	    DLST_DECH(ulib_head_cash) *head;
+	    DLST_DECH(ulib_head_desc) *head;
 
-	    head = &head_cash /* icep->head_cash */; /* YYY */
+	    head = &icep->cash_list_desc;
 
-	    cash_tmpl = DLST_LAST(head, ulib_head_cash, struct ulib_toqc_cash, list);
+	    cash_tmpl = DLST_LAST(head, ulib_head_desc, struct ulib_toqc_cash, list);
 	    assert(cash_tmpl == 0);
-	    if (cash_tmpl->refc > 0) {
-		assert(cash_tmpl->refc == 0); /* YYY */
+	    if (ofi_atomic_get32(&cash_tmpl->refc) > 0) {
+		assert(ofi_atomic_get32(&cash_tmpl->refc) == 0); /* YYY */
 		uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
 	    }
 	    DLST_RMOV(head, cash_tmpl, list);
 	    ulib_toqc_cash_init(cash_tmpl, dfia);
 	    cash_tmpl->vpid = rava.vpid;
-	    /* ofi_atomic_set32(&cash_tmpl->refc, 1); */ /* YYY */
-	    cash_tmpl->refc = 1;
+	    ofi_atomic_set32(&cash_tmpl->refc, 1);
 	    DLST_INSH(head, cash_tmpl, list);
 	}
 	else {
@@ -1788,23 +1772,13 @@ ioav = (void *)icep; /* YYY */
 	    assert(cash_tmpl != 0);
 	    ulib_toqc_cash_init(cash_tmpl, dfia);
 	    cash_tmpl->vpid = rava.vpid;
-	    /* ofi_atomic_set32(&cash_tmpl->refc, 1); */ /* YYY */
-	    cash_tmpl->refc = 1;
+	    ofi_atomic_set32(&cash_tmpl->refc, 1);
 	    /* cache it */
 	    {
-		DLST_DECH(ulib_head_cash) *head;
-		head = &head_cash /* icep->head_cash */; /* YYY */
+		DLST_DECH(ulib_head_desc) *head;
+		head = &icep->cash_list_desc;
 		DLST_INSH(head, cash_tmpl, list);
 	    }
-#if 0
-	    if (0) {
-		int c_no = ulib_cash_fs_index(cash_fs, cash_tmpl);
-		assert(c_no >= 0);
-	    }
-	    if (0) {
-		ulib_cash_fs_free(cash_fs);
-	    }
-#endif
 	}
 	/* cash_tmpl->addr[2] */
 	{
@@ -1841,7 +1815,6 @@ ioav = (void *)icep; /* YYY */
     pp_cash_tmpl[0] = cash_tmpl;
 
 bad:
-    ulib_icep_unlock(icep);
-#endif /* 0 */
+    /* ulib_icep_unlock(icep); */
     return uc;
 }
