@@ -199,6 +199,7 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     icep->vcqh = 0;
     icep->toqc = 0;
     icep->cbuf.csiz = 0;
+    DLST_INIT(&icep->busy_esnd);  /* head of busy list */
     icep->icep_scq = 0;
     icep->icep_rcq = 0;
     icep->uexp_fs = 0;
@@ -209,7 +210,7 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     dlist_init(&icep->expd_list_mrcv); /* expeced queue */
     icep->udat_fs = 0;
     icep->desc_fs = 0;
-    dlist_init(&icep->cash_list_desc); /* desc_cash head */
+    DLST_INIT(&icep->cash_list_desc);  /* desc_cash head */
     icep->tofa.ui64 = -1UL;
     return ;
 }
@@ -1283,6 +1284,7 @@ fflush(stdout);
 	ulib_icep_shea_data_qput(icep, udat);
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
+    DLST_INST(&icep->busy_esnd, esnd, list);
 
     /* post */
     if (vpp_send_hndl) {
@@ -1314,6 +1316,7 @@ static inline void ulib_icep_shea_esnd_free(
     {
 	struct ulib_shea_cbuf *cbuf = &icep->cbuf;
 
+	DLST_RMOV(&icep->busy_esnd, esnd, list);
 	ulib_shea_cbuf_esnd_qput(cbuf, esnd);
 	/* esnd = 0; */
     }
@@ -1356,7 +1359,22 @@ int ulib_icep_shea_send_prog(
     struct ulib_shea_esnd *esnd = (vpp_send_hndl == 0)? 0: vpp_send_hndl[0];
 
     if (esnd == 0) { /* all */
-	assert(esnd != 0); /* YYY */
+	DLST_DECH(ulib_head_esnd) *head = &icep->busy_esnd;
+	struct dlist_entry *curr, *next;
+
+	dlist_foreach_safe(head, curr, next) {
+	    void *vp_esnd;
+
+	    vp_esnd = container_of(curr, struct ulib_shea_esnd, list);
+	    assert(vp_esnd != 0);
+
+	    uc = ulib_icep_shea_send_prog(icep, &vp_esnd, tims);
+	    if (uc != UTOFU_SUCCESS) { /* goto bad; */ }
+	    if (vp_esnd == 0) { /* done */
+		/* freed esnd */
+	    }
+	}
+	goto bad; /* XXX - is not an error */
     }
     if (esnd->r_no != UINT64_MAX) {
 	uint64_t c_no;

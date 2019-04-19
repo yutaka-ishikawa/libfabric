@@ -90,6 +90,8 @@ DECLARE_FREESTACK(struct ulib_toqc_cash, ulib_desc_fs);
 
 /* ======================================================================== */
 
+#include "ulib_conv.h"	    /* for union ulib_tofa_u */
+
 struct ulib_idom;
 struct ulib_imr_;
 struct ulib_isep;
@@ -146,6 +148,7 @@ struct ulib_icep {
     fastlock_t                  icep_lck;
     struct ulib_toqc            *toqc;
     struct ulib_shea_cbuf       cbuf;
+    DLST_DECH(ulib_head_esnd)   busy_esnd;
     struct ulib_icqu            *icep_scq; /* send cq */
     struct ulib_icqu            *icep_rcq; /* recv cq */
     /* unexpected queue */
