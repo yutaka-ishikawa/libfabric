@@ -12,6 +12,13 @@ extern struct fi_provider		tofu_prov;
 #include "tofu_impl_ulib.h"
 #include "ulib_ofif.h"
 
+/* the following function was originally static inline function in ulib_ofif.c */
+extern int
+ulib_icep_recv_frag(struct ulib_shea_expd *trcv,
+                    const struct ulib_shea_uexp *rinf);
+extern int ulib_icqu_comp_trcv(void *vp_cq__priv,
+                               const struct ulib_shea_expd *expd);
+
 /* The following functions are defined and used in this file */
 extern int tofu_imp_ulib_cash_find(struct ulib_icep *icep,
                                    uint64_t tank,
@@ -234,7 +241,8 @@ tofu_imp_ulib_uexp_rbuf_free(struct ulib_shea_uexp *uexp)
         if (rbuf->iovs[iiov].iov_len == 0) { continue; }
         if (rbuf->iovs[iiov].iov_base != 0
             && rbuf->alloced) {
-            free(rbuf->iovs[iiov].iov_base);
+            fprintf(stderr, "YI**** FREE %p but NOT\n", rbuf->iovs[iiov].iov_base);
+            // free(rbuf->iovs[iiov].iov_base);
         }
         rbuf->iovs[iiov].iov_base = 0;
         rbuf->iovs[iiov].iov_len = 0;
@@ -378,6 +386,7 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
     struct ulib_shea_expd *expd;
     struct ulib_shea_uexp *sndreq; /* message is copied to sndreq */
     void        *match;
+    int         done;
 
     /* tofu_cep in the receiver endpoint is pointed by the ctp_trx field,
      * and its ulib_icep is below the tofu_cep (+ offs) */
@@ -418,6 +427,7 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
             sndreq->rbuf.iovs[0].iov_len = len;
             sndreq->rbuf.niov = 1;
             sndreq->rbuf.leng = len;
+            sndreq->rbuf.alloced = 1;
             len = 0;
             for (i = 0; i < tmsg->iov_count; i++) {
                 memcpy((void*) &mem[len], tmsg->msg_iov[i].iov_base,
@@ -439,23 +449,23 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
         return FI_SUCCESS;
     }
     /* corresponding posted receive request has been registered */
+    fprintf(stderr, "YI********** NEW CODE CHECK IT! %s in %s\n", __func__, __FILE__); fflush(stderr);
     expd = container_of(match, struct ulib_shea_expd, entry);
-    fprintf(stderr, "YI********** NEEEEDS TO IMPLEMENT!! %s in %s\n", __func__, __FILE__); fflush(stderr);
-#if 0
-    /* copy user buffer using requested expected queue */
-    ulib_expd_recv(expd, sndreq);
-    /* free uexp->rbuf */
-    ulib_uexp_rbuf_free(sndreq);
-    /* free unexpected message */
-    freestack_push(ricep->uexp_fs, sndreq);
-    /* check if the packet carrys the last fragment */
-    if (tofu_imp_ulib_expd_cond_comp(expd)) {
+    done = ulib_icep_recv_frag(expd, sndreq /* uexp */);
+    if (done) {
+        /* free uexp->rbuf */
+        tofu_imp_ulib_uexp_rbuf_free(sndreq);
+        /* free unexpected message */
+        freestack_push(ricep->uexp_fs, sndreq);
         /* notify recv cq */
-        fprintf(stderr, "YI****** Notify %s\n", __func__);
-        // tofu_imp_ulib_icep_evnt_expd(icep, expd);
+        if (ricep->vp_tofu_rcq != 0) {
+            ulib_icqu_comp_trcv(ricep->vp_tofu_rcq, expd);
+        }
         freestack_push(ricep->expd_fs, expd);
+    } else {
+        /* not yet received all fragments */
+        fprintf(stderr, "YI*************** HOW SHOULD WE DO ?\n"); fflush(stderr);
     }
-#endif
     return FI_SUCCESS;
 }
 
@@ -587,7 +597,7 @@ tofu_imp_ulib_send_post_fast(
     }
     /* esnd */
     {
-	struct ulib_shea_cbuf *cbuf = &icep->cbuf;
+	struct ulib_shea_cbuf *cbuf = icep->cbufp;
 	struct ulib_shea_esnd *esnd;
 
 	esnd = ulib_shea_cbuf_esnd_qget(cbuf, udat);
@@ -629,12 +639,7 @@ tofu_imp_ulib_icep_shea_esnd_free(struct ulib_icep *icep,
 	/* esnd->data = 0; */ /* XXX */
     }
     /* queue esnd to the freelist */
-    {
-	struct ulib_shea_cbuf *cbuf = &icep->cbuf;
-
-	ulib_shea_cbuf_esnd_qput(cbuf, esnd);
-	/* esnd = 0; */
-    }
+    ulib_shea_cbuf_esnd_qput(icep->cbufp, esnd);
 
 /* bad: */
     return ;

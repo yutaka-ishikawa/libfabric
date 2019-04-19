@@ -433,12 +433,6 @@ int tofu_cep_rx_context(struct fid_ep *fid_sep,
 	if (fc != 0) { goto bad; }
     }
 
-#ifdef	notdef
-    cep_priv = calloc(1, sizeof (cep_priv[0]));
-    if (cep_priv == 0) {
-	fc = -FI_ENOMEM; goto bad;
-    }
-#else	/* notdef */
     {
 	size_t msiz;
 	size_t offs_ulib;
@@ -452,7 +446,6 @@ int tofu_cep_rx_context(struct fid_ep *fid_sep,
 	}
 	ulib_ofif_icep_init(cep_priv, offs_ulib);
     }
-#endif	/* notdef */
 
     /* initialize cep_priv */
     {

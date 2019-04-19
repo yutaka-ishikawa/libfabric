@@ -147,7 +147,8 @@ struct ulib_icep {
     utofu_vcq_hdl_t             vcqh;
     fastlock_t                  icep_lck;
     struct ulib_toqc            *toqc;
-    struct ulib_shea_cbuf       cbuf;      /* eager buffer controlling tofu */
+    struct ulib_shea_cbuf       *cbufp;      /* eager buffer controlling tofu */
+    //struct ulib_shea_cbuf       cbuf;      /* eager buffer controlling tofu */
     DLST_DECH(ulib_head_esnd)   busy_esnd;
     struct ulib_icqu            *icep_scq; /* send cq */
     struct ulib_icqu            *icep_rcq; /* recv cq */

@@ -2694,12 +2694,14 @@ int ulib_shea_cbuf_fini(struct ulib_shea_cbuf *cbuf)
 
     if (cbuf->ctrl.stag != -1U) {
 	const unsigned long int flag =  0;
+        fprintf(stderr, "YI********* cbuf->ctrl.stad(%lx) %s\n", cbuf->ctrl.stad, __func__); fflush(stderr);
 	uc = utofu_dereg_mem(cbuf->ctrl.vcqh, cbuf->ctrl.stad, flag);
 	if (uc != UTOFU_SUCCESS) { }
 	cbuf->ctrl.stag = -1U;
     }
     if (cbuf->data.stag != -1U) {
 	const unsigned long int flag =  0;
+        fprintf(stderr, "YI********* cbuf->ctrl.stad(%lx) %s\n", cbuf->ctrl.stad, __func__); fflush(stderr);
 	uc = utofu_dereg_mem(cbuf->data.vcqh, cbuf->data.stad, flag);
 	if (uc != UTOFU_SUCCESS) { }
 	cbuf->data.stag = -1U;
