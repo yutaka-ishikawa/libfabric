@@ -17,7 +17,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     struct tofu_cep     *cep_priv = 0;
     struct ulib_icep    *icep;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\n\tsrc(%ld) in %s\n", msg->addr, __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
@@ -135,7 +135,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     fi_addr_t        fi_a = msg->addr;
     int fc;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\n\tdest(%ld) in %s\n", msg->addr, __FILE__);
 
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
 	ret = -FI_EINVAL; goto bad;

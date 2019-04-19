@@ -84,36 +84,44 @@ static int tofu_av_insert(
 
     for (ic = 0; ic < count; ic++) {
 	size_t index;
-	uint64_t vnam[2]; /* XXX 16 */
+        struct ulib_sep_name    vnam;
 
 	/* index */
 	/* fastlock_acquire( &av__priv->av__lck ); */
 	index = av__priv->av__tab.nct++;
 	/* fastlock_release( &av__priv->av__lck ); */
 	if (afmt == FI_ADDR_STR) {
-            fprintf(stderr, "YI*****addr = %s\n", (char*)addr); fflush(stderr);
-            fc = tofu_imp_str_uri_to_name(addr, ic, vnam);
+            fprintf(stderr, "YIII**fi_addr = %s\n", (char*)addr); fflush(stderr);
+            fc = tofu_imp_str_uri_to_name(addr, ic, (void*) &vnam);
 	} else {
             FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
 	    fc = -1; goto bad;
 	}
 	if (fc != FI_SUCCESS) {
-	    vnam[0] = vnam[1] = 0;
 	    if (fi_addr != 0) {
 		fi_addr[ic] = FI_ADDR_NOTAVAIL;
 	    }
 	    fc = FI_SUCCESS; /* XXX ignored */
-	}
-	else {
+	} else {
 	    if (fi_addr != 0) {
 		fi_addr[ic] = index;
 	    }
 	}
 	/* copy name */
 	{
-	    void *src = vnam;
+	    void *src = (void*) &vnam;
 	    void *dst = (char *)av__priv->av__tab.tab + (index * 16); /* XXX */
-	    memcpy(dst, src, 16);
+	    memcpy(dst, src, sizeof(struct ulib_sep_name));
+            fprintf(stderr, "YIII**fi_addr[%ld]=%ld, name(%p)=\n", ic, index, dst);
+            fprintf(stderr,
+                    "\t\tp(%d) v(%d) xyzabc=%02u.%02u.%02u.%02u.%02u.02%u"
+                    "\t\ttniq=%02u.%02u.%02u.%02u.%02u.02%u.02%u.02%u\n",
+                    vnam.p, vnam.v,
+                    vnam.txyz[0], vnam.txyz[1], vnam.txyz[2],
+                    vnam.a, vnam.b, vnam.c, 
+                    vnam.tniq[0], vnam.tniq[1], vnam.tniq[2], vnam.tniq[3],
+                    vnam.tniq[4], vnam.tniq[5], vnam.tniq[6], vnam.tniq[7]);
+            fflush(stderr);
 	}
     }
 

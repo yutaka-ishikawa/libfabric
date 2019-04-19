@@ -881,7 +881,7 @@ int tofu_imp_str_uri_to_name(
     cp = (const char *)vuri + (index * 64 /* FI_NAME_MAX */ );
     fprintf(stderr, "YI********* %s: index(%ld) cp=%p\n", __func__, index, cp);
     fprintf(stderr, "YI********* %s: index(%ld) cp=%s\n", __func__, index, (char*) &cp);
-
+    memset(name, 0, sizeof(struct ulib_sep_name));
     {
 	int nv, iv, mv;
 	long lv_xyzabc[6], lv_tniq[CONF_TOFU_CTXC * 2];
@@ -933,21 +933,19 @@ int tofu_imp_str_uri_to_name(
 	}
 
 	name->vpid = -1U; /* YYY */
-if (0) {
-printf("\t%u.%u.%u.%u.%u.%u"
-"\t%u.%.u %u.%u %u.%u %u.%u"
-"\t%u.%.u %u.%u %u.%u %u.%u\n",
-name->txyz[0], name->txyz[1], name->txyz[2],
-name->a, name->b, name->c,
-name->tniq[0] >> 4, name->tniq[0] & 0x0f,
-name->tniq[1] >> 4, name->tniq[1] & 0x0f,
-name->tniq[2] >> 4, name->tniq[2] & 0x0f,
-name->tniq[3] >> 4, name->tniq[3] & 0x0f,
-name->tniq[4] >> 4, name->tniq[4] & 0x0f,
-name->tniq[5] >> 4, name->tniq[5] & 0x0f,
-name->tniq[6] >> 4, name->tniq[6] & 0x0f,
-name->tniq[7] >> 4, name->tniq[7] & 0x0f);
-}
+        fprintf(stderr, "\t%u.%u.%u.%u.%u.%u"
+               "\t%u.%.u %u.%u %u.%u %u.%u"
+               "\t%u.%.u %u.%u %u.%u %u.%u\n",
+               name->txyz[0], name->txyz[1], name->txyz[2],
+               name->a, name->b, name->c,
+               name->tniq[0] >> 4, name->tniq[0] & 0x0f,
+               name->tniq[1] >> 4, name->tniq[1] & 0x0f,
+               name->tniq[2] >> 4, name->tniq[2] & 0x0f,
+               name->tniq[3] >> 4, name->tniq[3] & 0x0f,
+               name->tniq[4] >> 4, name->tniq[4] & 0x0f,
+               name->tniq[5] >> 4, name->tniq[5] & 0x0f,
+               name->tniq[6] >> 4, name->tniq[6] & 0x0f,
+               name->tniq[7] >> 4, name->tniq[7] & 0x0f);
     }
 
     /* return */
