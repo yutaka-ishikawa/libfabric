@@ -535,7 +535,8 @@ static inline void ulib_shea_data_init_cbak(
 
 struct ulib_shea_rbuf {
     struct iovec iovs[2];
-    uint32_t niov;
+    uint16_t niov;
+    uint16_t alloced;  /* if memory is allocated */
     uint32_t leng;
 };
 

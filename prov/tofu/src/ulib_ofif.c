@@ -20,6 +20,7 @@
 #include <stdlib.h>	    /* for free() */
 #include <stdio.h>	    /* for printf() */
 
+extern void tofu_imp_ulib_uexp_rbuf_free(struct ulib_shea_uexp *uexp);
 
 int ulib_isep_open_tnis_info(struct ulib_isep *isep)
 {
@@ -201,6 +202,28 @@ icep->icep_rcq, cep_priv->cep_recv_cq);
 #ifndef	notdef_icep_toqc
     icep->enabled = 1;
 #endif	/* notdef_icep_toqc */
+    {
+        utofu_vcq_id_t vcqi = -1UL;
+	uint8_t xyz[8];	uint16_t tni[1], tcq[1], cid[1];
+        int uc;
+        uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
+        if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
+        uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
+        if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
+        icep->tofa.ui64 = 0;
+        icep->tofa.tofa.tux = xyz[0];
+        icep->tofa.tofa.tuy = xyz[1];
+        icep->tofa.tofa.tuz = xyz[2];
+        icep->tofa.tofa.tua = xyz[3];
+        icep->tofa.tofa.tub = xyz[4];
+        icep->tofa.tofa.tuc = xyz[5];
+        icep->tofa.tofa.tni = tni[0];
+        icep->tofa.tofa.tcq = tcq[0];
+        fprintf(stderr, "YI****** self TOFU ADDR ******"
+                " xyz=%2x%2x%2x%2x%2x%2x tni=%x tcq=%x cid=%x tofa.ui64=%lx\n",
+                xyz[0],xyz[1],xyz[2],xyz[3],xyz[4],xyz[5],
+                tni[0], tcq[0], cid[0], icep->tofa.ui64);
+    }
 
     RETURN_OK_C(uc);
 
@@ -560,29 +583,9 @@ static inline int ulib_icqu_comp_trcv(
 )
 {
     int uc = UTOFU_SUCCESS;
-#ifdef	CONF_ULIB_FICQ
     void *cent;
     struct fi_cq_tagged_entry *comp;
 
-#ifdef	CONF_ULIB_PERF_SHEA
-    if (expd->tmsg.context == (void *)31) { /* YYY */
-#ifdef	notdef
-	printf("/// perf trcv\n");
-	printf("\t--- %s %12.9f\n", "post", ulib_tick_conv( expd->tims[ 0 ]));
-	printf("\t--- %s %12.9f\n", "phdr", ulib_tick_conv( expd->tims[ 1 ]));
-	printf("\t--- %s %12.9f\n", "expd", ulib_tick_conv( expd->tims[ 2 ]));
-	printf("\t--- %s %12.9f\n", "uexp", ulib_tick_conv( expd->tims[ 3 ]));
-#else	/* notdef */
-	printf("// %9s %12s %12s %12s %12s perf trcv\n",
-	    "leng", "post", "phdr", "expd", "uxpd");
-	printf("%12u %12.9f %12.9f %12.9f %12.9f\n", expd->wlen,
-	    ulib_tick_conv( expd->tims[ 0 ]),
-	    ulib_tick_conv( expd->tims[ 1 ]),
-	    ulib_tick_conv( expd->tims[ 2 ]),
-	    ulib_tick_conv( expd->tims[ 3 ]));
-#endif	/* notdef */
-    }
-#endif	/* CONF_ULIB_PERF_SHEA */
     /* fastlock_acquire( &icqu->cqu_lck ); */ /* YYY */
     cent = ulib_icqu_cque_pop(icqu);
     if (cent == 0) {
@@ -604,7 +607,6 @@ static inline int ulib_icqu_comp_trcv(
 
 bad:
     /* fastlock_release( &icqu->cqu_lck ); */ /* YYY */
-#endif	/* CONF_ULIB_FICQ */
     return uc;
 }
 #else	/* NOTDEF_UNUSED */
@@ -822,72 +824,30 @@ static inline void ulib_icep_recv_rbuf_base(
     return ;
 }
 
-#ifndef	NOTDEF_RECV_FRAG
-
-static inline void ulib_icep_recv_frag(
-    struct ulib_shea_expd *trcv,
-    const struct ulib_shea_uexp *rinf
-)
+static inline int
+ulib_icep_recv_frag(struct ulib_shea_expd *trcv,
+                    const struct ulib_shea_uexp *rinf)
 {
+    size_t      wlen;
+    int         done;
     if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
-	assert(trcv->nblk == 0);
-	assert(trcv->mblk == 0);
 	trcv->mblk  = rinf->mblk;
 	trcv->rtag  = rinf->utag;
     }
-    else {
-	assert(trcv->nblk != 0);
-	assert(trcv->mblk != 0);
-	assert(trcv->rtag == rinf->utag);
-    }
-    assert(trcv->nblk == rinf->boff);
-#ifndef	NDEBUG
-    if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
-	assert((rinf->nblk + rinf->boff) <= rinf->mblk);
-    }
-    else {
-	assert((rinf->nblk + rinf->boff) <= trcv->mblk);
-    }
-#endif	/* NDEBUG */
     /* copy to the user buffer */
-    {
-	size_t wlen;
-
-	wlen = ulib_copy_iovs(
-		trcv->iovs,
-		trcv->niov,
-		trcv->wlen,
-		rinf->rbuf.iovs,
-		rinf->rbuf.niov
-		);
-	trcv->wlen += wlen;
-	assert(wlen <= rinf->rbuf.leng);
-	trcv->olen += (rinf->rbuf.leng - wlen);
-    }
+    wlen = ulib_copy_iovs(trcv->iovs, trcv->niov,trcv->wlen,
+                          rinf->rbuf.iovs, rinf->rbuf.niov);
+    trcv->wlen += wlen;
+    trcv->olen += (rinf->rbuf.leng - wlen);
     /* update nblk */
     if (rinf->rbuf.leng == 0) {
-	assert((rinf->flag & ULIB_SHEA_UEXP_FLAG_ZFLG) != 0);
-	assert((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0);
-	assert(rinf->mblk == 1);
-	assert(rinf->boff == 0);
-	assert(rinf->nblk == 0);
-	trcv->nblk += 1 /* rinf->nblk */;
-    }
-    else {
+	trcv->nblk += 1;
+    } else {
 	trcv->nblk += rinf->nblk;
     }
-if (0) {
-printf("\ttrcv %p nblk %3u mblk %3u\n",
-trcv, trcv->nblk, trcv->mblk);
+    done = (trcv->mblk == trcv->nblk);
+    return done;
 }
-if (0) {
-printf("\ttrcv %p wlen %5u olen %5u\n",
-trcv, trcv->wlen, trcv->olen);
-}
-
-    return ;
-}
-#endif	/* NOTDEF_RECV_FRAG */
 
 static inline int ulib_icep_recv_cbak_uexp( /* unexpected */
     struct ulib_icep *icep,
@@ -977,47 +937,30 @@ bad:
 }
 
 int
-ulib_icep_recv_call_back(void *farg, /* icep */
+ulib_icep_recv_call_back(void *vptr,
                          int r_uc,
-                         const void *vctx /* rinf */)
+                         const void *vctx /* uexp */)
 {
     int uc = 0;
-    struct ulib_icep *icep = farg;
-    const struct ulib_shea_uexp *rinf = vctx;
+    struct ulib_icep *icep = (struct ulib_icep *) vptr;
+    const struct ulib_shea_uexp *uexp = vctx;
     struct ulib_shea_expd *trcv;
-#ifdef	CONF_ULIB_PERF_SHEA
     uint64_t tick[4];
-#endif	/* CONF_ULIB_PERF_SHEA */
 
-#ifdef	CONF_ULIB_PERF_SHEA
     tick[0] = ulib_tick_time();
-#endif	/* CONF_ULIB_PERF_SHEA */
-    trcv = ulib_icep_find_expd(icep, rinf);
+    trcv = ulib_icep_find_expd(icep, uexp);
     if (trcv == 0) {
-if (0) {
-printf("%s():%d\tuexp\n", __func__, __LINE__);
-}
-	uc = ulib_icep_recv_cbak_uexp(icep, rinf);
+	uc = ulib_icep_recv_cbak_uexp(icep, uexp);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
 	goto bad; /* XXX - is not an error */
     }
-if (0) {
-printf("\ttrcv %p utag %016"PRIx64" %c%c\n",
-trcv, rinf->utag,
-((rinf->flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0)? 'T': '-',
-((rinf->flag & ULIB_SHEA_UEXP_FLAG_ZFLG) != 0)? 'Z': '-');
-}
     if (trcv != 0) {
-#ifdef	NOTDEF_RECV_FRAG
-	assert(trcv->nblk == rinf->boff);
-#ifndef	NDEBUG
-	if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
-	    assert((rinf->nblk + rinf->boff) <= rinf->mblk);
+	assert(trcv->nblk == uexp->boff);
+	if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
+	    assert((uexp->nblk + uexp->boff) <= uexp->mblk);
+	} else {
+	    assert((uexp->nblk + uexp->boff) <= trcv->mblk);
 	}
-	else {
-	    assert((rinf->nblk + rinf->boff) <= trcv->mblk);
-	}
-#endif	/* NDEBUG */
 	/* copy to the user buffer */
 	{
 	    size_t wlen;
@@ -1026,67 +969,42 @@ trcv, rinf->utag,
 		    trcv->iovs,
 		    trcv->niov,
 		    trcv->wlen,
-		    rinf->rbuf.iovs,
-		    rinf->rbuf.niov
+		    uexp->rbuf.iovs,
+		    uexp->rbuf.niov
 		    );
 	    trcv->wlen += wlen;
-	    assert(wlen <= rinf->rbuf.leng);
-	    trcv->olen += (rinf->rbuf.leng - wlen);
+	    assert(wlen <= uexp->rbuf.leng);
+	    trcv->olen += (uexp->rbuf.leng - wlen);
 	}
 	/* check if the packet is a last fragment */
 	{
-	    if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
+	    if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
 		assert(trcv->mblk == 0);
-		trcv->mblk  = rinf->mblk;
+		trcv->mblk  = uexp->mblk;
 		assert(trcv->nblk == 0);
-		trcv->rtag  = rinf->utag;
+		trcv->rtag  = uexp->utag;
 	    }
 	    else {
 		assert(trcv->mblk != 0);
-		assert(trcv->rtag == rinf->utag);
+		assert(trcv->rtag == uexp->utag);
 	    }
-	    trcv->nblk += rinf->nblk;
-if (0) {
-printf("\ttrcv %p nblk %3u mblk %3u\n",
-trcv, trcv->nblk, trcv->mblk);
-}
-if (0) {
-printf("\ttrcv %p wlen %5u olen %5u\n",
-trcv, trcv->wlen, trcv->olen);
-}
+	    trcv->nblk += uexp->nblk;
 	    if (trcv->nblk < trcv->mblk) {
 		ulib_icep_link_expd_head(icep, trcv);
 		goto bad; /* XXX - is not an error */
 	    }
 	}
-#else	/* NOTDEF_RECV_FRAG */
 	/* XXX iov_base : offs => base + offs */
-	ulib_icep_recv_rbuf_base(icep, rinf, (struct iovec *)rinf->rbuf.iovs);
+	ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
 
 	/* update trcv */
-	ulib_icep_recv_frag(trcv, rinf);
-if (0) {
-printf("%s():%d\ttrcv %3d %s\n", __func__, __LINE__,
-ulib_expd_fs_index(icep->expd_fs, trcv),
-(trcv->nblk < trcv->mblk)? "frag": "comp");
-}
+	ulib_icep_recv_frag(trcv, uexp);
+
 	/* check if the packet is a last fragment */
 	if (trcv->nblk < trcv->mblk) {
 	    ulib_icep_link_expd_head(icep, trcv);
-#ifdef	CONF_ULIB_PERF_SHEA
-	    {   uint64_t tnow = ulib_tick_time();
-		trcv->tims[ 2 /* expd */ ] += (tnow - tick[0]);
-		trcv->tims[ 1 /* phdr */ ] += rinf->tims[0];
-	    }
-#endif	/* CONF_ULIB_PERF_SHEA */
 	    goto bad; /* XXX - is not an error */
 	}
-#ifdef	CONF_ULIB_PERF_SHEA
-	{   uint64_t tnow = ulib_tick_time();
-	    trcv->tims[ 2 /* expd */ ] += (tnow - tick[0]);
-	    trcv->tims[ 1 /* phdr */ ] += rinf->tims[0];
-	}
-#endif	/* CONF_ULIB_PERF_SHEA */
 	/* notify recv cq */
 #ifdef	NOTDEF_NOTUSED
 	if (icep->icep_rcq != 0) {
@@ -1106,29 +1024,24 @@ ulib_expd_fs_index(icep->expd_fs, trcv),
 	}
 #endif	/* NOTDEF_NOTUSED */
 	freestack_push(icep->expd_fs, trcv); /* expd */
-#endif	/* NOTDEF_RECV_FRAG */
     }
 
 bad:
     return uc;
 }
 
-int ulib_icep_shea_recv_post(
-    struct ulib_icep *icep,
-    const struct fi_msg_tagged *tmsg,
-    uint64_t flags
-)
+/*
+ * The is used 2019/04/19
+ */
+int
+ulib_icep_shea_recv_post(struct ulib_icep *icep,
+                         const struct fi_msg_tagged *tmsg,
+                         uint64_t flags)
 {
     int uc = 0;
     struct ulib_shea_expd *expd;
     struct ulib_shea_uexp *uexp;
-#ifdef	CONF_ULIB_PERF_SHEA
-    uint64_t tick[4], uexp_time = 0, phdr_time = 0;
-#endif	/* CONF_ULIB_PERF_SHEA */
 
-#ifdef	CONF_ULIB_PERF_SHEA
-    tick[0] = ulib_tick_time();
-#endif	/* CONF_ULIB_PERF_SHEA */
     if (freestack_isempty(icep->expd_fs)) {
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
@@ -1140,57 +1053,28 @@ int ulib_icep_shea_recv_post(
     ulib_shea_expd_init(expd, tmsg, flags);
 
     /* check unexpected queue */
-    do {
-#ifdef	CONF_ULIB_PERF_SHEA
-	tick[1] = ulib_tick_time();
-#endif	/* CONF_ULIB_PERF_SHEA */
-	uexp = ulib_find_uexp_entry(icep, expd);
-	if (uexp == 0) { break; }
-#ifdef	CONF_ULIB_PERF_SHEA
-	phdr_time += uexp->tims[0];
-#endif	/* CONF_ULIB_PERF_SHEA */
-
+    uexp = ulib_find_uexp_entry(icep, expd);
+    if (uexp == NULL) {
+        /* Not found a corresponding message in unexepcted queue,
+         * thus insert this request to expected queue */
+        ulib_icep_link_expd(icep, expd);
+    } else {
+        int     done;
 	/* update expd */
-	ulib_icep_recv_frag(expd, uexp /* rinf */ );
-
-	/* free uexp->rbuf */
-	{
-	    struct ulib_shea_rbuf *rbuf = &uexp->rbuf;
-	    uint32_t iiov;
-
-	    for (iiov = 0; iiov < rbuf->niov; iiov++) {
-		if (rbuf->iovs[iiov].iov_len == 0) { continue; }
-		if (rbuf->iovs[iiov].iov_base != 0) {
-		    free(rbuf->iovs[iiov].iov_base); /* YYY */
-		    /* rbuf->iovs[iiov].iov_base = 0; */
-		}
-		/* rbuf->iovs[iiov].iov_len = 0; */
-	    }
-	    rbuf->niov = 0;
-	}
-if (0) {
-printf("%s():%d\tuexp %3d\n", __func__, __LINE__,
-ulib_uexp_fs_index(icep->uexp_fs, uexp));
-}
-	/* free uexp */
-	freestack_push(icep->uexp_fs, uexp);
+	done = ulib_icep_recv_frag(expd, uexp /* uexp */ );
+        if (done == 0) {
+            /* not yet received all fragments */
+            fprintf(stderr, "YI*************** HOW SHOULD WE DO ?\n"); fflush(stderr);
+            goto bad;
+        }
+        /* free uexp->rbuf */
+        tofu_imp_ulib_uexp_rbuf_free(uexp);
+        /* free unexpected message */
+        freestack_push(icep->uexp_fs, uexp);
 
 	/* check if the packet is a last fragment */
 	if ((expd->mblk != 0) && (expd->nblk >= expd->mblk)) {
 	    assert(expd->nblk == expd->mblk);
-#ifdef	CONF_ULIB_PERF_SHEA
-	    {   uint64_t tnow = ulib_tick_time(), tdif = tnow - tick[1];
-		uexp_time += tdif;
-		expd->tims[ 0 /* post */ ] += ((tnow - tick[0]) - uexp_time);
-		expd->tims[ 3 /* uexp */ ] += uexp_time;
-		expd->tims[ 1 /* phdr */ ] += phdr_time;
-	    }
-#endif	/* CONF_ULIB_PERF_SHEA */
-if (0) {
-printf("%s():%d\tdone %3d ctx %ld\n", __func__, __LINE__,
-ulib_expd_fs_index(icep->expd_fs, expd),
-(long)(uintptr_t)expd->tmsg.context);
-}
 	    /* notify recv cq */
 #ifdef	NOTDEF_NOTUSED
 	    if (icep->icep_rcq != 0) {
@@ -1212,26 +1096,7 @@ ulib_expd_fs_index(icep->expd_fs, expd),
 	    freestack_push(icep->expd_fs, expd);
 	    goto bad; /* XXX - is not an error */
 	}
-#ifdef	CONF_ULIB_PERF_SHEA
-	{   uint64_t tnow = ulib_tick_time(), tdif = tnow - tick[1];
-	    uexp_time += tdif;
-	}
-#endif	/* CONF_ULIB_PERF_SHEA */
-    } while (1);
-
-if (0) {
-printf("%s():%d\tqued %3d\n", __func__, __LINE__,
-ulib_expd_fs_index(icep->expd_fs, expd));
-}
-    /* queue it */
-    ulib_icep_link_expd(icep, expd);
-#ifdef	CONF_ULIB_PERF_SHEA
-    {   uint64_t tnow = ulib_tick_time();
-	expd->tims[ 0 /* post */ ] += ((tnow - tick[0]) - uexp_time);
-	expd->tims[ 1 /* phdr */ ] += phdr_time;
-	expd->tims[ 3 /* uexp */ ] += uexp_time;
     }
-#endif	/* CONF_ULIB_PERF_SHEA */
 
 bad:
     return uc;

@@ -15,7 +15,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
 {
     ssize_t             ret = FI_SUCCESS;
     struct tofu_cep     *cep_priv = 0;
-    const size_t offs_ulib = sizeof (cep_priv[0]);
+    struct ulib_icep    *icep;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
@@ -30,12 +30,11 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
 	ret = -FI_EINVAL; goto bad;
     }
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
+    icep = (struct ulib_icep*)(cep_priv + 1);
+
     fastlock_acquire(&cep_priv->cep_lck);
-    /*
-     * Ask Hatanaka san
-     */
     fprintf(stderr, "YI***** Completion function must be considered ? in %s\n", __func__);
-    ret = tofu_imp_ulib_recv_post(cep_priv, offs_ulib, msg, flags);
+    ret = ulib_icep_shea_recv_post(icep, msg, flags);
     fastlock_release( &cep_priv->cep_lck );
 bad:
     return ret;
