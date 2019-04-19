@@ -80,6 +80,14 @@ DECLARE_FREESTACK(struct ulib_ficq_en, ulib_ficq_fs);
  */
 DECLARE_FREESTACK(struct ulib_shea_data, ulib_udat_fs);
 
+/* ------------------------------------------------------------------------ */
+#include <ofi_mem.h>	    /* linked list */
+#include <ofi.h>	    /* for container_of () */
+
+#include "ulib_desc.h"	    /* for struct ulib_toqc_cash */
+
+DECLARE_FREESTACK(struct ulib_toqc_cash, ulib_desc_fs);
+
 /* ======================================================================== */
 
 struct ulib_idom;
@@ -149,6 +157,9 @@ struct ulib_icep {
     struct dlist_entry          expd_list_trcv; /* fi_msg_tagged */
     struct dlist_entry          expd_list_mrcv; /* fi_msg */
     struct ulib_udat_fs         *udat_fs;
+    /* desc_cash */
+    struct ulib_desc_fs         *desc_fs;
+    DLST_DECH(ulib_head_desc)   cash_list_desc; /* head of desc_cash */
     union ulib_tofa_u           tofa;           /* TOFu network Address */  
 };
 

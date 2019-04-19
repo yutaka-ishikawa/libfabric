@@ -123,6 +123,13 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
+    /* desc_cash */
+    if (icep->desc_fs == 0) {
+	icep->desc_fs = ulib_desc_fs_create( 512, 0, 0 /* YYY */ );
+	if (icep->desc_fs == 0) {
+	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
+	}
+    }
 #endif	/* CONF_ULIB_OFI */
     /* icep_ctrl_enab */
 #ifndef	notdef_icep_toqc
@@ -201,6 +208,8 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     dlist_init(&icep->expd_list_trcv); /* expeced queue */
     dlist_init(&icep->expd_list_mrcv); /* expeced queue */
     icep->udat_fs = 0;
+    icep->desc_fs = 0;
+    dlist_init(&icep->cash_list_desc); /* desc_cash head */
     icep->tofa.ui64 = -1UL;
     return ;
 }
@@ -245,6 +254,10 @@ int ulib_icep_close(void *ptr, size_t off)
     /* transmit entries */
     if (icep->udat_fs != 0) {
 	ulib_udat_fs_free(icep->udat_fs); icep->udat_fs = 0;
+    }
+    /* desc_cash */
+    if (icep->desc_fs != 0) {
+	ulib_desc_fs_free(icep->desc_fs); icep->desc_fs = 0;
     }
 #endif	/* CONF_ULIB_OFI */
 
@@ -1125,7 +1138,7 @@ bad:
 
 #include "ulib_desc.h"	    /* for struct ulib_toqc_cash */
 
-extern int  ulib_icep_find_cash(
+extern int  ulib_icep_find_desc(
 		struct ulib_icep *icep,
 		fi_addr_t dfia,
 		struct ulib_toqc_cash **pp_cash_tmpl
@@ -1165,7 +1178,7 @@ int ulib_icep_shea_send_post(
     /* flags */
 
     /* cash_tmpl */
-    uc = ulib_icep_find_cash(icep, tmsg->addr, &cash_tmpl);
+    uc = ulib_icep_find_desc(icep, tmsg->addr, &cash_tmpl);
     if (uc != UTOFU_SUCCESS) { goto bad; }
     assert(cash_tmpl != 0);
 
