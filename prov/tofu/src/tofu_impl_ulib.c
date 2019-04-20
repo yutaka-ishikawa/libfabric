@@ -931,7 +931,8 @@ int tofu_imp_str_uri_to_name(
 	}
 
 	name->vpid = -1U; /* YYY */
-        fprintf(stderr, "YIII** %s\t%u.%u.%u.%u.%u.%u"
+        /*
+          fprintf(stderr, "YIII** %s\t%u.%u.%u.%u.%u.%u"
                 "\t%u.%.u %u.%u %u.%u %u.%u"
                 "\t%u.%.u %u.%u %u.%u %u.%u\n", __func__,
                 name->txyz[0], name->txyz[1], name->txyz[2],
@@ -944,6 +945,7 @@ int tofu_imp_str_uri_to_name(
                 name->tniq[5] >> 4, name->tniq[5] & 0x0f,
                 name->tniq[6] >> 4, name->tniq[6] & 0x0f,
                 name->tniq[7] >> 4, name->tniq[7] & 0x0f);
+        */
     }
 
     /* return */
@@ -1558,6 +1560,7 @@ int ulib_ioav_find_addr(
     fi_addr_t base;
     uint64_t rx_index; /* fi_rx_addr() */
 
+    fprintf(stderr, "YIUTOFU***: %s ioav(%p) fi_a(%lx)\n", __func__, ioav, fi_a);
     if (ioav == 0) {
 	uc = UTOFU_ERR_INVALID_ARG; goto bad;
     }
@@ -1586,11 +1589,13 @@ int ulib_ioav_find_addr(
 
 	jc = jtofu_query_phys_coords(j_id, vpid, acoo);
 	if (jc != JTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 1 leave\n", __func__);
 	    uc = UTOFU_ERR_NOT_FOUND; goto bad;
 	}
 
 	jc = jtofu_query_onesided_paths(acoo, mcnt, pcoo, &ncnt);
 	if (jc != JTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
 	    uc = UTOFU_ERR_NOT_FOUND; goto bad;
 	}
 	if (ncnt <= 0) {
@@ -1607,6 +1612,7 @@ int ulib_ioav_find_addr(
 
 	    uc = utofu_construct_vcq_id(txyz, tnid, cqid, c_id, vcqi);
 	    if (uc != UTOFU_SUCCESS) {
+                fprintf(stderr, "\t\t YI: %s 3 leave\n", __func__);
 		uc = UTOFU_ERR_NOT_FOUND; goto bad;
 	    }
 	    addr->vcqi = vcqi[0];
@@ -1618,6 +1624,7 @@ int ulib_ioav_find_addr(
 
 	    uc = utofu_get_path_id(vcqi, tabc, paid);
 	    if (uc != UTOFU_SUCCESS) {
+                fprintf(stderr, "\t\t YI: %s 4 leave\n", __func__);
 		uc = UTOFU_ERR_NOT_FOUND; goto bad;
 	    }
 	    addr->paid = paid[0];
@@ -1625,10 +1632,13 @@ int ulib_ioav_find_addr(
 	addr->vpid = vpid;
     }
 #else	/* NOTYET */
+    fprintf(stderr, "YIUTOFU***: %s SKIPPING NOTYET definition\n", __func__);
     if (base != 0) { /* YYY */
+        fprintf(stderr, "\t\t YI: %s 10 leave\n", __func__);
 	uc = UTOFU_ERR_NOT_FOUND; goto bad;
     }
     if (rx_index != 0) { /* YYY */
+        fprintf(stderr, "\t\t YI: %s 11 leave\n", __func__);
 	uc = UTOFU_ERR_NOT_FOUND; goto bad;
     }
     /* YYY */
@@ -1646,7 +1656,9 @@ int ulib_ioav_find_addr(
 	/* lcqi */
 	{
 	    uc = utofu_query_vcq_id(lcqh, &lcqi);
-	    if (uc != UTOFU_SUCCESS) { goto bad; }
+	    if (uc != UTOFU_SUCCESS) {
+                fprintf(stderr, "\t\t YI: %s 12 leave\n", __func__);
+                goto bad; }
 	}
 	/* lpai */
 	{
@@ -1654,11 +1666,15 @@ int ulib_ioav_find_addr(
 	    uint8_t *tabc;
 
 	    uc = utofu_query_vcq_info(lcqi, i.xyz, i.tni, i.tcq, i.cid);
-	    if (uc != UTOFU_SUCCESS) { goto bad; }
+	    if (uc != UTOFU_SUCCESS) {
+                fprintf(stderr, "\t\t YI: %s 13 leave\n", __func__);
+                 goto bad; }
 	    tabc = &i.xyz[3];
 
 	    uc = utofu_get_path_id(lcqi, tabc, &lpai);
-	    if (uc != UTOFU_SUCCESS) { goto bad; }
+	    if (uc != UTOFU_SUCCESS) {
+                fprintf(stderr, "\t\t YI: %s 14 leave\n", __func__);
+                 goto bad; }
 	}
 
 	addr->vcqi = lcqi;
@@ -1685,6 +1701,7 @@ int ulib_icep_find_desc(
     utofu_stadd_t rsta_data, lsta_data;
 #endif	/* CONF_ULIB_SHEA_DAT1 */
 
+    fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
     /* ulib_icep_lock(icep); */
 
     /* find a cash by fi_addr */
@@ -1701,6 +1718,7 @@ int ulib_icep_find_desc(
 		DLST_INSH(head, cash_tmpl, list);
 		/* return */
 		pp_cash_tmpl[0] = cash_tmpl;
+                fprintf(stderr, "\t\t YI: %s 1 leave\n", __func__);
 		goto bad; /* FOUND - is not an error */
 	    }
 	    cash_tmpl = DLST_NEXT(cash_tmpl, head, struct ulib_toqc_cash, list);
@@ -1715,10 +1733,16 @@ if (ioav == 0) {
 ioav = (void *)icep; /* YYY */
 }
 	uc = ulib_ioav_find_addr(ioav, dfia, &rava);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
+	if (uc != UTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
+            goto bad;
+        }
 
 	uc = utofu_query_vcq_id(icep->vcqh, &lava.vcqi);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
+	if (uc != UTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 3 leave\n", __func__);
+            goto bad;
+        }
 	lava.paid = (utofu_path_id_t)-1U;
     }
     /* rsta and lsta */
@@ -1729,17 +1753,29 @@ ioav = (void *)icep; /* YYY */
 #endif	/* CONF_ULIB_SHEA_DAT1 */
 
 	uc = utofu_query_stadd(rava.vcqi, ctag, &rsta);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
+	if (uc != UTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 4 leave\n", __func__);
+            goto bad;
+        }
 
 	uc = utofu_query_stadd(lava.vcqi, ctag, &lsta);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
+	if (uc != UTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 5 leave\n", __func__);
+            goto bad;
+        }
 #ifdef	CONF_ULIB_SHEA_DAT1
 
 	uc = utofu_query_stadd(rava.vcqi, dtag, &rsta_data);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
+	if (uc != UTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 6 leave\n", __func__);
+            goto bad;
+        }
 
 	uc = utofu_query_stadd(lava.vcqi, dtag, &lsta_data);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
+	if (uc != UTOFU_SUCCESS) {
+            fprintf(stderr, "\t\t YI: %s 7 leave\n", __func__);
+            goto bad;
+        }
 #endif	/* CONF_ULIB_SHEA_DAT1 */
     }
     /*
@@ -1760,7 +1796,9 @@ ioav = (void *)icep; /* YYY */
 	    assert(cash_tmpl == 0);
 	    if (ofi_atomic_get32(&cash_tmpl->refc) > 0) {
 		assert(ofi_atomic_get32(&cash_tmpl->refc) == 0); /* YYY */
-		uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
+		uc = UTOFU_ERR_OUT_OF_RESOURCE;
+                fprintf(stderr, "\t\t YI: %s 8 leave\n", __func__);
+                goto bad;
 	    }
 	    DLST_RMOV(head, cash_tmpl, list);
 	    ulib_toqc_cash_init(cash_tmpl, dfia);

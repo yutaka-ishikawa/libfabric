@@ -151,8 +151,12 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     if (fc != FI_SUCCESS) { ret = fc; goto bad; }
     tank.tank.pid = 0; tank.tank.vld = 0; tank.tank.cid = 0;
     icep = (struct ulib_icep*) (cep_priv + 1);
-    fprintf(stderr, "YI****** dest tofa(0x%lx) my tofa(0x%lx) in %s\n",
-            tank.ui64, icep->tofa.ui64, __func__);
+    {
+        char buf1[128], buf2[128];
+        fprintf(stderr, "YI****** dest(%s) my tofa(%s) in %s\n",
+                tank2string(buf1, 128, tank.ui64),
+                tank2string(buf2, 128, icep->tofa.ui64), __func__);
+    }
     if (icep->tofa.ui64 == tank.ui64) {
 	int fc;
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");

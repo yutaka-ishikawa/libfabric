@@ -68,6 +68,19 @@ union ulib_tofa_u {
     struct ulib_tank	tank; /* Tofu network Address + raNK (vpid) */
 };
 
+static inline char *
+tank2string(char *buf, size_t sz, uint64_t ui64)
+{
+    union ulib_tofa_u utofa;
+    utofa.ui64 = ui64;
+    snprintf(buf, sz, "xyzabc(%02x:%02x:%02x:%02x:%02x:%02x), "
+             "tni(%d), tcq(%d), pid(%d)",
+             utofa.tank.tux, utofa.tank.tuy, utofa.tank.tuz,
+             utofa.tank.tua, utofa.tank.tub, utofa.tank.tuc,
+             utofa.tank.tni, utofa.tank.tcq, utofa.tank.pid);
+    return buf;
+}
+
 /* ======================================================================== */
 
 struct ulib_epnt_info {

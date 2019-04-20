@@ -2,6 +2,7 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "ulib_conv.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
@@ -54,19 +55,14 @@ static struct fi_ops tofu_av__fi_ops = {
 
 static int  tofu_av_resize(struct tofu_av_tab *at, size_t count);
 
-static int tofu_av_insert(
-    struct fid_av *fid_av_,
-    const void *addr,
-    size_t count,
-    fi_addr_t *fi_addr,
-    uint64_t flags,
-    void *context
-)
+static int
+tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
+               fi_addr_t *fi_addr,  uint64_t flags, void *context)
 {
-    int fc = FI_SUCCESS;
+    int            fc = FI_SUCCESS;
     struct tofu_av *av__priv;
-    size_t ic;
-    uint32_t afmt;
+    size_t         ic;
+    uint32_t       afmt;
 
     FI_INFO( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     FI_INFO( &tofu_prov, FI_LOG_AV, "count %ld flags %"PRIx64"\n",
@@ -106,22 +102,25 @@ static int tofu_av_insert(
 		fi_addr[ic] = index;
 	    }
 	}
-	/* copy name */
-	{
+	{/* copy name */
 	    void *src = (void*) &vnam;
 	    void *dst = (char *)av__priv->av__tab.tab + (index * 16); /* XXX */
 	    memcpy(dst, src, sizeof(struct ulib_sep_name));
-            fprintf(stderr, "YIII**fi_addr[%ld]=%ld, name(%p)=\n", ic, index, dst);
-            fprintf(stderr,
-                    "\t\tp(%d) v(%d) xyzabc=%02u.%02u.%02u.%02u.%02u.02%u"
-                    "\t\ttniq=%02u.%02u.%02u.%02u.%02u.02%u.02%u.02%u\n",
-                    vnam.p, vnam.v,
-                    vnam.txyz[0], vnam.txyz[1], vnam.txyz[2],
-                    vnam.a, vnam.b, vnam.c, 
-                    vnam.tniq[0], vnam.tniq[1], vnam.tniq[2], vnam.tniq[3],
-                    vnam.tniq[4], vnam.tniq[5], vnam.tniq[6], vnam.tniq[7]);
-            fflush(stderr);
 	}
+        {/* debug print */
+            /*
+             * fi_addr : uint64_t
+             * av__tab.tab[fi_addr] : struct ulib_sep_name
+             */
+            uint64_t ui64;
+            char buf[128];
+            /* Ask Hatanak-san,
+             * how we can understand the tofu_av_lup_tank function
+             */
+            tofu_av_lup_tank(av__priv, fi_addr[index], &ui64);
+            fprintf(stderr, "\tYIYI: fi_addr[%ld]: tofa(%lx)=%s\n",
+                    index, ui64, tank2string(buf, 128, ui64));
+        }
     }
 
 bad:

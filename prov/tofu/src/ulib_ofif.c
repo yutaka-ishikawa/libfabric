@@ -1025,15 +1025,18 @@ int ulib_icep_shea_send_post(
     struct ulib_shea_data *udat = 0;
     struct ulib_shea_esnd *esnd = 0;
 
+    fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
     /* flags */
 
     /* cash_tmpl */
     uc = ulib_icep_find_desc(icep, tmsg->addr, &cash_tmpl);
+    fprintf(stderr, "\t\t:YI 1 uc(%d)\n", uc);
     if (uc != UTOFU_SUCCESS) { goto bad; }
     assert(cash_tmpl != 0);
 
     /* udat */
     udat = ulib_icep_shea_data_qget(icep);
+    fprintf(stderr, "\t\t:YI 2 udat(%p)\n", udat);
     if (udat == 0) {
 	ulib_icep_free_cash(icep, cash_tmpl);
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
@@ -1105,7 +1108,7 @@ int ulib_icep_shea_send_post(
 
 	    uc = utofu_reg_mem(icep->vcqh, addr, size, flag, &lsta);
 	    if (uc != UTOFU_SUCCESS) {
-printf("%s(,%p,%ld,) = %d\n", "utofu_reg_mem", addr, size, uc);
+                fprintf(stderr, "\t\tYI %s(,%p,%ld,) = %d\n", "utofu_reg_mem", addr, size, uc);
 fflush(stdout);
 		ulib_icep_free_cash(icep, cash_tmpl);
 		ulib_icep_shea_data_qput(icep, udat);
@@ -1126,6 +1129,7 @@ fflush(stdout);
     }
 
     esnd = ulib_shea_cbuf_esnd_qget(cbuf, udat);
+    fprintf(stderr, "YIUTOFU***: %s esnd(%p)\n", __func__, esnd);
     if (esnd == 0) {
 	ulib_icep_free_cash(icep, cash_tmpl);
 	ulib_icep_shea_data_qput(icep, udat);
@@ -1134,11 +1138,17 @@ fflush(stdout);
     DLST_INST(&icep->busy_esnd, esnd, list);
 
     /* post */
+    fprintf(stderr, "YIUTOFU***: %s vpp_send_hdnl(%p)\n", __func__, esnd);
+    { /* added by YI */
+        fprintf(stderr, "\t\t: goint to ulib_shea_foo0\n");
+        uc = ulib_shea_foo0(esnd);
+    }
     if (vpp_send_hndl) {
         vpp_send_hndl[0] = esnd; esnd = 0; /* ZZZ */
     }
 
 bad:
+    fprintf(stderr, "YIUTOFU***: %s leave with uc(%d)\n", __func__, uc);
     return uc;
 }
 

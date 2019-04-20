@@ -49,11 +49,8 @@ static inline void tofu_av_rem_sep(
     return ;
 }
 
-static inline int tofu_av_lup_tank(
-    struct tofu_av *av__priv,
-    fi_addr_t fi_a,
-    uint64_t *tank
-)
+static inline int
+tofu_av_lup_tank(struct tofu_av *av__priv,  fi_addr_t fi_a,  uint64_t *tank)
 {
     int fc = FI_SUCCESS;
     size_t av_idx, rx_idx;

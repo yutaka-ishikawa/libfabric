@@ -617,6 +617,7 @@ static inline void ulib_icep_shea_data_qput(
     struct ulib_shea_data *data
 )
 {
+    fprintf(stderr, "YIUTOFU****: %s\n", __func__);
     assert(data != 0);
     /* unregister stad_data */
     {
@@ -630,6 +631,7 @@ static inline void ulib_icep_shea_data_qput(
 					;
 	    int uc;
 
+            fprintf(stderr, "YIUTOFU****: %s 1\n", __func__);
 	    uc = utofu_dereg_mem(lcsh->vcqh, lcsh->stad_data, flag);
 	    if (uc != UTOFU_SUCCESS) {
                 fprintf(stderr, "YI******* %s(%"PRIxPTR",%"PRIx64",) = %d\n",
@@ -643,6 +645,7 @@ static inline void ulib_icep_shea_data_qput(
 	}
     }
     freestack_push(icep->udat_fs, data);
+    fprintf(stderr, "YIUTOFU****: %s return\n", __func__);
 
     return ;
 }
