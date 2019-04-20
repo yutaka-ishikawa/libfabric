@@ -1633,14 +1633,13 @@ int ulib_ioav_find_addr(
     }
 #else	/* NOTYET */
     fprintf(stderr, "YIUTOFU***: %s SKIPPING NOTYET definition\n", __func__);
-    if (base != 0) { /* YYY */
-        fprintf(stderr, "\t\t YI: %s 10 leave\n", __func__);
+    if (base == 0) { /* might be 0 ? */
 	uc = UTOFU_ERR_NOT_FOUND; goto bad;
     }
-    if (rx_index != 0) { /* YYY */
-        fprintf(stderr, "\t\t YI: %s 11 leave\n", __func__);
+    if (rx_index == 0) { /* might be 0 ? */
 	uc = UTOFU_ERR_NOT_FOUND; goto bad;
     }
+    fprintf(stderr, "\t\t YI: %s base(%d) rx_index(%d) 10 leave\n", __func__, base, rx_index(%d) );
     /* YYY */
     {
 	utofu_vcq_hdl_t lcqh;
