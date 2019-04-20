@@ -91,7 +91,6 @@ static int tofu_av_insert(
 	index = av__priv->av__tab.nct++;
 	/* fastlock_release( &av__priv->av__lck ); */
 	if (afmt == FI_ADDR_STR) {
-            fprintf(stderr, "YIII**fi_addr = %s\n", (char*)addr); fflush(stderr);
             fc = tofu_imp_str_uri_to_name(addr, ic, (void*) &vnam);
 	} else {
             FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
