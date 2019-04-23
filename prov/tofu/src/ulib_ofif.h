@@ -143,6 +143,7 @@ struct ulib_icep {
     struct ulib_icep *next;
     struct ulib_isep *isep;
     void                       *ioav; /* ofi address vector */
+    struct ulib_icep            *shadow;
     utofu_vcq_hdl_t             vcqh;
     fastlock_t                  icep_lck;
     struct ulib_toqc            *toqc;
@@ -256,25 +257,6 @@ ulib_shea_expd_init(struct ulib_shea_expd *expd,
     }
     return ;
 }
-#ifdef	notdef_recv_post
-
-static inline void ulib_shea_expd_link(
-    struct ulib_icep *icep,
-    struct ulib_shea_expd *expd
-)
-{
-    assert(expd != 0);
-    assert(icep != 0);
-#ifdef	CONF_ULIB_OFI
-#ifndef	NDEBUG
-    assert(dlist_empty(&expd->entry));
-#endif	/* NDEBUG */
-    dlist_insert_tail(&expd->entry, &icep->expd_list_expd); /* YYY FI_TAGGED */
-    /* dlist_insert_tail(&expd->entry, &icep->expd_list_mrcv); */
-#endif	/* CONF_ULIB_OFI */
-    return ;
-}
-#endif	/* notdef_recv_post */
 
 extern int  ulib_icep_recv_call_back(
 		void *farg,
@@ -531,6 +513,7 @@ ulib_icep_find_expd(struct ulib_icep *icep,
     struct dlist_entry *head;
     struct dlist_entry *match;
 
+    assert(icep == icep->shadow);
     head = (uexp->flag & ULIB_SHEA_UEXP_FLAG_TFLG) ?
 	&icep->expd_list_trcv : &icep->expd_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_expd, uexp);
@@ -564,6 +547,7 @@ ulib_icep_find_uexp(struct ulib_icep *icep,
     struct dlist_entry *head;
     struct dlist_entry *match;
 
+    assert(icep == icep->shadow);
     head = (expd->flgs & FI_TAGGED) ?
 	&icep->uexp_list_trcv : &icep->uexp_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_uexp, expd);
@@ -582,6 +566,7 @@ ulib_icep_link_expd(struct ulib_icep *icep,
                     struct ulib_shea_expd *expd)
 {
     struct dlist_entry *head;
+    assert(icep == icep->shadow);
     head = (expd->flgs & FI_TAGGED) != 0 ?
 	&icep->expd_list_trcv : &icep->expd_list_mrcv;
      dlist_insert_tail(&expd->entry, head);
@@ -593,6 +578,7 @@ static inline struct ulib_shea_data
 {
     struct ulib_shea_data *data = 0;
 
+    assert(icep == icep->shadow);
     if (freestack_isempty(icep->udat_fs)) {
 	goto bad;
     }
@@ -615,6 +601,7 @@ static inline void ulib_icep_shea_data_qput(
 )
 {
     fprintf(stderr, "YIUTOFU****: %s\n", __func__);
+    assert(icep == icep->shadow);
     assert(data != 0);
     /* unregister stad_data */
     {

@@ -175,18 +175,21 @@ tofu_cep_ctrl(struct fid *fid, int command, void *arg)
     switch (command) {
     case FI_ENABLE:
 	switch (fid->fclass) {
+	    int uc;
 	case FI_CLASS_TX_CTX:
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-            ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
+	    uc = ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
+	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
 	    cep_priv->cep_enb = 1;
 	    break;
 	case FI_CLASS_RX_CTX:
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-            ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
+	    uc = ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
+	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
 	    cep_priv->cep_enb = 1;
 	    break;
 	default:

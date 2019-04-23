@@ -106,6 +106,54 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     if (icep == 0) {
 	uc = UTOFU_ERR_INVALID_ARG; RETURN_BAD_C(uc);
     }
+    /* shadow icep */
+    if (icep->shadow == 0) {
+        struct tofu_cep *cep_priv  = (struct tofu_cep*) ptr;
+        struct tofu_cep *cep_peer = 0;
+        struct tofu_sep *sep_priv = cep_priv->cep_sep;
+        struct ulib_icep *icep_peer;
+
+	assert(icep->enabled == 0);
+	if (cep_priv->cep_trx != 0) {
+	    cep_peer = cep_priv->cep_trx;
+	} else {
+	    switch (cep_priv->cep_fid.fid.fclass) {
+	    case FI_CLASS_TX_CTX:
+		cep_peer = tofu_sep_lup_cep_byi_unsafe(sep_priv,
+				FI_CLASS_RX_CTX, cep_priv->cep_idx);
+		break;
+	    case FI_CLASS_RX_CTX:
+		cep_peer = tofu_sep_lup_cep_byi_unsafe(sep_priv,
+				FI_CLASS_TX_CTX, cep_priv->cep_idx);
+		break;
+	    default:
+		fprintf(stderr, "YI*********** ERRRRRRRRRRRRR\n");
+		uc = UTOFU_ERR_FATAL; RETURN_BAD_C(uc);
+	    }
+	}
+	if (cep_peer != 0) {
+	    icep_peer = (struct ulib_icep *)(cep_peer + 1);
+
+	    if (icep_peer->enabled != 0) {
+		assert(icep_peer->index == cep_priv->cep_idx);
+		assert(icep_peer->isep == (struct ulib_isep *)(sep_priv + 1));
+		/* All ICEP's CQs point to Tofu CEP's one  */
+		if (icep_peer->vp_tofu_scq == 0) {
+		    icep_peer->vp_tofu_scq = cep_priv->cep_send_cq;
+		}
+		if (icep_peer->vp_tofu_rcq == 0) {
+		    icep_peer->vp_tofu_rcq = cep_priv->cep_recv_cq;
+		}
+		icep->shadow = icep_peer;
+		RETURN_OK_C(uc);
+	    }
+	}
+    }
+    if (icep->enabled != 0) {
+	assert(icep->shadow != 0);
+	uc = UTOFU_ERR_BUSY; RETURN_BAD_C(uc);
+    }
+
     if (icep->index < 0) { /* XXX III */
 	struct tofu_cep *cep_priv = ptr;
 	icep->index = cep_priv->cep_idx;
@@ -116,9 +164,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	assert(icep->isep != 0);
     }
     isep = icep->isep;
-    if (icep->enabled != 0) {
-	uc = UTOFU_ERR_BUSY; RETURN_BAD_C(uc);
-    }
 
     fprintf(stderr, "YI*********** HERE in %s\n", __func__); fflush(stderr);
     /* unexpected entries */
@@ -190,6 +235,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
         uc = ulib_toqc_init(icep->vcqh, &icep->toqc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
     }
+#ifdef	NOTDEF
     /* initializing cbuf */
     {
         struct tofu_cep  *cep  = (struct tofu_cep*) ptr;
@@ -230,7 +276,32 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
             icep_peer->cbufp = icep->cbufp;
         }
     }
+#else	/* NOTDEF */
+    {
+        struct tofu_cep *cep_priv = (struct tofu_cep*) ptr;
+        struct tofu_sep *sep_priv = cep_priv->cep_sep;
+
+	if (icep->ioav == 0) {
+	    icep->ioav = sep_priv->sep_av_; /* av__priv */
+	}
+    }
+    /* initializing cbuf */
+    if (icep->cbufp == NULL) {
+	const unsigned int ctag = 10, dtag = 11;
+	const ulib_shea_ercv_cbak_f func = ulib_icep_recv_call_back;
+	void *farg = icep;
+
+	icep->cbufp = (struct ulib_shea_cbuf*)
+	    malloc(sizeof(struct ulib_shea_cbuf));
+	uc = ulib_shea_cbuf_init(icep->cbufp);
+	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
+	uc = ulib_shea_cbuf_enab(icep->cbufp, icep->vcqh,
+				 ctag, dtag, func, farg);
+	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
+    }
+#endif	/* NOTDEF */
     icep->enabled = 1;
+    icep->shadow = icep;
     {
         utofu_vcq_id_t vcqi = -1UL;
 	uint8_t xyz[8];	uint16_t tni[1], tcq[1], cid[1];
@@ -263,6 +334,7 @@ void
 ulib_ofif_icep_init(void *ptr, size_t off)
 {
     struct ulib_icep *icep = (struct ulib_icep*) ((char*)ptr + off);
+    icep->shadow = 0;
     icep->index = -1; /* III */
     icep->enabled = 0;
     icep->next = 0;
@@ -295,6 +367,9 @@ int ulib_icep_close(void *ptr, size_t off)
 
     if ((icep == 0) || (icep->isep == 0)) {
 	uc = UTOFU_ERR_INVALID_ARG; RETURN_BAD_C(uc);
+    }
+    if (icep != icep->shadow) { /* YYY -- check if icep_peer is active */
+	RETURN_OK_C(uc);
     }
 
     uc = ulib_shea_cbuf_fini(icep->cbufp);
@@ -558,6 +633,7 @@ ulib_find_uexp_entry(struct ulib_icep *icep,
     struct dlist_entry *head;
     struct dlist_entry *match;
 
+    assert(icep == icep->shadow);
     head = (trcv->flgs & FI_TAGGED) ?
         &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_rinf_entry, trcv);
@@ -673,14 +749,16 @@ bad:
 
 #ifdef	DEBUG
 static inline void ulib_icep_list_expd(
-    struct ulib_icep *icep,
+    struct ulib_icep *icep_ctxt,
     uint32_t flag
 )
 {
+    struct ulib_icep *icep;
     int is_tagged_msg;
     struct dlist_entry *head, *curr;
     size_t nrcv = 0;
 
+    assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
     is_tagged_msg = ((flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0);
     if (is_tagged_msg) {
 	head = &icep->expd_list_trcv;
@@ -731,6 +809,7 @@ static inline void ulib_icep_recv_rbuf_base(
     uint8_t *real_base;
     const struct ulib_shea_rbuf *rbuf = &rinf->rbuf;
 
+    assert(icep == icep->shadow);
     assert(icep->cbufp->dptr != 0);
     real_base = icep->cbufp->dptr;
 
@@ -786,6 +865,7 @@ static inline int ulib_icep_recv_cbak_uexp( /* unexpected */
     struct ulib_shea_uexp *uexp;
     uint64_t tick[4];
 
+    assert(icep == icep->shadow);
     tick[0] = ulib_tick_time();
     if (freestack_isempty(icep->uexp_fs)) {
 /* printf("%s():%d\tuexp empty boff %u\n", __func__, __LINE__, rinf->boff); */
@@ -869,6 +949,7 @@ ulib_icep_recv_call_back(void *vptr,
     struct ulib_shea_expd *trcv;
     uint64_t tick[4];
 
+    assert(icep == icep->shadow);
     tick[0] = ulib_tick_time();
     trcv = ulib_icep_find_expd(icep, uexp);
     fprintf(stderr, "\tYIUTOFU***: %s icep(%p) uxp(%p) trcv(%p)\n", __func__, icep, vctx, trcv);
@@ -936,14 +1017,16 @@ bad:
  * The is used 2019/04/19
  */
 int
-ulib_icep_shea_recv_post(struct ulib_icep *icep,
+ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
                          const struct fi_msg_tagged *tmsg,
                          uint64_t flags)
 {
     int uc = 0;
+    struct ulib_icep *icep;
     struct ulib_shea_expd *expd;
     struct ulib_shea_uexp *uexp;
 
+    assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
     if (freestack_isempty(icep->expd_fs)) {
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
@@ -993,13 +1076,15 @@ bad:
 }
 
 int ulib_icep_shea_recv_prog(
-    struct ulib_icep *icep
+    struct ulib_icep *icep_ctxt
 )
 {
     int uc = 0;
+    struct ulib_icep *icep;
     struct ulib_toqc *toqc;
     struct ulib_shea_ercv *ercv;
 
+    assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
     assert(icep->toqc != 0);
     toqc = icep->toqc;
     assert(icep->cbufp->cptr != 0);
@@ -1043,19 +1128,22 @@ extern void ulib_icep_free_cash(
  * FI_MULTICAST           o       n/a
  */
 int ulib_icep_shea_send_post(
-    struct ulib_icep *icep,
+    struct ulib_icep *icep_ctxt,
     const struct fi_msg_tagged *tmsg,
     uint64_t flags,
     void **vpp_send_hndl
 )
 {
     int uc = 0;
-    struct ulib_shea_cbuf *cbuf = icep->cbufp;
+    struct ulib_icep *icep;
+    struct ulib_shea_cbuf *cbuf;
     struct ulib_toqc_cash *cash_tmpl = 0;
     struct ulib_shea_data *udat = 0;
     struct ulib_shea_esnd *esnd = 0;
 
     fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
+    assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
+    cbuf = icep->cbufp;
     /* flags */
 
     /* cash_tmpl */
@@ -1165,6 +1253,9 @@ fflush(stdout);
 	ulib_icep_shea_data_qput(icep, udat);
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
+printf("%s:%d\tbusy_esnd %p empt %d\n", __FILE__, __LINE__,
+&icep->busy_esnd, dlist_empty(&icep->busy_esnd));
+fflush(stdout);
     DLST_INST(&icep->busy_esnd, esnd, list);
 
     /* post */
@@ -1191,6 +1282,7 @@ static inline void ulib_icep_shea_esnd_free(
 {
     struct ulib_shea_data *udat_esnd = esnd->data; /* XXX */
 
+    assert(icep == icep->shadow);
     if (udat_esnd != 0) {
 	struct ulib_toqc_cash *cash;
 
@@ -1218,6 +1310,7 @@ static inline int ulib_icep_toqc_sync(struct ulib_icep *icep, int ntry)
     int uc = UTOFU_SUCCESS;
     int ii, ni = ntry;
 
+    assert(icep == icep->shadow);
     if (ni < 0) {
 	ni = 1000;
     }
@@ -1239,24 +1332,35 @@ bad:
 }
 
 int ulib_icep_shea_send_prog(
-    struct ulib_icep *icep,
+    struct ulib_icep *icep_ctxt,
     void **vpp_send_hndl,
     uint64_t tims[16]
 )
 {
     int uc = UTOFU_SUCCESS;
+    struct ulib_icep *icep;
     struct ulib_shea_esnd *esnd = (vpp_send_hndl == 0)? 0: vpp_send_hndl[0];
 
+    assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
     if (esnd == 0) { /* all */
 	DLST_DECH(ulib_head_esnd) *head = &icep->busy_esnd;
 	struct dlist_entry *curr, *next;
 
+if (0) {
+printf("%s:%d\tbusy_esnd %p empt %d\n", __FILE__, __LINE__,
+head, dlist_empty(head));
+fflush(stdout);
+}
 	dlist_foreach_safe(head, curr, next) {
 	    void *vp_esnd;
 
 	    vp_esnd = container_of(curr, struct ulib_shea_esnd, list);
 	    assert(vp_esnd != 0);
 
+if (0) {
+printf("%s:%d\tesnd %p toqc %p\n", __FILE__, __LINE__, vp_esnd, icep->toqc);
+fflush(stdout);
+}
 	    uc = ulib_icep_shea_send_prog(icep, &vp_esnd, tims);
 	    if (uc != UTOFU_SUCCESS) { /* goto bad; */ }
 	    if (vp_esnd == 0) { /* done */
