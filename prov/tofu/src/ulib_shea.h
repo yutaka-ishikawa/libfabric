@@ -31,8 +31,8 @@ union ulib_shea_ct_u {
     uint64_t		    ct64;
     uint32_t		    ct32[2];
     struct utlib_shea_ct_s {
-	int32_t		    pcnt;
-	uint32_t	    ccnt;
+	int32_t		    pcnt;       /* producer count */
+	uint32_t	    ccnt;       /* consumer count */
     }			    ct_s;
 };
 

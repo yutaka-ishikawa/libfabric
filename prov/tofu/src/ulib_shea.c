@@ -1029,10 +1029,9 @@ int ulib_shea_foo8(
 	struct ulib_toqd_cash toqd[1];
         uint64_t * const retp = 0;
 
-if (0) {
-printf("%s() ccnt %"PRIu64"\n", __func__, lval);
-}
+        fprintf(stderr, "\tYIUTOFU***: %s toqc(%p) raui(%ld) ercv(%p)\n", __func__, toqc, raui, ercv);
 	uc = ulib_utof_cash_remote(raui, c_id, epnt, rcsh);
+        fprintf(stderr, "\tYIUTOFU***: %s uc(%d)\n", __func__, uc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 
 	/* lcsh */
@@ -2548,13 +2547,6 @@ printf("nblk %u %u\n", rinf->nblk, nblk);
 	    }
 	}
     }
-if (0) {
-printf("\tconsume %10u ( + %3u %c %3u )\n",
-ercv->cntr.ct_s.ccnt + nblk, nblk,
-(phdr->phlh.type == ULIB_SHEA_PH_LARGE)? '/':
-(phdr->phlh.type == ULIB_SHEA_PH_LARGE_CONT)? '@': '.',
-phdr->phlh.mblk);
-}
 
     /* reset seqn in phdr */
     ulib_shea_recv_hndr_seqn_wrap(ercv, nblk);
@@ -2567,42 +2559,21 @@ chck_wait:
 	union ulib_shea_va_u addr;
 
 	addr.va64 = ercv->full.addr.va64;
-if (0) {
-printf("ercv.full.addr %016"PRIx64" cc %u pc %u\n",
-addr.va64, ercv->cntr.ct_s.ccnt, ercv->cntr.ct_s.pcnt);
-fflush(stdout);
-}
-if (0) {
-if (addr.va64 != ULIB_SHEA_NIL8) {
-printf("ercv.full.addr %016"PRIx64"\n", addr.va64);
-printf("\tercv.full.ccnt %u cc %u pc %u\n",
-ercv->full.cntr.ct_s.ccnt,
-ercv->cntr.ct_s.ccnt, ercv->cntr.ct_s.pcnt);
-fflush(stdout);
-}
-}
 	if (
 	    (addr.va64 != ULIB_SHEA_NIL8)
 	    && (ercv->full.cntr.ct_s.ccnt <= ercv->cntr.ct_s.ccnt)
 	) {
-#ifdef	notdef_shea_fix6
-	    ercv->full.addr.va64 = ULIB_SHEA_NIL8;
-#else	/* notdef_shea_fix6 */
 	    if ((ercv->full.cntr.ct_s.ccnt + 1) == ercv->cntr.ct_s.ccnt) {
-printf("###\n");
-printf("### XXX FIX6\n");
-printf("###\n");
 		assert(ercv->cntr.ct_s.ccnt != ercv->cntr.ct_s.pcnt);
 		addr.va64 = ULIB_SHEA_NIL8;
 	    }
 	    else {
 		ercv->full.addr.va64 = ULIB_SHEA_NIL8;
 	    }
-#endif	/* notdef_shea_fix6 */
-	}
-	else { /* no space yet */
+	} else { /* no space yet */
 	    addr.va64 = ULIB_SHEA_NIL8;
 	}
+        fprintf(stderr, "\tYIUTOFU***: addr.va64(%ld)\n", addr.va64);
 	if (addr.va64 != ULIB_SHEA_NIL8) {
 	    /* uc = ulib_shea_data_wake(tocq, addr.va64, ercv) */
 	    uc = ulib_shea_foo8(toqc, addr.va64, ercv);
