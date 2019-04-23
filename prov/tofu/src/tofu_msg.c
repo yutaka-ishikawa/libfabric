@@ -388,7 +388,7 @@ tofu_cep_tag_senddata(struct fid_ep *fid_ep,
     struct fi_msg_tagged tmsg;
     struct iovec         iovs[1];
     void                 *dscs[1];
-    int                  flags;
+    int                  flags = FI_TAGGED | FI_REMOTE_CQ_DATA;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
 
@@ -403,7 +403,6 @@ tofu_cep_tag_senddata(struct fid_ep *fid_ep,
     tmsg.ignore	    = -1ULL;	/* ???? */
     tmsg.context    = context;
     tmsg.data	    = 0;
-    flags = FI_TAGGED;
 
     ret = tofu_cep_msg_send_common(fid_ep, &tmsg, flags);
     return ret;

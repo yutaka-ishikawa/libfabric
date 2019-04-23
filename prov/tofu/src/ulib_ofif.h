@@ -96,7 +96,6 @@ struct ulib_idom;
 struct ulib_imr_;
 struct ulib_isep;
 struct ulib_icep;
-struct ulib_ioav;
 #ifndef	notdef_icep_toqc
 struct ulib_toqc;
 #endif	/* notdef_icep_toqc */
@@ -143,15 +142,13 @@ struct ulib_icep {
     int enabled;
     struct ulib_icep *next;
     struct ulib_isep *isep;
-    struct ulib_ioav *ioav; /* ofi address vector */
+    void                       *ioav; /* ofi address vector */
     utofu_vcq_hdl_t             vcqh;
     fastlock_t                  icep_lck;
     struct ulib_toqc            *toqc;
     struct ulib_shea_cbuf       *cbufp;      /* eager buffer controlling tofu */
     //struct ulib_shea_cbuf       cbuf;      /* eager buffer controlling tofu */
     DLST_DECH(ulib_head_esnd)   busy_esnd;
-    struct ulib_icqu            *icep_scq; /* send cq */
-    struct ulib_icqu            *icep_rcq; /* recv cq */
     void                        *vp_tofu_scq;
     void                        *vp_tofu_rcq;
     /* unexpected queue */

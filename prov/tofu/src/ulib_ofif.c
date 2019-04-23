@@ -200,6 +200,9 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	const ulib_shea_ercv_cbak_f func = ulib_icep_recv_call_back;
 	void *farg = icep;
 
+	if (icep->ioav == 0) {
+	    icep->ioav = sep_priv->sep_av_; /* av__priv */
+	}
         switch (cep->cep_fid.fid.fclass) {
         case FI_CLASS_TX_CTX:
             cep_peer = tofu_sep_lup_cep_byi_unsafe(sep_priv,
@@ -268,8 +271,6 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     icep->vcqh = 0;
     icep->toqc = 0;
     DLST_INIT(&icep->busy_esnd);  /* head of busy list */
-    icep->icep_scq = 0;
-    icep->icep_rcq = 0;
     icep->vp_tofu_scq = 0;
     icep->vp_tofu_rcq = 0;
     icep->uexp_fs = 0;

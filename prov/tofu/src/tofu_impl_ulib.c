@@ -1549,140 +1549,73 @@ void ulib_icep_free_cash(
 }
 
 int ulib_ioav_find_addr(
-    struct ulib_ioav *ioav,
+    void *vp_ioav,
     fi_addr_t fi_a,
     struct ulib_oav_addr *addr
 )
 {
     int uc = UTOFU_SUCCESS;
-    uint32_t rx_ctx_bits = 3;
-    uint64_t rx_ctx_mask = (1ULL << (64 - rx_ctx_bits)) - 1;
-    fi_addr_t base;
-    uint64_t rx_index; /* fi_rx_addr() */
+    struct tofu_av *av__priv = vp_ioav;
+    struct ulib_epnt_info einf[1];
+    utofu_vcq_id_t vcqi[1];
+    utofu_path_id_t paid[1];
+    uint32_t vpid;
 
-    fprintf(stderr, "YIUTOFU***: %s ioav(%p) fi_a(%lx)\n", __func__, ioav, fi_a);
-    if (ioav == 0) {
+    fprintf(stderr, "YIUTOFU***: %s ioav(%p) fi_a(%lx)\n", __func__, vp_ioav, fi_a);
+    if (av__priv == 0) {
 	uc = UTOFU_ERR_INVALID_ARG; goto bad;
     }
-    /*
-     * oav_priv
-     *   uint64_t rx_ctx_mask
-     *   if (oav_priv->rx_ctx_bits == 0) {
-     *     oav_priv->rx_ctx_mask = -1ULL;
-     *   }
-     *   else {
-     *     oav_priv->rx_ctx_mask = (1ULL << (64 - oav_priv->rx_ctx_bits)) - 1;
-     *   }
-     */
-
-    base = fi_a & rx_ctx_mask;
-    rx_index = fi_a >> (64 - rx_ctx_bits);
-
-#ifdef	NOTYET
+    /* einf + vpid from fi_a */
     {
-	jtofu_job_id_t j_id = 0; /* YYY */
-	jtofu_rank_t vpid = (jtofu_rank_t)base;
-	union jtofu_phys_coords acoo[1];
-	union jtofu_path_coords pcoo[4];
-	size_t mcnt = sizeof (pcoo) / sizeof (pcoo[0]), ncnt;
-	int jc;
+	union ulib_tofa_u tank_u;
+	int fc;
 
-	jc = jtofu_query_phys_coords(j_id, vpid, acoo);
-	if (jc != JTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 1 leave\n", __func__);
-	    uc = UTOFU_ERR_NOT_FOUND; goto bad;
+	/* tank from fi_a */
+	fc = tofu_av_lup_tank(av__priv, fi_a, &tank_u.ui64);
+	if (fc != FI_SUCCESS) {
+	    uc = UTOFU_ERR_INVALID_ARG; goto bad;
 	}
 
-	jc = jtofu_query_onesided_paths(acoo, mcnt, pcoo, &ncnt);
-	if (jc != JTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
-	    uc = UTOFU_ERR_NOT_FOUND; goto bad;
-	}
-	if (ncnt <= 0) {
-	    uc = UTOFU_ERR_NOT_FOUND; goto bad;
-	}
+	/* einf (epnt_info) from tank */
+	assert(tank_u.tank.vld != 0); /* valid flag */
+	einf->xyz[0] = tank_u.tank.tux;
+	einf->xyz[1] = tank_u.tank.tuy;
+	einf->xyz[2] = tank_u.tank.tuz;
+	einf->xyz[3] = tank_u.tank.tua;
+	einf->xyz[4] = tank_u.tank.tub;
+	einf->xyz[5] = tank_u.tank.tuc;
+	einf->tni[0] = tank_u.tank.tni;
+	einf->tcq[0] = tank_u.tank.tcq;
 
-	/* rcqi */
+	/* assert(tank_u.tank.cid != CONF_ULIB_CMP_ID); */ /* YYY */
+	einf->cid[0] = tank_u.tank.cid;
+	/* assert(tank_u.tank.pid != UINT32_MAX); */ /* YYY */
+	vpid = tank_u.tank.pid;
+
+	/* validation check */
 	{
-	    uint8_t *txyz = acoo[0].a; /* acoo[0].s.x */
-	    utofu_cmp_id_t c_id = 0; /* YYY CONF_ULIB_CMP_ID */
-	    utofu_tni_id_t tnid = 0; /* YYY vpid */
-	    utofu_cq_id_t  cqid = 0; /* YYY rx_index */
-	    utofu_vcq_id_t vcqi[1];
-
-	    uc = utofu_construct_vcq_id(txyz, tnid, cqid, c_id, vcqi);
-	    if (uc != UTOFU_SUCCESS) {
-                fprintf(stderr, "\t\t YI: %s 3 leave\n", __func__);
-		uc = UTOFU_ERR_NOT_FOUND; goto bad;
-	    }
-	    addr->vcqi = vcqi[0];
+	    union ulib_tofa_u r_ta;
+	    uc = ulib_cast_epnt_to_tofa(einf, &r_ta.tofa);
+	    assert(uc == UTOFU_SUCCESS);
+	    uc = 0; /* XXX */
 	}
-	/* paid */
-	{
-	    uint8_t *tabc = pcoo[0].a; /* pcoo[0].s.a */
-	    utofu_path_id_t paid[1];
+    }
+    /* rcqi (vcqi) from einf */
+    uc = utofu_construct_vcq_id(einf->xyz,
+	    einf->tni[0], einf->tcq[0], einf->cid[0], vcqi);
+    if (uc != UTOFU_SUCCESS) { goto bad; }
 
-	    uc = utofu_get_path_id(vcqi, tabc, paid);
-	    if (uc != UTOFU_SUCCESS) {
-                fprintf(stderr, "\t\t YI: %s 4 leave\n", __func__);
-		uc = UTOFU_ERR_NOT_FOUND; goto bad;
-	    }
-	    addr->paid = paid[0];
-	}
-	addr->vpid = vpid;
-    }
-#else	/* NOTYET */
-    fprintf(stderr, "YIUTOFU***: %s SKIPPING NOTYET definition\n", __func__);
-#if 0 /* COMMENTED OUT BY YI 2019/04/21 */
-    if (base != 0) { /* YYY */
-	uc = UTOFU_ERR_NOT_FOUND; goto bad;
-    }
-    if (rx_index != 0) { /* YYY */
-	uc = UTOFU_ERR_NOT_FOUND; goto bad;
-    }
-#endif
-    fprintf(stderr, "\t\t YI: %s base(%ld) rx_index(%ld) go through\n", __func__, base, rx_index);
-    /* YYY */
+    /* paid */
     {
-	utofu_vcq_hdl_t lcqh;
-	utofu_vcq_id_t lcqi;
-	utofu_path_id_t lpai;
+	uint8_t *tabc = &einf->xyz[3];
 
-	/* lcqh */
-	{
-	    struct ulib_icep *icep = (void *)ioav; /* YYY */
-
-	    lcqh = icep->vcqh;
-	}
-	/* lcqi */
-	{
-	    uc = utofu_query_vcq_id(lcqh, &lcqi);
-	    if (uc != UTOFU_SUCCESS) {
-                fprintf(stderr, "\t\t YI: %s 12 leave\n", __func__);
-                goto bad; }
-	}
-	/* lpai */
-	{
-	    struct ulib_epnt_info i;
-	    uint8_t *tabc;
-
-	    uc = utofu_query_vcq_info(lcqi, i.xyz, i.tni, i.tcq, i.cid);
-	    if (uc != UTOFU_SUCCESS) {
-                fprintf(stderr, "\t\t YI: %s 13 leave\n", __func__);
-                 goto bad; }
-	    tabc = &i.xyz[3];
-
-	    uc = utofu_get_path_id(lcqi, tabc, &lpai);
-	    if (uc != UTOFU_SUCCESS) {
-                fprintf(stderr, "\t\t YI: %s 14 leave\n", __func__);
-                 goto bad; }
-	}
-
-	addr->vcqi = lcqi;
-	addr->paid = lpai;
-	addr->vpid = 0;
+	uc = utofu_get_path_id(vcqi[0], tabc, paid);
+	if (uc != UTOFU_SUCCESS) { goto bad; }
     }
-#endif	/* NOTYET */
+
+    addr->vcqi = vcqi[0];
+    addr->paid = paid[0];
+    addr->vpid = vpid;
 
 bad:
     return uc;
@@ -1728,12 +1661,7 @@ int ulib_icep_find_desc(
     }
     /* rava and lava */
     {
-	struct ulib_ioav *ioav = icep->ioav;
-
-if (ioav == 0) {
-ioav = (void *)icep; /* YYY */
-}
-	uc = ulib_ioav_find_addr(ioav, dfia, &rava);
+	uc = ulib_ioav_find_addr(icep->ioav, dfia, &rava);
 	if (uc != UTOFU_SUCCESS) {
             fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
             goto bad;
