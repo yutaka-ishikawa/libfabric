@@ -22,6 +22,43 @@
 
 extern void tofu_imp_ulib_uexp_rbuf_free(struct ulib_shea_uexp *uexp);
 
+
+const char *
+fi_class_string(struct tofu_cep *cep)
+{
+    char        *rc;
+    switch(cep->cep_fid.fid.fclass) {
+    case FI_CLASS_DOMAIN: rc ="DOMAIN"; break;
+    case FI_CLASS_EP:  rc ="EP"; break;
+    case FI_CLASS_SEP:  rc ="SEP"; break;
+    case FI_CLASS_RX_CTX:  rc ="RX_CTX"; break;
+    case FI_CLASS_SRX_CTX:  rc ="SRC_CTX"; break;
+    case FI_CLASS_TX_CTX:  rc ="TX_CTX"; break;
+    case FI_CLASS_STX_CTX:  rc ="STX_CTX"; break;
+    case FI_CLASS_PEP:  rc ="PEP"; break;
+    case FI_CLASS_INTERFACE:  rc ="INTERFACE"; break;
+    case FI_CLASS_AV:  rc ="AV"; break;
+    case FI_CLASS_MR:  rc ="MR"; break;
+    case FI_CLASS_EQ:  rc ="EQ"; break;
+    case FI_CLASS_CQ:  rc ="CA"; break;
+    case FI_CLASS_CNTR:  rc ="CNTR"; break;
+    case FI_CLASS_WAIT:  rc ="WAIT"; break;
+    case FI_CLASS_POLL:  rc ="POLL"; break;
+    case FI_CLASS_CONNREQ:  rc ="CONNREQ"; break;
+    case FI_CLASS_MC:  rc ="MC"; break;
+    case FI_CLASS_NIC:  rc ="NIC"; break;
+    default: rc = "UNKNOWN"; break;
+    }
+    return rc;
+}
+
+void
+showCEP(struct ulib_icep *icep)
+{
+    struct tofu_cep     *cep = (struct tofu_cep*) (((char*)icep) - sizeof(struct tofu_cep));
+    fprintf(stderr, "\t\t%s\n", fi_class_string(cep));
+}
+
 int ulib_isep_open_tnis_info(struct ulib_isep *isep)
 {
     int uc = UTOFU_SUCCESS;
@@ -825,7 +862,7 @@ ulib_icep_recv_call_back(void *vptr,
                          int r_uc,
                          const void *vctx /* uexp */)
 {
-    int uc = 0;
+    int uc = -1;
     struct ulib_icep *icep = (struct ulib_icep *) vptr;
     const struct ulib_shea_uexp *uexp = vctx;
     struct ulib_shea_expd *trcv;
@@ -833,74 +870,64 @@ ulib_icep_recv_call_back(void *vptr,
 
     tick[0] = ulib_tick_time();
     trcv = ulib_icep_find_expd(icep, uexp);
+    fprintf(stderr, "\tYIUTOFU***: %s icep(%p) uxp(%p) trcv(%p)\n", __func__, icep, vctx, trcv);
     if (trcv == 0) {
 	uc = ulib_icep_recv_cbak_uexp(icep, uexp);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
 	goto bad; /* XXX - is not an error */
     }
-    if (trcv != 0) {
-	assert(trcv->nblk == uexp->boff);
-	if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
-	    assert((uexp->nblk + uexp->boff) <= uexp->mblk);
-	} else {
-	    assert((uexp->nblk + uexp->boff) <= trcv->mblk);
-	}
-	/* copy to the user buffer */
-	{
-	    size_t wlen;
+    assert(trcv->nblk == uexp->boff);
+    if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
+        assert((uexp->nblk + uexp->boff) <= uexp->mblk);
+    } else {
+        assert((uexp->nblk + uexp->boff) <= trcv->mblk);
+    }
+    /* copy to the user buffer */
+    {
+        size_t wlen;
 
-	    wlen = ulib_copy_iovs(
-		    trcv->iovs,
-		    trcv->niov,
-		    trcv->wlen,
-		    uexp->rbuf.iovs,
-		    uexp->rbuf.niov
-		    );
-	    trcv->wlen += wlen;
-	    assert(wlen <= uexp->rbuf.leng);
-	    trcv->olen += (uexp->rbuf.leng - wlen);
-	}
-	/* check if the packet is a last fragment */
-	{
-	    if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
-		assert(trcv->mblk == 0);
-		trcv->mblk  = uexp->mblk;
-		assert(trcv->nblk == 0);
-		trcv->rtag  = uexp->utag;
-	    }
-	    else {
-		assert(trcv->mblk != 0);
-		assert(trcv->rtag == uexp->utag);
-	    }
-	    trcv->nblk += uexp->nblk;
-	    if (trcv->nblk < trcv->mblk) {
-		ulib_icep_link_expd_head(icep, trcv);
-		goto bad; /* XXX - is not an error */
-	    }
-	}
-	/* XXX iov_base : offs => base + offs */
-	ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
+        wlen = ulib_copy_iovs(
+            trcv->iovs,
+            trcv->niov,
+            trcv->wlen,
+            uexp->rbuf.iovs,
+            uexp->rbuf.niov
+            );
+        trcv->wlen += wlen;
+        assert(wlen <= uexp->rbuf.leng);
+        trcv->olen += (uexp->rbuf.leng - wlen);
+    }
+    /* XXX iov_base : offs => base + offs */
+    ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
 
-	/* update trcv */
-	ulib_icep_recv_frag(trcv, uexp);
+    /* update trcv */
+    ulib_icep_recv_frag(trcv, uexp);
 
-	/* check if the packet is a last fragment */
-	if (trcv->nblk < trcv->mblk) {
-	    ulib_icep_link_expd_head(icep, trcv);
-	    goto bad; /* XXX - is not an error */
-	}
-	/* notify recv cq */
-	if (icep->vp_tofu_rcq != 0) {
-	    uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, trcv); /* expd */
-	    if (uc != 0) {
-		assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
-		uc = 0; /* YYY severe error */
-	    }
-	}
-	freestack_push(icep->expd_fs, trcv); /* expd */
+    /* check if the packet is a last fragment */
+    if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
+        trcv->mblk  = uexp->mblk;
+        trcv->rtag  = uexp->utag;
+    }
+    trcv->nblk += uexp->nblk;
+    fprintf(stderr, "\tYIUTOFU***: %s nblk(%d) mblk(%d)\n", __func__, trcv->nblk, trcv->mblk);
+    if (trcv->nblk < trcv->mblk) {
+        ulib_icep_link_expd_head(icep, trcv);
+        goto bad; /* XXX - is not an error */
     }
 
+    /* notify recv cq */
+    fprintf(stderr, "\tYIUTOFU***: %s icep->vp_tofu_rcq(%p)\n", __func__, icep->vp_tofu_rcq);
+    if (icep->vp_tofu_rcq != 0) {
+        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, trcv); /* expd */
+        if (uc != 0) {
+            assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
+            uc = 0; /* YYY severe error */
+        }
+    }
+    freestack_push(icep->expd_fs, trcv); /* expd */
+
 bad:
+    fprintf(stderr, "\tYIUTOFU***: %s return %d\n", __func__, uc);
     return uc;
 }
 
@@ -931,6 +958,8 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep,
     if (uexp == NULL) {
         /* Not found a corresponding message in unexepcted queue,
          * thus insert this request to expected queue */
+        fprintf(stderr, "YIUTOFU****: %s insert request(%p) into expected queue on icep(%p)\n", __func__, expd, icep);
+        showCEP(icep);
         ulib_icep_link_expd(icep, expd);
     } else {
         int     done;
@@ -1139,10 +1168,12 @@ fflush(stdout);
 
     /* post */
     fprintf(stderr, "YIUTOFU***: %s vpp_send_hdnl(%p)\n", __func__, esnd);
+#if 0 /* commented out by YI */
     { /* added by YI */
         fprintf(stderr, "\t\t: goint to ulib_shea_foo0\n");
         uc = ulib_shea_foo0(esnd);
     }
+#endif /* 0 */
     if (vpp_send_hndl) {
         vpp_send_hndl[0] = esnd; esnd = 0; /* ZZZ */
     }

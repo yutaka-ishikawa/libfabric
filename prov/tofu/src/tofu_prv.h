@@ -43,7 +43,7 @@ struct tofu_sep {
     fastlock_t		sep_lck;
 /*  struct dlist_entry	sep_ent; */
     struct dlist_entry	sep_htx;    /* head for ep tx ctxs */
-    struct dlist_entry	sep_hrx;    /* head for ep tx ctxs */
+    struct dlist_entry	sep_hrx;    /* head for ep rx ctxs */
     struct tofu_av *	sep_av_;
 };
 
@@ -62,7 +62,8 @@ struct tofu_cep {
     fastlock_t		cep_lck;
 /*  struct dlist_entry	cep_ent; */
     uint64_t		cep_xop_flg;
-    struct tofu_cep *	cep_trx;
+    struct tofu_cep *	cep_trx;      /* Name should be changed ? cep_peer ?*/
+                                      /* cep_trx does not mean point to Sender side, right ? */
     struct dlist_entry	cep_ent_sep;
     struct dlist_entry	cep_ent_cq;
     struct dlist_entry	cep_ent_ctr;

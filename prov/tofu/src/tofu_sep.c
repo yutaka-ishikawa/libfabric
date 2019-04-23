@@ -99,6 +99,9 @@ static int tofu_sep_ctrl(struct fid *fid, int command, void *arg)
 	    /* fastlock_acquire( &sep_priv->sep_lck ); */ /* YYY */
 	    head = &sep_priv->sep_htx;
 
+            /*
+             * Sender's and Receiver's CEPs are linked
+             */
 	    dlist_foreach(head, curr) {
 		struct tofu_cep *cep_priv_tx, *cep_priv_rx;
 

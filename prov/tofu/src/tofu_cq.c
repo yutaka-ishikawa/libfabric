@@ -62,11 +62,13 @@ static ssize_t tofu_cq_read(
 
     fastlock_acquire( &cq__priv->cq__lck );
 
+    fprintf(stderr, "\tYIUTOFU***: %s cq__priv->cq_ccq(%p)\n", __func__, cq__priv->cq__ccq);
     if (ofi_cirque_isempty( cq__priv->cq__ccq )) {
 	{
 	    struct dlist_entry *head = &cq__priv->cq__htx;
 	    struct dlist_entry *curr, *next;
 
+            fprintf(stderr, "\tYIUTOFU***: %s cq__htx(%p)\n", __func__, head);
 	    dlist_foreach_safe(head, curr, next) {
 		struct tofu_cep *cep_priv;
 		struct ulib_icep *icep;
@@ -83,7 +85,27 @@ static ssize_t tofu_cq_read(
 	    if ( ! ofi_cirque_isempty( cq__priv->cq__ccq ) ) {
 	    }
         }
+	{
+	    struct dlist_entry *head = &cq__priv->cq__hrx;
+	    struct dlist_entry *curr, *next;
 
+            fprintf(stderr, "\tYIUTOFU***: %s cq__hrx(%p)\n", __func__, head);
+	    dlist_foreach_safe(head, curr, next) {
+		struct tofu_cep *cep_priv;
+		struct ulib_icep *icep;
+		int uc;
+
+		cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
+		assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
+		icep = (struct ulib_icep *)(cep_priv + 1);
+
+		uc = ulib_icep_shea_recv_prog(icep);
+		if (uc != 0 /* UTOFU_SUCCESS */ ) { }
+	    }
+
+	    if ( ! ofi_cirque_isempty( cq__priv->cq__ccq ) ) {
+	    }
+        }
 	ret = -FI_EAGAIN; goto bad;
     }
 

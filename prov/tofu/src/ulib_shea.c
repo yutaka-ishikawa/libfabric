@@ -2327,6 +2327,7 @@ static inline void ulib_shea_recv_info(
 
     assert(ph_u != 0);
 
+    fprintf(stderr, "\tYIUTOFU***: %s uexp(%p)\n", __func__, rinf);
     if (ph_u->phlh.type == ULIB_SHEA_PH_LARGE) {
 	rinf->utag = ph_u->phlh.utag;
 	rinf->srci = ph_u->phlh.srci;
@@ -2446,9 +2447,11 @@ int ulib_shea_recv_hndr_prog(
 
     ENTER_RC_C(uc);
 
+    fprintf(stderr, "\tYIUTOFU***: %s toqc(%p) ercv(%p)\n", __func__, toqc, ercv);
 #ifdef	CONF_ULIB_PERF_SHEA
     tick[0] = ulib_tick_time();
 #endif	/* CONF_ULIB_PERF_SHEA */
+    fprintf(stderr, "\tYIUTOFU***: pcnt(%d) ccnt(%d)\n", ercv->cntr.ct_s.pcnt, ercv->cntr.ct_s.ccnt);
     if (ercv->cntr.ct_s.pcnt == ercv->cntr.ct_s.ccnt) {
 	goto chck_wait;
     }
@@ -2458,6 +2461,7 @@ int ulib_shea_recv_hndr_prog(
 
 	ulib_shea_recv_hndr_full(ercv, full);
 
+        fprintf(stderr, "\tYIUTOFU***: full->addr.va64(%ld)\n", full->addr.va64);
 	if (full->addr.va64 != ULIB_SHEA_NIL8) { /* ULIB_SHEA_PH_WAITS */
 	    /* uc = ulib_shea_data_wake(tocq, addr.va64, ercv) */
 	    uc = ulib_shea_foo8(toqc, full->addr.va64, ercv);
@@ -2535,6 +2539,7 @@ printf("nblk %u %u\n", rinf->nblk, nblk);
 	    rinf->tims[ 0 /* phdr */ ] = (tnow - tick[0]);
 	}
 #endif	/* CONF_ULIB_PERF_SHEA */
+        fprintf(stderr, "\tYIUTOFU***: ercv->func(%p)\n", ercv->func);
 	if (ercv->func != 0) { /* YYY ulib_icep_recv_call_back */
 	    uc = (*ercv->func)(ercv->farg, 0, rinf);
 	    if (uc != UTOFU_SUCCESS) { /* YYY EAGAIN */
