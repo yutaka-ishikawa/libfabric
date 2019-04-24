@@ -2117,7 +2117,7 @@ static inline void ulib_shea_recv_info(
     struct ulib_shea_uexp *rinf
 )
 {
-    const union ulib_shea_ph_u *ph_u = vp_rpkt;
+    volatile union ulib_shea_ph_u *ph_u = (volatile union ulib_shea_ph_u *)vp_rpkt;
 
     assert(ph_u != 0);
 
@@ -2214,6 +2214,7 @@ static inline void ulib_shea_recv_info(
 		}
 		rbuf->niov = 2;
 	    }
+            fprintf(stderr, "\tYIUTOFU***: iovs[0].iov_base(%p) iovs[0].iov_len(%lx)\n", iovs[0].iov_base, iovs[0].iov_len); fflush(stderr);
 	}
     }
 #ifdef	CONF_ULIB_PERF_SHEA

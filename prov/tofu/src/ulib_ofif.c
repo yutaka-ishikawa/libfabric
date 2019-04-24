@@ -960,18 +960,23 @@ ulib_icep_recv_call_back(void *vptr,
     assert(icep == icep->shadow);
     tick[0] = ulib_tick_time();
     trcv = ulib_icep_find_expd(icep, uexp);
-    fprintf(stderr, "\tYIUTOFU***: %s icep(%p) uxp(%p) trcv(%p)\n", __func__, icep, vctx, trcv);
+    fprintf(stderr, "\tYIUTOFU***: %s icep(%p) uxp(%p) trcv(%p)\n", __func__, icep, vctx, trcv); fflush(stderr);
     if (trcv == 0) {
 	uc = ulib_icep_recv_cbak_uexp(icep, uexp);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
 	goto bad; /* XXX - is not an error */
     }
+    fprintf(stderr, "\tYIUTOFU***: %s 1)\n", __func__); fflush(stderr);
+
     assert(trcv->nblk == uexp->boff);
     if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
         assert((uexp->nblk + uexp->boff) <= uexp->mblk);
     } else {
         assert((uexp->nblk + uexp->boff) <= trcv->mblk);
     }
+    fprintf(stderr, "\tYIUTOFU***: %s 2)\n", __func__); fflush(stderr);
+    /* XXX iov_base : offs => base + offs */
+    ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
     /* copy to the user buffer */
     {
         size_t wlen;
@@ -987,19 +992,19 @@ ulib_icep_recv_call_back(void *vptr,
         assert(wlen <= uexp->rbuf.leng);
         trcv->olen += (uexp->rbuf.leng - wlen);
     }
-    /* XXX iov_base : offs => base + offs */
-    ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
 
+    fprintf(stderr, "\tYIUTOFU***: %s 3)\n", __func__); fflush(stderr);
     /* update trcv */
     ulib_icep_recv_frag(trcv, uexp);
 
+    fprintf(stderr, "\tYIUTOFU***: %s 4)\n", __func__); fflush(stderr);
     /* check if the packet is a last fragment */
     if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
         trcv->mblk  = uexp->mblk;
         trcv->rtag  = uexp->utag;
     }
     trcv->nblk += uexp->nblk;
-    fprintf(stderr, "\tYIUTOFU***: %s nblk(%d) mblk(%d)\n", __func__, trcv->nblk, trcv->mblk);
+    fprintf(stderr, "\tYIUTOFU***: %s nblk(%d) mblk(%d)\n", __func__, trcv->nblk, trcv->mblk); fflush(stderr);
     if (trcv->nblk < trcv->mblk) {
         ulib_icep_link_expd_head(icep, trcv);
         goto bad; /* XXX - is not an error */
