@@ -74,10 +74,10 @@ tank2string(char *buf, size_t sz, uint64_t ui64)
     union ulib_tofa_u utofa;
     utofa.ui64 = ui64;
     snprintf(buf, sz, "xyzabc(%02x:%02x:%02x:%02x:%02x:%02x), "
-             "tni(%d), tcq(%d), pid(%d)",
+             "tni(%d), tcq(%d), cid(0x%x)",
              utofa.tank.tux, utofa.tank.tuy, utofa.tank.tuz,
              utofa.tank.tua, utofa.tank.tub, utofa.tank.tuc,
-             utofa.tank.tni, utofa.tank.tcq, utofa.tank.pid);
+             utofa.tank.tni, utofa.tank.tcq, utofa.tank.cid);
     return buf;
 }
 

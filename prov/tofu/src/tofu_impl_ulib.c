@@ -339,9 +339,10 @@ int tofu_imp_ulib_gnam(void *ceps[CONF_TOFU_CTXC],
 	size_t cz = 128;
 	char *cp = nam_str;
 	char *del = "";
-	wlen = snprintf(cp, cz, "t://%u.%u.%u.%u.%u.%u/;q=",
+        cid[0] &= 0x7;
+	wlen = snprintf(cp, cz, "t://%u.%u.%u.%u.%u.%u.%x/;q=",
 		xyzabc[0], xyzabc[1], xyzabc[2],
-		xyzabc[3], xyzabc[4], xyzabc[5]);
+                        xyzabc[3], xyzabc[4], xyzabc[5], cid[0]);
 	if ((wlen <= 0) || (wlen >= cz)) {
 	    fc = -FI_EPERM; goto bad;
 	}
@@ -825,6 +826,7 @@ bad:
 int tofu_imp_str_uri_to_long(
     const char *uri,
     long lv_xyzabc[6],
+    uint16_t    *cid,
     long lv_tniq[CONF_TOFU_CTXC * 2]
 )
 {
@@ -833,11 +835,13 @@ int tofu_imp_str_uri_to_long(
     /* xyzabc */
     {
 	int rc;
+        uint32_t cid32;
 
-	rc = sscanf(uri, "t://%ld.%ld.%ld.%ld.%ld.%ld/%*c",
+	rc = sscanf(uri, "t://%ld.%ld.%ld.%ld.%ld.%ld.%x/;q=",
 		&lv_xyzabc[0], &lv_xyzabc[1], &lv_xyzabc[2],
-		&lv_xyzabc[3], &lv_xyzabc[4], &lv_xyzabc[5]);
-	if (rc != 6) {
+                    &lv_xyzabc[3], &lv_xyzabc[4], &lv_xyzabc[5], &cid32);
+        *cid = cid32;
+	if (rc != 7) {
 	    ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	}
 
@@ -883,8 +887,9 @@ int tofu_imp_str_uri_to_name(
     {
 	int nv, iv, mv;
 	long lv_xyzabc[6], lv_tniq[CONF_TOFU_CTXC * 2];
+        uint16_t        lv_cid;
 
-	nv = tofu_imp_str_uri_to_long(cp, lv_xyzabc, lv_tniq);
+	nv = tofu_imp_str_uri_to_long(cp, lv_xyzabc, &lv_cid, lv_tniq);
 	if (nv < 0) {
 	    fc = nv; goto bad;
 	}
@@ -903,8 +908,7 @@ int tofu_imp_str_uri_to_name(
 	name->b = lv_xyzabc[4];
 	assert((lv_xyzabc[5] >= 0) && (lv_xyzabc[5] < 2));
 	name->c = lv_xyzabc[5];
-
-	name->p = 0 /* YYY CONF_ULIB_CMP_ID */ ;
+        name->p = lv_cid;
 	name->v = 1;
 
 	mv = sizeof (name->tniq) / sizeof (name->tniq[0]);
@@ -931,21 +935,6 @@ int tofu_imp_str_uri_to_name(
 	}
 
 	name->vpid = -1U; /* YYY */
-        /*
-          fprintf(stderr, "YIII** %s\t%u.%u.%u.%u.%u.%u"
-                "\t%u.%.u %u.%u %u.%u %u.%u"
-                "\t%u.%.u %u.%u %u.%u %u.%u\n", __func__,
-                name->txyz[0], name->txyz[1], name->txyz[2],
-                name->a, name->b, name->c,
-                name->tniq[0] >> 4, name->tniq[0] & 0x0f,
-                name->tniq[1] >> 4, name->tniq[1] & 0x0f,
-                name->tniq[2] >> 4, name->tniq[2] & 0x0f,
-                name->tniq[3] >> 4, name->tniq[3] & 0x0f,
-                name->tniq[4] >> 4, name->tniq[4] & 0x0f,
-                name->tniq[5] >> 4, name->tniq[5] & 0x0f,
-                name->tniq[6] >> 4, name->tniq[6] & 0x0f,
-                name->tniq[7] >> 4, name->tniq[7] & 0x0f);
-        */
     }
 
     /* return */
@@ -954,6 +943,11 @@ int tofu_imp_str_uri_to_name(
     }
 
 bad:
+    fprintf(stderr, "YIII** %s\t%u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
+            __func__,
+            name->txyz[0], name->txyz[1], name->txyz[2],
+            name->a, name->b, name->c, name->p, fc);
+
     return fc;
 }
 
@@ -1666,12 +1660,14 @@ int ulib_icep_find_desc(
             fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
             goto bad;
         }
+        rava.vcqi |= 0xF0000000000;
 
 	uc = utofu_query_vcq_id(icep->vcqh, &lava.vcqi);
 	if (uc != UTOFU_SUCCESS) {
             fprintf(stderr, "\t\t YI: %s 3 leave\n", __func__);
             goto bad;
         }
+        fprintf(stderr, "\t\t YIYI: REMOTE_VCQ(%lx,%x,%x) LOCAL_VCQ(%lx,%x,%x)\n in %s\n", rava.vcqi, rava.paid, rava.vpid,  lava.vcqi, lava.paid, lava.vpid, __func__); fflush(stderr);
 	lava.paid = (utofu_path_id_t)-1U;
     }
     /* rsta and lsta */

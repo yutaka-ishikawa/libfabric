@@ -231,6 +231,14 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
 	icep->vcqh = vcqh;
     }
+    {
+        uint64_t vcqi;
+        //uint8_t coords[6];
+        //utofu_tni_id_t tni_id;
+	uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
+        //uc = utofu_query_vcq_info(vcqi, coords, &tni_id, &cq_id, &extraval);
+        fprintf(stderr, "\t\tYIYI: icep(%p)->vcqh(%lx) LOCAL_VCQ(%lx, --, --\n", icep, icep->vcqh, vcqi); fflush(stderr);
+    }
     if (icep->toqc == 0) {
         uc = ulib_toqc_init(icep->vcqh, &icep->toqc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }

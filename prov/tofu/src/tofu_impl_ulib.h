@@ -103,6 +103,7 @@ extern int	tofu_imp_ulib_send_post_fast(
 extern int	tofu_imp_str_uri_to_long(
 		    const char *uri,
 		    long lv_xyzabc[6],
+                    uint16_t *cid,
 		    long lv_tniq[CONF_TOFU_CTXC * 2]
 		);
 extern int	tofu_imp_str_uri_to_name(
