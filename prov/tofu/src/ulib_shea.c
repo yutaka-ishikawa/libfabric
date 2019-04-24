@@ -1046,10 +1046,6 @@ static inline int   ulib_shea_post_data_data( /* foo12 */
 			struct ulib_toqd_cash toqd[2],
 			struct ulib_shea_esnd *esnd
 		    );
-static inline void  ulib_shea_recv_info(
-			const void *vp_rpkt,
-			struct ulib_shea_uexp *rinf
-		    );
 
 /* ulib_shea_data() */
 int ulib_shea_foo9(
@@ -1394,7 +1390,7 @@ static inline void ulib_shea_cash_data_phdr( /* foo10 */
 	hloc = phdr->phlh.seqn & (ULIB_SHEA_MBLK-1);
 
 	offs = hloc * sizeof (phdr);
-        fprintf(stderr, "YIPROTOCOL: %s hloc(%d) offs(0x%lx)\n", __func__, hloc, offs);
+        //fprintf(stderr, "YIPROTOCOL: %s hloc(%d) offs(0x%lx)\n", __func__, hloc, offs);
     }
     /* puti_le32 */
     {
@@ -1438,7 +1434,7 @@ static inline void ulib_shea_cash_data_phdr( /* foo10 */
 	/* ackd */
 	memcpy(toqd->ackd, tmpl->ackd, sizeof (tmpl->ackd)); /* XXX */
 	toqd->ackd[0].rmt_stadd += offs;
-        fprintf(stderr, "\t\t: rmt_stadd(0x%lx) ackd[0].rmt_stadd(0x%lx)\n", desc[2+4], toqd->ackd[0].rmt_stadd);
+        //fprintf(stderr, "\t\t: rmt_stadd(0x%lx) ackd[0].rmt_stadd(0x%lx)\n", desc[2+4], toqd->ackd[0].rmt_stadd);
     }
 
     return ;
@@ -1496,7 +1492,7 @@ int ulib_shea_foo10(
 	hloc = phdr->phlh.seqn & (ULIB_SHEA_MBLK-1);
 
 	offs = hloc * sizeof (phdr);
-        fprintf(stderr, "YIPROTOCOL: %s hloc(%d) offs(%ld)\n", __func__, hloc, offs);
+        //fprintf(stderr, "YIPROTOCOL: %s hloc(%d) offs(%ld)\n", __func__, hloc, offs);
     }
     /* puti */
     {
@@ -2113,6 +2109,7 @@ void ulib_shea_recv_hndr_seqn_init( /* obsolated */
 }
 
 static inline void ulib_shea_recv_info(
+    volatile struct ulib_shea_ercv *ercv,
     const void *vp_rpkt,
     struct ulib_shea_uexp *rinf
 )
@@ -2121,7 +2118,7 @@ static inline void ulib_shea_recv_info(
 
     assert(ph_u != 0);
 
-    //    fprintf(stderr, "\tYIUTOFU***: %s uexp(%p)\n", __func__, rinf);
+    //fprintf(stderr, "\tYIUTOFU***: %s uexp(%p) ercv->dptr(%p)\n", __func__, rinf, ercv->dptr);
     if (ph_u->phlh.type == ULIB_SHEA_PH_LARGE) {
 	rinf->utag = ph_u->phlh.utag;
 	rinf->srci = ph_u->phlh.srci;
@@ -2130,8 +2127,7 @@ static inline void ulib_shea_recv_info(
 	rinf->flag = ULIB_SHEA_UEXP_FLAG_MBLK;
 	rinf->flag |= ((ph_u->phlh.tflg != 0)? ULIB_SHEA_UEXP_FLAG_TFLG: 0);
 	rinf->flag |= ((ph_u->phlh.zflg != 0)? ULIB_SHEA_UEXP_FLAG_ZFLG: 0);
-    }
-    else if (ph_u->phlh.type == ULIB_SHEA_PH_LARGE_CONT) {
+    } else if (ph_u->phlh.type == ULIB_SHEA_PH_LARGE_CONT) {
 	rinf->utag = ph_u->phlc.utag;
 	rinf->srci = ph_u->phlc.srci;
 	rinf->mblk = 0;
@@ -2139,8 +2135,7 @@ static inline void ulib_shea_recv_info(
 	rinf->flag  = 0;
 	rinf->flag |= ((ph_u->phlc.tflg != 0)? ULIB_SHEA_UEXP_FLAG_TFLG: 0);
 	rinf->flag |= ((ph_u->phlc.zflg != 0)? ULIB_SHEA_UEXP_FLAG_ZFLG: 0);
-    }
-    else {
+    } else {
 	/* YYY abort */
 	rinf->utag = UINT64_MAX;
 	rinf->srci = UINT32_MAX;
@@ -2197,15 +2192,14 @@ static inline void ulib_shea_recv_info(
 		rbuf->leng -= (bsiz - llen);
 	    }
 	    if ((hloc + nblk) <= hcnt) {
-		iovs[0].iov_base = (void *)(uintptr_t)(hloc * bsiz);
+		iovs[0].iov_base = (void *)(((char*)ercv->dptr) + hloc * bsiz);
 		iovs[0].iov_len  = (nblk * bsiz);
 		if (llen > 0) {
 		    iovs[0].iov_len -= (bsiz - llen);
 		}
 		rbuf->niov = 1;
-	    }
-	    else {
-		iovs[0].iov_base = (void *)(uintptr_t)(hloc * bsiz);
+	    } else {
+		iovs[0].iov_base = (void *)(((char*)ercv->dptr) + hloc * bsiz);
 		iovs[0].iov_len  = ((hcnt - hloc) * bsiz);
 		iovs[1].iov_base = 0;
 		iovs[1].iov_len  = ((nblk - (hcnt - hloc)) * bsiz);
@@ -2214,7 +2208,7 @@ static inline void ulib_shea_recv_info(
 		}
 		rbuf->niov = 2;
 	    }
-            //fprintf(stderr, "\tYIUTOFU***: iovs[0].iov_base(%p) iovs[0].iov_len(%lx)\n", iovs[0].iov_base, iovs[0].iov_len); fflush(stderr);
+            //fprintf(stderr, "\tYIPROTOCOL***: iovs[0].iov_base(%p) iovs[0].iov_len(%lx)\n", iovs[0].iov_base, iovs[0].iov_len); fflush(stderr);
 	}
     }
 #ifdef	CONF_ULIB_PERF_SHEA
@@ -2314,7 +2308,7 @@ int ulib_shea_recv_hndr_prog(
     {
 	struct ulib_shea_uexp rinf[1];
 
-	ulib_shea_recv_info(phdr, rinf);
+	ulib_shea_recv_info(ercv, phdr, rinf);
 #ifdef	notdef
 	if (rinf->nblk != nblk) {
 printf("nblk %u %u\n", rinf->nblk, nblk);
@@ -2561,19 +2555,15 @@ void ulib_shea_cbuf_ercv_init(
     assert(ercv != 0);
     /* tail */
     ercv->tail.va64 = ULIB_SHEA_NIL8;
-    /* cntr */
+    /* cntr: cntr.ct_s.pcnt = 0; cntr.ct_s.ccnt = 0; */
     ercv->cntr.ct64 = 0;
-    /* ercv->cntr.ct_s.pcnt = 0; */
-    /* ercv->cntr.ct_s.ccnt = 0; */
     /* full */
     ercv->full.addr.va64 = ULIB_SHEA_NIL8;
-    /* r_no */
+    /* r_no, phdr, dptr, func, farg */
     ercv->r_no = 0;
-    /* phdr */
     ercv->phdr = cbuf->cptr_hdrs;
-    /* func */
+    ercv->dptr = cbuf->dptr;
     ercv->func = func;
-    /* farg */
     ercv->farg = farg;
 
     return ;
@@ -2672,8 +2662,6 @@ int ulib_shea_cbuf_enab_buff(
             fprintf(stderr, "YIPROTOCOL: cptr(%p) cptr_ercv(%p) cptr_hdrs(%p)  cptr_esnd(%p)\n", cbuf->cptr, cbuf->cptr_ercv, cbuf->cptr_hdrs, cbuf->cptr_esnd);
 
 	    memset(cbuf->cptr, 0, cbuf->csiz);
-	    /* ercv init */
-	    ulib_shea_cbuf_ercv_init(cbuf, 0 /* func */ , 0 /* farg */ ); /* YYY */
 	    /* hdrs init */
 	    ulib_shea_cbuf_hdrs_init(cbuf);
 	    /* cptr_esnd */
@@ -2698,6 +2686,8 @@ int ulib_shea_cbuf_enab_buff(
 	    memset(cbuf->dptr, 0, cbuf->dsiz);
 	}
     }
+    /* ercv init */
+    ulib_shea_cbuf_ercv_init(cbuf, 0 /* func */ , 0 /* farg */ ); /* YYY */
 
     RETURN_OK_C(uc);
 

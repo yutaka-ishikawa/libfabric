@@ -894,7 +894,7 @@ ulib_uexp_fs_index(icep->uexp_fs, uexp));
     if (uexp->rbuf.leng > 0) {
 	struct ulib_shea_rbuf *rbuf = &uexp->rbuf;
 	size_t wlen;
-	struct iovec iovs[2];
+	//struct iovec iovs[2];
 
 	rbuf->iovs[0].iov_base = malloc(rbuf->leng);
 	if (rbuf->iovs[0].iov_base == 0) {
@@ -904,13 +904,13 @@ ulib_uexp_fs_index(icep->uexp_fs, uexp));
 	rbuf->niov = 1;
 
 	assert(sizeof (iovs) == sizeof (rinf->rbuf.iovs));
-	ulib_icep_recv_rbuf_base(icep, rinf, iovs);
+	//ulib_icep_recv_rbuf_base(icep, rinf, iovs);
 
 	wlen = ulib_copy_iovs(
 		rbuf->iovs, /* dst */
 		rbuf->niov, /* dst */
 		0, /* off */
-		iovs, /* src */
+		rinf->rbuf.iovs, /*iovs,*/ /* src */
 		rinf->rbuf.niov /* src */
 		);
 	assert (wlen == rbuf->leng);
@@ -974,13 +974,15 @@ ulib_icep_recv_call_back(void *vptr,
     } else {
         assert((uexp->nblk + uexp->boff) <= trcv->mblk);
     }
-    //fprintf(stderr, "\tYIUTOFU***: %s 2)\n", __func__); fflush(stderr);
-    /* XXX iov_base : offs => base + offs */
-    ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
+    /*
+     * iov_base : offs => base + offs
+     */
+    //ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
     /* copy to the user buffer */
     {
         size_t wlen;
 
+        //fprintf(stderr, "\t\t: uexp.iovs[0]=%p\n", uexp->rbuf.iovs[0]);
         wlen = ulib_copy_iovs(
             trcv->iovs,
             trcv->niov,

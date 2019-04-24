@@ -84,6 +84,7 @@ struct ulib_shea_ercv {
     struct ulib_shea_full   full; /* waiting esnd */
     uint64_t		    r_no;
     void *		    phdr; /* top address of array of ulib_shea_ph_u */
+    void *                  dptr; /* top address of data buffer */
     ulib_shea_ercv_cbak_f   func; /* recv call back */
     void *farg;
 };
