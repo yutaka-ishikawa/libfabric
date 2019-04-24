@@ -241,7 +241,7 @@ tofu_imp_ulib_uexp_rbuf_free(struct ulib_shea_uexp *uexp)
         if (rbuf->iovs[iiov].iov_len == 0) { continue; }
         if (rbuf->iovs[iiov].iov_base != 0
             && rbuf->alloced) {
-            fprintf(stderr, "YI**** FREE %p but NOT\n", rbuf->iovs[iiov].iov_base);
+            //fprintf(stderr, "YI**** FREE %p but NOT\n", rbuf->iovs[iiov].iov_base);
             // free(rbuf->iovs[iiov].iov_base);
         }
         rbuf->iovs[iiov].iov_base = 0;
@@ -392,18 +392,18 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
     /* tofu_cep in the receiver endpoint is pointed by the ctp_trx field,
      * and its ulib_icep is below the tofu_cep (+ offs) */
     ricep = (struct ulib_icep*) ((uint8_t*)tcep->cep_trx + offs);
-    fprintf(stderr, "YI**** 1 ricep(%p)\n", ricep); fflush(stderr);
+    //fprintf(stderr, "YI**** 1 ricep(%p)\n", ricep); fflush(stderr);
     if (freestack_isempty(ricep->uexp_fs)) {
-        fprintf(stderr, "YI********** 1.1\n"); fflush(stderr);
+        //fprintf(stderr, "YI********** 1.1\n"); fflush(stderr);
 	fc = -FI_EAGAIN; return fc;
     }
     sndreq = freestack_pop(ricep->uexp_fs);
     /* minimum setting for finding expected message */
-    fprintf(stderr, "YI********** 2 %p\n", sndreq); fflush(stderr);
+    //fprintf(stderr, "YI********** 2 %p\n", sndreq); fflush(stderr);
     sndreq->utag = tmsg->tag;
     sndreq->flag = tmsg->ignore;
     match = ulib_icep_find_expd(ricep, sndreq);
-    fprintf(stderr, "YI********** 3 match(%p)\n", match); fflush(stderr);
+    //fprintf(stderr, "YI********** 3 match(%p)\n", match); fflush(stderr);
     if (match == NULL) {
         /*
          * A receive request has not been issued. Enqueu the unexpected queue
@@ -445,12 +445,12 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
         dlist_init(dlist);
         head = (flags & FI_TAGGED) ?
             &ricep->uexp_list_trcv : &ricep->uexp_list_mrcv;
-        fprintf(stderr, "YI****** Enqueued in unexpected FI_TAGGED(%lld) entry(%p) head(%p)\n", flags & FI_TAGGED, dlist, head);
+        //fprintf(stderr, "YI****** Enqueued in unexpected FI_TAGGED(%lld) entry(%p) head(%p)\n", flags & FI_TAGGED, dlist, head);
         dlist_insert_tail(dlist, head);
         return FI_SUCCESS;
     }
     /* corresponding posted receive request has been registered */
-    fprintf(stderr, "YI********** NEW CODE CHECK IT! %s in %s\n", __func__, __FILE__); fflush(stderr);
+    //fprintf(stderr, "YI********** NEW CODE CHECK IT! %s in %s\n", __func__, __FILE__); fflush(stderr);
     expd = container_of(match, struct ulib_shea_expd, entry);
     done = ulib_icep_recv_frag(expd, sndreq /* uexp */);
     if (done) {
@@ -573,7 +573,7 @@ tofu_imp_ulib_send_post_fast(
 	struct ulib_toqc *toqc = icep->toqc;
 	struct ulib_toqc_cash *cash_real = &udat->real;
 
-        fprintf(stderr, "YI***** \t=== %s() incompatible pointer !!!!\n", __func__);
+        //fprintf(stderr, "YI***** \t=== %s() incompatible pointer !!!!\n", __func__);
 
 #ifdef	NOTYET_NAME_CHNG
 	cash_real->akey = cash_tmpl->akey; /* address key */
@@ -943,11 +943,12 @@ int tofu_imp_str_uri_to_name(
     }
 
 bad:
+#if 0
     fprintf(stderr, "YIII** %s\t%u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
             __func__,
             name->txyz[0], name->txyz[1], name->txyz[2],
             name->a, name->b, name->c, name->p, fc);
-
+#endif /* 0 */
     return fc;
 }
 
@@ -1476,8 +1477,10 @@ int tofu_imp_ulib_isep_open(
     const size_t mtni = sizeof (isep->tnis) / sizeof (isep->tnis[0]);
 
     isep = (struct ulib_isep*) (sep_priv + 1);
+#if 0
     fprintf(stderr, "YI***** %s:%d\t%p %p\n",
             __func__, __LINE__, sep_priv, isep); fflush(stderr);
+#endif /* 0 */
 
     uc = utofu_get_onesided_tnis( &tnis, &ntni );
     if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }

@@ -858,7 +858,7 @@ ulib_icep_recv_frag(struct ulib_shea_expd *trcv,
     } else {
 	trcv->nblk += rinf->nblk;
     }
-    fprintf(stderr, "YI ********** mblk(%d) nblk(%d) in %s\n", trcv->mblk, trcv->nblk, __func__);
+    //fprintf(stderr, "YI ********** mblk(%d) nblk(%d) in %s\n", trcv->mblk, trcv->nblk, __func__);
     done = (trcv->mblk == trcv->nblk);
     done = 1; // MUST BE RESOLVE 2019/04/19
     return done;
@@ -960,13 +960,13 @@ ulib_icep_recv_call_back(void *vptr,
     assert(icep == icep->shadow);
     tick[0] = ulib_tick_time();
     trcv = ulib_icep_find_expd(icep, uexp);
-    fprintf(stderr, "\tYIUTOFU***: %s icep(%p) uxp(%p) trcv(%p)\n", __func__, icep, vctx, trcv); fflush(stderr);
+    //fprintf(stderr, "\tYIUTOFU***: %s icep(%p) uxp(%p) trcv(%p)\n", __func__, icep, vctx, trcv); fflush(stderr);
     if (trcv == 0) {
 	uc = ulib_icep_recv_cbak_uexp(icep, uexp);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
 	goto bad; /* XXX - is not an error */
     }
-    fprintf(stderr, "\tYIUTOFU***: %s 1)\n", __func__); fflush(stderr);
+    //fprintf(stderr, "\tYIUTOFU***: %s 1)\n", __func__); fflush(stderr);
 
     assert(trcv->nblk == uexp->boff);
     if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
@@ -974,7 +974,7 @@ ulib_icep_recv_call_back(void *vptr,
     } else {
         assert((uexp->nblk + uexp->boff) <= trcv->mblk);
     }
-    fprintf(stderr, "\tYIUTOFU***: %s 2)\n", __func__); fflush(stderr);
+    //fprintf(stderr, "\tYIUTOFU***: %s 2)\n", __func__); fflush(stderr);
     /* XXX iov_base : offs => base + offs */
     ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
     /* copy to the user buffer */
@@ -993,25 +993,25 @@ ulib_icep_recv_call_back(void *vptr,
         trcv->olen += (uexp->rbuf.leng - wlen);
     }
 
-    fprintf(stderr, "\tYIUTOFU***: %s 3)\n", __func__); fflush(stderr);
+    //fprintf(stderr, "\tYIUTOFU***: %s 3)\n", __func__); fflush(stderr);
     /* update trcv */
     ulib_icep_recv_frag(trcv, uexp);
 
-    fprintf(stderr, "\tYIUTOFU***: %s 4)\n", __func__); fflush(stderr);
+    //fprintf(stderr, "\tYIUTOFU***: %s 4)\n", __func__); fflush(stderr);
     /* check if the packet is a last fragment */
     if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
         trcv->mblk  = uexp->mblk;
         trcv->rtag  = uexp->utag;
     }
     trcv->nblk += uexp->nblk;
-    fprintf(stderr, "\tYIUTOFU***: %s nblk(%d) mblk(%d)\n", __func__, trcv->nblk, trcv->mblk); fflush(stderr);
+    //fprintf(stderr, "\tYIUTOFU***: %s nblk(%d) mblk(%d)\n", __func__, trcv->nblk, trcv->mblk); fflush(stderr);
     if (trcv->nblk < trcv->mblk) {
         ulib_icep_link_expd_head(icep, trcv);
         goto bad; /* XXX - is not an error */
     }
 
     /* notify recv cq */
-    fprintf(stderr, "\tYIUTOFU***: %s icep->vp_tofu_rcq(%p)\n", __func__, icep->vp_tofu_rcq);
+    //fprintf(stderr, "\tYIUTOFU***: %s icep->vp_tofu_rcq(%p)\n", __func__, icep->vp_tofu_rcq);
     if (icep->vp_tofu_rcq != 0) {
         uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, trcv); /* expd */
         if (uc != 0) {
@@ -1022,7 +1022,7 @@ ulib_icep_recv_call_back(void *vptr,
     freestack_push(icep->expd_fs, trcv); /* expd */
 
 bad:
-    fprintf(stderr, "\tYIUTOFU***: %s return %d\n", __func__, uc);
+    //fprintf(stderr, "\tYIUTOFU***: %s return %d\n", __func__, uc);
     return uc;
 }
 
@@ -1055,8 +1055,8 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
     if (uexp == NULL) {
         /* Not found a corresponding message in unexepcted queue,
          * thus insert this request to expected queue */
-        fprintf(stderr, "YIUTOFU****: %s insert request(%p) into expected queue on icep(%p)\n", __func__, expd, icep);
-        showCEP(icep);
+        //fprintf(stderr, "YIUTOFU****: %s insert request(%p) into expected queue on icep(%p)\n", __func__, expd, icep);
+        //showCEP(icep);
         ulib_icep_link_expd(icep, expd);
     } else {
         int     done;
@@ -1154,7 +1154,7 @@ int ulib_icep_shea_send_post(
     struct ulib_shea_data *udat = 0;
     struct ulib_shea_esnd *esnd = 0;
 
-    fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
+    //fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
     assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
     cbuf = icep->cbufp;
     /* flags */
@@ -1260,7 +1260,7 @@ fflush(stdout);
     }
 
     esnd = ulib_shea_cbuf_esnd_qget(cbuf, udat);
-    fprintf(stderr, "YIUTOFU***: %s esnd(%p)\n", __func__, esnd);
+    //fprintf(stderr, "YIUTOFU***: %s esnd(%p)\n", __func__, esnd);
     if (esnd == 0) {
 	ulib_icep_free_cash(icep, cash_tmpl);
 	ulib_icep_shea_data_qput(icep, udat);
@@ -1274,7 +1274,7 @@ fflush(stdout);
     DLST_INST(&icep->busy_esnd, esnd, list);
 
     /* post */
-    fprintf(stderr, "YIUTOFU***: %s vpp_send_hdnl(%p)\n", __func__, esnd);
+    //fprintf(stderr, "YIUTOFU***: %s vpp_send_hdnl(%p)\n", __func__, esnd);
 #if 0 /* commented out by YI */
     { /* added by YI */
         fprintf(stderr, "\t\t: goint to ulib_shea_foo0\n");
@@ -1286,7 +1286,7 @@ fflush(stdout);
     }
 
 bad:
-    fprintf(stderr, "YIUTOFU***: %s leave with uc(%d)\n", __func__, uc);
+    //fprintf(stderr, "YIUTOFU***: %s leave with uc(%d)\n", __func__, uc);
     return uc;
 }
 

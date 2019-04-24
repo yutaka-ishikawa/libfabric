@@ -33,7 +33,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     icep = (struct ulib_icep*)(cep_priv + 1);
 
     fastlock_acquire(&cep_priv->cep_lck);
-    fprintf(stderr, "YI***** Completion function must be considered ? in %s\n", __func__);
+    //fprintf(stderr, "YI***** Completion function must be considered ? in %s\n", __func__);
     ret = ulib_icep_shea_recv_post(icep, msg, flags);
     fastlock_release( &cep_priv->cep_lck );
 bad:

@@ -2246,13 +2246,15 @@ int ulib_shea_recv_hndr_prog(
     if (ercv->cntr.ct_s.pcnt == ercv->cntr.ct_s.ccnt) {
 	goto chck_wait;
     }
-    fprintf(stderr, "\tYIUTOFU***: NOT EUQAL Going through...\n");
+#if 0
     {
         volatile union ulib_shea_ph_u   *phdr = (union ulib_shea_ph_u*) ercv->phdr;
         union ulib_shea_ph_u    tmp = *phdr;
         char    buf[128];
+        fprintf(stderr, "\tYIUTOFU***: NOT EUQAL Going through...\n");
         fprintf(stderr, "\t\t phdr(%p)=[%s]\n", phdr, phdr2string(&tmp, buf, 128));
     }
+#endif /* 0 */
     /* full */
     {
 	struct ulib_shea_full full[1];
