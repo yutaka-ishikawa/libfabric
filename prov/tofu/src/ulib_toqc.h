@@ -312,9 +312,6 @@ static inline void ulib_toqc_match_ackd(
     assert(toqc->ccnt != toqc->pcnt);
     ccnt = toqc->ccnt;
     pcnt = toqc->pcnt;
-printf("%s:%d\t%s: toqc %p ccnt %d pcnt %d\n", __FILE__, __LINE__, __func__,
-toqc, ccnt, pcnt);
-fflush(stdout);
     while (ccnt != pcnt) {
 	struct ulib_toqe *toqe;
 	const struct utofu_mrq_notice *ackd_expected;
@@ -331,9 +328,6 @@ fflush(stdout);
 
 	differ = (*func)(ackd, ackd_expected);
 	if (differ != 0) {
-printf("%s:%d\t%s: toqc %p diff %d\n", __FILE__, __LINE__, __func__,
-toqc, differ);
-fflush(stdout);
 	    ccnt++;
 	    continue;
 	}
@@ -364,18 +358,12 @@ fflush(stdout);
 	) {
 	    toqc->ccnt++;
 	    ulib_toqc_toqe_ccnt_update(toqc);
-printf("%s:%d\t%s: toqc %p comp %d\n", __FILE__, __LINE__, __func__,
-toqc, toqc->ccnt);
-fflush(stdout);
 	    /* ccnt = toqc->ccnt; */
 	}
 
 	break;
     }
     assert(ccnt != pcnt); /* if not found */
-printf("%s:%d\t%s: toqc %p ccnt %d pcnt %d\n", __FILE__, __LINE__, __func__,
-toqc, ccnt, pcnt);
-fflush(stdout);
 
     ulib_toqc_unlock(toqc);
     return ;
@@ -401,40 +389,15 @@ printf("%s():%d rmt_value %"PRIu64"\n", __func__, __LINE__, tmrq->rmt_value);
     }
     else {
 	/* UTOFU_MRQ_TYPE_RMT_{PUT,GET,ARMW} */
-printf("%s:%d\t%s: toqc %p type %d\n", __FILE__, __LINE__, __func__,
-toqc, tmrq->notice_type);
-printf("%s:%d\t\tvcq_id     %016lx\n", __FILE__, __LINE__,
-(long)tmrq->vcq_id);
-printf("%s:%d\t\tedata      %lx\n", __FILE__, __LINE__,
-(long)tmrq->edata);
-printf("%s:%d\t\tlcl_stadd  %lx\n", __FILE__, __LINE__,
-(long)tmrq->lcl_stadd);
-printf("%s:%d\t\trmt_stadd  %lx\n", __FILE__, __LINE__,
-(long)tmrq->rmt_stadd);
-{
-utofu_vcq_id_t ackd_vcq_id =   0
-		    | (tmrq->vcq_id >> 32)
-		    | (((tmrq->vcq_id << 32) >> (32+16)) << 32)
-		    | (tmrq->vcq_id << (64-6))
-		    ;
-uint8_t xyz[8]; uint16_t tni[1], tcq[1], cid[1];
-printf("%s:%d\t\tvcq_id fix %016lx\n", __FILE__, __LINE__,
-(long)ackd_vcq_id);
-utofu_query_vcq_info(ackd_vcq_id, xyz, tni, tcq, cid);
-printf("%s:%d\t\t%d.%d.%d-%d.%d.%d (%d,%d) %d\n", __FILE__, __LINE__,
-xyz[0], xyz[1], xyz[2], xyz[3], xyz[4], xyz[5],
-tni[0], tcq[0], cid[0]);
-}
-printf("%s:%d\t\t%d %d\n", __FILE__, __LINE__,
-UTOFU_MRQ_TYPE_LCL_ARMW,
-UTOFU_MRQ_TYPE_RMT_ARMW);
-fflush(stdout);
+	/* #ifdef CONF_ULIB_UTOF_FIX6 */
+	/* should be notice_type *_LCL_ARMW with error */
 	if (tmrq->notice_type == UTOFU_MRQ_TYPE_RMT_ARMW) {
 	    struct utofu_mrq_notice tmrq_copy;
 	    tmrq_copy = tmrq[0];
 	    tmrq_copy.notice_type = UTOFU_MRQ_TYPE_LCL_ARMW;
 	    ulib_toqc_match_ackd(toqc, ulib_toqd_dcmp_armw, &tmrq_copy, uc);
 	}
+	/* #endif CONF_ULIB_UTOF_FIX6 */
     }
 
     return ;

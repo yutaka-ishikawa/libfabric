@@ -88,6 +88,7 @@ struct ulib_epnt_info {
     utofu_tni_id_t tni[1];
     utofu_cq_id_t tcq[1];
     uint16_t cid[1]; /* utofu_cmp_id_t */
+    uint32_t pid[1]; /* vpid */
 };
 
 /* ======================================================================== */

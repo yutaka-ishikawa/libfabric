@@ -102,6 +102,7 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
 		fi_addr[ic] = index;
 	    }
 	}
+	vnam.vpid = index;
 	{/* copy name */
 	    void *src = (void*) &vnam;
 	    void *dst = (char *)av__priv->av__tab.tab + (index * 16); /* XXX */
