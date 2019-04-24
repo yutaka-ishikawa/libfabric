@@ -1400,8 +1400,6 @@ fflush(stdout);
 	if (esnd->l_st == SEND_DONE) {
 	    uc = ulib_icep_toqc_sync(icep, 1000);
 	    if (uc != UTOFU_SUCCESS) { goto bad; }
-printf("%s:%d\tDONE %p scq %p\n", __func__, __LINE__, esnd, icep->vp_tofu_scq);
-fflush(stdout);
 	    if (icep->vp_tofu_scq != 0) {
 		uc = ulib_icqu_comp_tsnd(icep->vp_tofu_scq, esnd->data);
 		if (uc != 0) {

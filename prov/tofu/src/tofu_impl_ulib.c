@@ -217,7 +217,7 @@ ulib_cast_epnt_to_tank(const struct ulib_epnt_info *einf,
     assert(einf->cid[0] < (1UL << ULIB_TANK_BITS_CID));
     tank->cid = einf->cid[0];
     tank->vld = 1;
-    tank->pid = 0 /* einf->pid[0] */ ; /* YYY */
+    tank->pid = einf->pid[0];
     return ;
 }
 
@@ -1019,7 +1019,7 @@ int tofu_imp_namS_to_tank(
     info->tni[0] = tniq[0];
     info->tcq[0] = tniq[1];
     info->cid[0] = name->p; /* component id */
-    /* info->pid[0] = name->vpid; */ /* YYY virtual processor id. (rank) */
+    info->pid[0] = name->vpid; /* virtual processor id. (rank) */
 
     ulib_cast_epnt_to_tank_ui64(info, tank_ui64);
 
@@ -1581,7 +1581,7 @@ int ulib_ioav_find_addr(
 	einf->tni[0] = tank_u.tank.tni;
 	einf->tcq[0] = tank_u.tank.tcq;
 
-	/* assert(tank_u.tank.cid != CONF_ULIB_CMP_ID); */ /* YYY */
+	/* assert(tank_u.tank.cid == CONF_ULIB_CMP_ID); */ /* YYY */
 	einf->cid[0] = tank_u.tank.cid;
 	/* assert(tank_u.tank.pid != UINT32_MAX); */ /* YYY */
 	vpid = tank_u.tank.pid;

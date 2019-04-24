@@ -110,9 +110,6 @@ int ulib_toqc_post(
 
     ulib_toqc_unlock(toqc);
 
-printf("%s:%d\t%s: toqc %p r_no %ld\n", __FILE__, __LINE__, __func__,
-toqc, (long)r_no[0]);
-fflush(stdout);
     RETURN_OK_C(uc);
 
     RETURN_RC_C(uc, /* do nothing */ );
@@ -142,9 +139,6 @@ int ulib_toqc_init(
 	toqc->vcqh = vcqh;
 	toqc->toqe = (struct ulib_toqe *)&toqc[1];;
 
-printf("%s:%d\t%s: toqc %p r_no %ld\n", __FILE__, __LINE__, __func__,
-toqc, (long)toqc->pcnt - 1);
-fflush(stdout);
 	/* return */
 	pp_toqc[0] = toqc;
     }
@@ -194,9 +188,6 @@ int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc)
 	    }
 	    /* fall thru */
 	}
-printf("%s:%d\t%s: toqc %p cbak %p\n", __FILE__, __LINE__, __func__,
-toqc, cbdata);
-fflush(stdout);
 
 #ifndef	CONF_ULIB_UTOF_FIX2
 	/* toqe */
@@ -261,9 +252,6 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
 	}
 	else if (uc != UTOFU_SUCCESS) {
 	    if (UTOFU_ISA_ERR_MRQ(uc)) { /* UTOFU_ERR_MRQ_+ */
-printf("%s:%d\t%s: toqc %p uc %d\n", __FILE__, __LINE__, __func__,
-toqc, uc);
-fflush(stdout);
 		ulib_toqc_match(toqc, tmrq, uc);
 		uc = UTOFU_SUCCESS;
 		continue;
@@ -271,9 +259,6 @@ fflush(stdout);
 	    ulib_toqc_abort(toqc, uc);
 	    RETURN_BAD_C(uc);
 	}
-printf("%s:%d\t%s: toqc %p uc %d\n", __FILE__, __LINE__, __func__,
-toqc, uc);
-fflush(stdout);
 	ulib_toqc_match(toqc, tmrq, 0 /* uc */ );
     }
 
