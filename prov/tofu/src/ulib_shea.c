@@ -613,7 +613,7 @@ printf("size %ld cmd %08x %08x\n", cash->cswp[0].size,
     }
     /* phdr (puti) */
     {
-	const uint64_t roff = 32 * 32; /* YYY */
+	const uint64_t roff = 1024; /* 2019/04/24 */
 	const uint64_t leng = 32; /* YYY sizeof (union ulib_shea_ph_u); */
 	const uint64_t ldat[4] = { 0 };
 	const uint64_t edat = 0;
@@ -958,7 +958,7 @@ printf("%s(): ccnt %u\n", __func__, esnd->self.cntr.ct_s.ccnt);
 int ulib_shea_foo8(
     struct ulib_toqc *toqc,
     uint64_t raui,
-    struct ulib_shea_ercv *ercv
+    volatile struct ulib_shea_ercv *ercv
 )
 {
     int uc = UTOFU_SUCCESS;
@@ -1004,7 +1004,7 @@ printf("\tW: R->S ccnt %"PRIu64"\n", lval);
 }
 
 	uc = ulib_toqc_post(toqc, toqd->desc, toqd->size, retp, toqd->ackd,
-		&ercv->r_no);
+                            (uint64_t*) &ercv->r_no);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
     }
 
@@ -1261,7 +1261,7 @@ struct ulib_shea_phlc {
  */
 
 struct ulib_shea_phwl {
-    uint32_t    srci;
+    uint32_t    srci;     /* */
     uint8_t     type : 3; /* ULIB_SHEA_PH_WAIT[SA] */
     uint8_t     zflg : 1;
     uint8_t     tflg : 1;
@@ -1269,16 +1269,16 @@ struct ulib_shea_phwl {
     uint8_t     rsv3;
     uint8_t     rsv1;
     uint8_t     rsv2;
-    uint64_t    addr;
-    uint64_t    cntr;
-    uint32_t    c_id;
-    uint32_t    seqn;
+    uint64_t    addr;   /* struct tofa for receiving wait completion */
+    uint64_t    cntr;   /* pair of counters, pcnt, ccnt for wait ??? */
+    uint32_t    c_id;   /* XXXX ??? */
+    uint32_t    seqn;   /* producer's counter */
 };
 
-union ulib_shea_ph_u {
-    struct ulib_shea_phlh   phlh;
-    struct ulib_shea_phlc   phlc;
-    struct ulib_shea_phwl   phwl;
+union ulib_shea_ph_u { /* protocol header */
+    struct ulib_shea_phlh   phlh;       /* PH_LARGE */
+    struct ulib_shea_phlc   phlc;       /* PH_LARGE_CONT */
+    struct ulib_shea_phwl   phwl;       /* PH_WAITS, PH_WAITA */
     uint64_t                ui64[4];
     uint32_t                ui32[8];
 };
@@ -1293,6 +1293,16 @@ enum {
 
 #define ULIB_SHEA_PH_MARKER_W	    (-1U)
 #define ULIB_SHEA_PH_MARKER_L	    (0)
+
+char *
+phdr2string(union ulib_shea_ph_u *phdr, char *buf, ssize_t size)
+{
+    snprintf(buf, size, "srci(%d) type(%d) zflg(%d) tflg(%d) llen(%d) nblk(%d) mblk(%d) utag(%ld) seqn(%d)",
+             phdr->phlh.srci, phdr->phlh.type, phdr->phlh.zflg,
+             phdr->phlh.tflg, phdr->phlh.llen, phdr->phlh.nblk, 
+             phdr->phlh.mblk, phdr->phlh.utag, phdr->phlh.seqn);
+    return buf;
+}
 
 static inline void ulib_shea_make_phdr(
     struct ulib_shea_esnd *esnd,
@@ -1350,13 +1360,18 @@ static inline void ulib_shea_make_phdr(
             phdr->phlc.utag = utag;
         }
     }
+    {
+        char    buf[128];
+        fprintf(stderr, "YIPROTOCOL: %s phdr[%s]\n", __func__,
+                phdr2string(phdr, buf, 128));
+    }
 
     return /* uc */;
 }
 
 static inline void ulib_shea_cash_data_phdr( /* foo10 */
     struct ulib_toqd_cash *toqd,
-    const struct ulib_toqd_cash *tmpl,
+    const struct ulib_toqd_cash *tmpl,  /* template */
     struct ulib_shea_esnd *esnd,
     uint64_t nsnd
 )
@@ -1373,9 +1388,13 @@ static inline void ulib_shea_cash_data_phdr( /* foo10 */
 
 	/* powerof2(ULIB_SHEA_MBLK) */
 	assert((((ULIB_SHEA_MBLK) - 1) & (ULIB_SHEA_MBLK)) == 0);
+        /*
+         * hloc is offset of uinon  ulib_shea_ph_u 2019/04/24
+         */
 	hloc = phdr->phlh.seqn & (ULIB_SHEA_MBLK-1);
 
 	offs = hloc * sizeof (phdr);
+        fprintf(stderr, "YIPROTOCOL: %s hloc(%d) offs(0x%lx)\n", __func__, hloc, offs);
     }
     /* puti_le32 */
     {
@@ -1419,6 +1438,7 @@ static inline void ulib_shea_cash_data_phdr( /* foo10 */
 	/* ackd */
 	memcpy(toqd->ackd, tmpl->ackd, sizeof (tmpl->ackd)); /* XXX */
 	toqd->ackd[0].rmt_stadd += offs;
+        fprintf(stderr, "\t\t: rmt_stadd(0x%lx) ackd[0].rmt_stadd(0x%lx)\n", desc[2+4], toqd->ackd[0].rmt_stadd);
     }
 
     return ;
@@ -1470,9 +1490,13 @@ int ulib_shea_foo10(
 
 	/* powerof2(ULIB_SHEA_MBLK) */
 	assert((((ULIB_SHEA_MBLK) - 1) & (ULIB_SHEA_MBLK)) == 0);
+        /*
+         * hloc is offset of uinon  ulib_shea_ph_u 2019/04/24
+         */
 	hloc = phdr->phlh.seqn & (ULIB_SHEA_MBLK-1);
 
 	offs = hloc * sizeof (phdr);
+        fprintf(stderr, "YIPROTOCOL: %s hloc(%d) offs(%ld)\n", __func__, hloc, offs);
     }
     /* puti */
     {
@@ -1900,11 +1924,12 @@ int ulib_shea_foo12(
 }
 
 static inline union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
-    struct ulib_shea_ercv *ercv
+    volatile struct ulib_shea_ercv *ercv
 )
 {
     union ulib_shea_ph_u *phdr = ercv->phdr;
 
+    fprintf(stderr, "\tYIUTOFU***: ercv->cntr.ct_s.ccnt(%d)\n", ercv->cntr.ct_s.ccnt);
     /* powerof2(ULIB_SHEA_MBLK) */
     assert((((ULIB_SHEA_MBLK) - 1) & (ULIB_SHEA_MBLK)) == 0);
     /* phdr */
@@ -1917,8 +1942,8 @@ static inline union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
 }
 
 static inline void /* int */ ulib_shea_recv_hndr_full(
-    struct ulib_shea_ercv *ercv,
-    struct ulib_shea_full *full
+    volatile struct ulib_shea_ercv *ercv,
+    volatile struct ulib_shea_full *full
 )
 {
     /* int uc = UTOFU_SUCCESS; */
@@ -1932,6 +1957,8 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
     phdr = ulib_shea_recv_hdlr_phdr(ercv);
 
     phwl.phwl.seqn = phdr->phwl.seqn;
+    fprintf(stderr, "\t\t: phwl.phwl.seqn(%d) ercv->cntr.ct_s.ccn(%d)\n",
+            phwl.phwl.seqn, ercv->cntr.ct_s.ccnt);
     if (phwl.phwl.seqn != ercv->cntr.ct_s.ccnt) {
 	full->cntr.ct_s.pcnt = ULIB_SHEA_PH_UNDEF;
 	goto bad; /* XXX - is not an error */
@@ -2003,7 +2030,7 @@ bad:
 }
 
 static inline void ulib_shea_recv_hndr_seqn_wrap(
-    struct ulib_shea_ercv *ercv,
+    volatile struct ulib_shea_ercv *ercv,
     uint32_t nblk
 )
 {
@@ -2063,7 +2090,7 @@ static inline void ulib_shea_recv_hndr_seqn_wrap(
 }
 
 void ulib_shea_recv_hndr_seqn_init( /* obsolated */
-    struct ulib_shea_ercv *ercv
+    volatile struct ulib_shea_ercv *ercv
 )
 {
     /* int uc = UTOFU_SUCCESS; */
@@ -2198,7 +2225,7 @@ static inline void ulib_shea_recv_info(
 
 int ulib_shea_recv_hndr_prog(
     struct ulib_toqc *toqc,
-    struct ulib_shea_ercv *ercv
+    volatile struct ulib_shea_ercv *ercv
 )
 {
     int uc = UTOFU_SUCCESS;
@@ -2218,13 +2245,20 @@ int ulib_shea_recv_hndr_prog(
     if (ercv->cntr.ct_s.pcnt == ercv->cntr.ct_s.ccnt) {
 	goto chck_wait;
     }
+    fprintf(stderr, "\tYIUTOFU***: NOT EUQAL Going through...\n");
+    {
+        volatile union ulib_shea_ph_u   *phdr = (union ulib_shea_ph_u*) ercv->phdr;
+        union ulib_shea_ph_u    tmp = *phdr;
+        char    buf[128];
+        fprintf(stderr, "\t\t phdr(%p)=[%s]\n", phdr, phdr2string(&tmp, buf, 128));
+    }
     /* full */
     {
 	struct ulib_shea_full full[1];
 
 	ulib_shea_recv_hndr_full(ercv, full);
 
-        fprintf(stderr, "\tYIUTOFU***: full->addr.va64(%ld)\n", full->addr.va64);
+        fprintf(stderr, "\tYIUTOFU***: full->addr.va64(%ld) full->ctr.ct_s.pcnt(%d)\n", full->addr.va64, full->cntr.ct_s.pcnt);
 	if (full->addr.va64 != ULIB_SHEA_NIL8) { /* ULIB_SHEA_PH_WAITS */
 	    /* uc = ulib_shea_data_wake(tocq, addr.va64, ercv) */
 	    uc = ulib_shea_foo8(toqc, full->addr.va64, ercv);
@@ -2248,6 +2282,7 @@ int ulib_shea_recv_hndr_prog(
     {
 	volatile union ulib_shea_ph_u *ph = phdr;
 
+        fprintf(stderr, "\tYIUTOFU***: phlh.seqn(%d) ct_s.ccnt(%d)\n", ph->phlh.seqn, ercv->cntr.ct_s.ccnt);
 	if (ph->phlh.seqn != ercv->cntr.ct_s.ccnt) {
 	    goto chck_wait;
 	}
@@ -2518,7 +2553,7 @@ void ulib_shea_cbuf_ercv_init(
     void *farg
 )
 {
-    struct ulib_shea_ercv *ercv = cbuf->cptr_ercv;
+    volatile struct ulib_shea_ercv *ercv = cbuf->cptr_ercv;
 
     assert(ercv != 0);
     /* tail */
@@ -2547,7 +2582,7 @@ void ulib_shea_cbuf_ercv_init_func(
     void *farg
 )
 {
-    struct ulib_shea_ercv *ercv = cbuf->cptr_ercv;
+    volatile struct ulib_shea_ercv *ercv = cbuf->cptr_ercv;
 
     /* func */
     ercv->func = func;
@@ -2630,6 +2665,8 @@ int ulib_shea_cbuf_enab_buff(
 		((uint8_t *)cbuf->cptr + (uintptr_t)cbuf->cptr_hdrs);
 	    cbuf->cptr_esnd = (void *)
 		((uint8_t *)cbuf->cptr + (uintptr_t)cbuf->cptr_esnd);
+
+            fprintf(stderr, "YIPROTOCOL: cptr(%p) cptr_ercv(%p) cptr_hdrs(%p)  cptr_esnd(%p)\n", cbuf->cptr, cbuf->cptr_ercv, cbuf->cptr_hdrs, cbuf->cptr_esnd);
 
 	    memset(cbuf->cptr, 0, cbuf->csiz);
 	    /* ercv init */

@@ -83,7 +83,7 @@ struct ulib_shea_ercv {
     union ulib_shea_ct_u    cntr;
     struct ulib_shea_full   full; /* waiting esnd */
     uint64_t		    r_no;
-    void *		    phdr;
+    void *		    phdr; /* top address of array of ulib_shea_ph_u */
     ulib_shea_ercv_cbak_f   func; /* recv call back */
     void *farg;
 };
@@ -159,7 +159,7 @@ extern int	ulib_shea_foo7(
 extern int	ulib_shea_foo8(
 		    struct ulib_toqc *toqc,
 		    uint64_t raui,
-		    struct ulib_shea_ercv *ercv
+		    volatile struct ulib_shea_ercv *ercv
 		);
 extern int	ulib_shea_foo9(
 		    struct ulib_toqc *toqc,
@@ -186,18 +186,17 @@ extern int	ulib_shea_foo12(
 		    uint64_t nsnd
 		);
 extern void	ulib_shea_recv_hndr_seqn_init(
-		    struct ulib_shea_ercv *ercv
+		    volatile struct ulib_shea_ercv *ercv
 		);
 extern int	ulib_shea_recv_hndr_prog(
 		    struct ulib_toqc *toqc,
-		    struct ulib_shea_ercv *ercv
+		    volatile struct ulib_shea_ercv *ercv
 		);
 
 /* inline functions */
 
 static inline void ulib_shea_chst(struct ulib_shea_esnd *esnd, uint8_t newst)
 {
-#ifndef	NDEBUG
     const char *o_st, *n_st;
     static const char *st_names[] = {
 	[0]         = "(unknown)",
@@ -236,7 +235,6 @@ if (1) {
 printf("%p: %s --> %s\n", esnd, o_st, n_st);
 fflush(stdout);
 }
-#endif	/* NDEBUG */
 
     esnd->l_st = newst;
 
