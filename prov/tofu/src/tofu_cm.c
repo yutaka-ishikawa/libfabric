@@ -26,7 +26,7 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 	assert(fid != 0);
 	switch (fid->fclass) {
 	case FI_CLASS_SEP:
-            fprintf(stderr, "YI****** FI_CLASS_SEP\n"); fflush(stderr);
+            // fprintf(stderr, "YI****** FI_CLASS_SEP\n"); fflush(stderr);
 	    sep_priv = container_of(fid, struct tofu_sep, sep_fid.fid);
 	    addr_format = sep_priv->sep_dom->dom_fmt;
 	    if (addr_format != FI_ADDR_STR) {
@@ -44,7 +44,7 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 		size_t cl = FI_CLASS_TX_CTX;
 
 		cep_priv = tofu_sep_lup_cep_byi_unsafe(sep_priv, cl, ix);
-                fprintf(stderr, "YI********* cep_priv(%p)\n", cep_priv);
+                //fprintf(stderr, "YI********* cep_priv(%p)\n", cep_priv);
 		if (cep_priv == 0) {
 		    cl = FI_CLASS_RX_CTX;
 		    cep_priv = tofu_sep_lup_cep_byi_unsafe(sep_priv, cl, ix);
@@ -62,7 +62,7 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 
 		nam[0] = 0;
 		fc = tofu_imp_ulib_gnam(ceps, offs_ulib, nam);
-                fprintf(stderr, "YI********* fc(%d)\n", fc);
+                //fprintf(stderr, "YI********* fc(%d)\n", fc);
 		if (fc != FI_SUCCESS) { goto bad; }
 
 		/*

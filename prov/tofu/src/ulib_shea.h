@@ -231,11 +231,12 @@ static inline void ulib_shea_chst(struct ulib_shea_esnd *esnd, uint8_t newst)
     else {
 	n_st = st_names[newst];
     }
-if (1) {
-printf("%p: %s --> %s\n", esnd, o_st, n_st);
-fflush(stdout);
+#if 0
+    if (1) {
+        printf("%p: %s --> %s\n", esnd, o_st, n_st);
+        fflush(stdout);
 }
-
+#endif /* 0 */
     esnd->l_st = newst;
 
     return ;

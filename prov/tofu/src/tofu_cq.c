@@ -62,13 +62,13 @@ static ssize_t tofu_cq_read(
 
     fastlock_acquire( &cq__priv->cq__lck );
 
-    fprintf(stderr, "\tYIUTOFU***: %s cq__priv->cq_ccq(%p)\n", __func__, cq__priv->cq__ccq);
+    //fprintf(stderr, "\tYIUTOFU***: %s cq__priv->cq_ccq(%p)\n", __func__, cq__priv->cq__ccq);
     if (ofi_cirque_isempty( cq__priv->cq__ccq )) {
 	{
 	    struct dlist_entry *head = &cq__priv->cq__htx;
 	    struct dlist_entry *curr, *next;
 
-            fprintf(stderr, "\tYIUTOFU***: %s cq__htx(%p)\n", __func__, head);
+            //fprintf(stderr, "\tYIUTOFU***: %s cq__htx(%p)\n", __func__, head);
 	    dlist_foreach_safe(head, curr, next) {
 		struct tofu_cep *cep_priv;
 		struct ulib_icep *icep;
@@ -89,7 +89,7 @@ static ssize_t tofu_cq_read(
 	    struct dlist_entry *head = &cq__priv->cq__hrx;
 	    struct dlist_entry *curr, *next;
 
-            fprintf(stderr, "\tYIUTOFU***: %s cq__hrx(%p)\n", __func__, head);
+            //fprintf(stderr, "\tYIUTOFU***: %s cq__hrx(%p)\n", __func__, head);
 	    dlist_foreach_safe(head, curr, next) {
 		struct tofu_cep *cep_priv;
 		struct ulib_icep *icep;

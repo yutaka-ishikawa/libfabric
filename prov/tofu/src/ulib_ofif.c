@@ -100,7 +100,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     struct ulib_icep *icep = (struct ulib_icep*) ((char*)ptr + off);
     struct ulib_isep *isep;
 
-    fprintf(stderr, "YI********** %s is CALLED\n", __func__); fflush(stderr);
+    //fprintf(stderr, "YI********** %s is CALLED\n", __func__); fflush(stderr);
     ENTER_RC_C(uc);
 
     if (icep == 0) {
@@ -165,7 +165,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     }
     isep = icep->isep;
 
-    fprintf(stderr, "YI*********** HERE in %s\n", __func__); fflush(stderr);
+    //fprintf(stderr, "YI*********** HERE in %s\n", __func__); fflush(stderr);
     /* unexpected entries */
     if (icep->uexp_fs == 0) {
 	/* YYY fi_rx_attr . total_buffered_recv and size ? */
@@ -174,7 +174,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
-    fprintf(stderr, "YI*********** UEXP_FS(%p) in %s\n", icep->uexp_fs, __func__); fflush(stderr);
+    //fprintf(stderr, "YI*********** UEXP_FS(%p) in %s\n", icep->uexp_fs, __func__); fflush(stderr);
     /* expected entries */
     if (icep->expd_fs == 0) {
 	/* YYY fi_rx_attr . size ? */
@@ -224,7 +224,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	}
 	tni_id = isep->tnis[icep->index];
 
-        fprintf(stderr, "YI******** CHECKCHECK tni_id(%d) %s\n", tni_id, __func__);
+        //fprintf(stderr, "YI******** CHECKCHECK tni_id(%d) %s\n", tni_id, __func__);
 	uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 
@@ -1266,9 +1266,11 @@ fflush(stdout);
 	ulib_icep_shea_data_qput(icep, udat);
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
-printf("%s:%d\tbusy_esnd %p empt %d\n", __FILE__, __LINE__,
-&icep->busy_esnd, dlist_empty(&icep->busy_esnd));
-fflush(stdout);
+#if 0
+    printf("%s:%d\tbusy_esnd %p empt %d\n", __FILE__, __LINE__,
+           &icep->busy_esnd, dlist_empty(&icep->busy_esnd));
+    fflush(stdout);
+#endif /* 0 */
     DLST_INST(&icep->busy_esnd, esnd, list);
 
     /* post */

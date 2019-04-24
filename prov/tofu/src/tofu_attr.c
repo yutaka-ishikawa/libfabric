@@ -476,7 +476,7 @@ int tofu_chck_av_attr(
 	if ((user_attr->flags & FI_EVENT) != 0) { fc = -FI_ENOSYS; goto bad; }
 
         FI_DBG( &tofu_prov, FI_LOG_AV, "\t%s\n", user_attr->name);
-        fprintf(stderr, "YI***** tofu_chck_av_attr %s\n", user_attr->name);
+        //fprintf(stderr, "YI***** tofu_chck_av_attr %s\n", user_attr->name);
 
 	if (user_attr->name != 0) { fc = -FI_ENOSYS; goto bad; }
 	if (user_attr->rx_ctx_bits < 0) { fc = -FI_EINVAL; goto bad; }
