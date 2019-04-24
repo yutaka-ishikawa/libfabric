@@ -45,13 +45,9 @@ struct ulib_shea_data {
     uint64_t flag;
     void *ctxt;
     void *toqc;
-#ifdef	notdef_perf_0001
-    void *toqc_cash;
-#else	/* notdef_perf_0001 */
     void *toqc_cash_tmpl;
     void *toqc_cash_real;
     struct ulib_toqc_cash real;
-#endif	/* notdef_perf_0001 */
     int (*func)(void *farg, int r_uc, const void *vctx);
     void *farg;
 #ifdef	CONF_ULIB_PERF_SHEA
@@ -63,13 +59,8 @@ struct ulib_shea_data {
 #define ULIB_SHEA_DATA_ZFLG	(1ULL << 1)
 
 struct ulib_shea_full {
-#ifdef	notdef_shea_fix4
-    union ulib_shea_va_u    addr;
-    union ulib_shea_ct_u    cntr;
-#else	/* notdef_shea_fix4 */
     union ulib_shea_ct_u    cntr;
     union ulib_shea_va_u    addr;
-#endif	/* notdef_shea_fix4 */
 };
 
 struct ulib_shea_esnd {
@@ -172,12 +163,8 @@ extern int	ulib_shea_foo8(
 		);
 extern int	ulib_shea_foo9(
 		    struct ulib_toqc *toqc,
-#ifdef	notdef_perf_0001
-		    struct ulib_toqc_cash *cash,
-#else	/* notdef_perf_0001 */
 		    struct ulib_toqc_cash *cash_tmpl,
 		    struct ulib_toqc_cash *cash_real,
-#endif	/* notdef_perf_0001 */
 		    struct ulib_shea_esnd *esnd
 		);
 extern int	ulib_shea_foo10(
@@ -345,17 +332,6 @@ static inline void * ulib_shea_data_toqc(const struct ulib_shea_data *data)
     rv = data->toqc;
     return rv;
 }
-#ifdef	notdef_perf_0001
-
-static inline void * ulib_shea_data_toqc_cash(const struct ulib_shea_data *data)
-{
-    void * rv;
-    assert(data != 0);
-    assert(data->toqc_cash != 0);
-    rv = data->toqc_cash;
-    return rv;
-}
-#else	/* notdef_perf_0001 */
 
 static inline void * ulib_shea_data_toqc_cash_tmpl(const struct ulib_shea_data *data)
 {
@@ -374,7 +350,6 @@ static inline void * ulib_shea_data_toqc_cash_real(const struct ulib_shea_data *
     rv = data->toqc_cash_real;
     return rv;
 }
-#endif	/* notdef_perf_0001 */
 
 static inline int ulib_shea_data_cbak(
     struct ulib_shea_data *data,
@@ -488,12 +463,8 @@ static inline void ulib_shea_data_init(
     data->flag = flag;
 
     /* data->toqc = 0; */
-#ifdef	notdef_perf_0001
-    /* data->toqc_cash = 0; */
-#else	/* notdef_perf_0001 */
     /* data->toqc_cash_tmpl = 0; */
     /* data->toqc_cash_real = 0; */
-#endif	/* notdef_perf_0001 */
     /* data->func = 0; */
     /* data->farg = 0; */
 #ifdef  CONF_ULIB_PERF_SHEA
@@ -507,7 +478,6 @@ static inline void ulib_shea_data_init(
 
     return ;
 }
-#ifndef	notdef_perf_0001
 
 extern void	ulib_shea_data_init_cash(
 		    struct ulib_shea_data *data,
@@ -515,7 +485,6 @@ extern void	ulib_shea_data_init_cash(
 		    void *toqc_cash_tmpl,
 		    void *toqc_cash_real
 		);
-#endif	/* notdef_perf_0001 */
 
 static inline void ulib_shea_data_init_cbak(
     struct ulib_shea_data *data,

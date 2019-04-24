@@ -40,7 +40,6 @@ static inline void ulib_shea_perf_l_st(int l_st, struct ulib_shea_data *data)
 #endif	/* CONF_ULIB_PERF_SHEA */
     return ;
 }
-#ifndef	notdef_perf_0001
 
 static inline void ulib_shea_cash_insq_tail( /* foo2 */
     struct ulib_toqd_cash *toqd,
@@ -111,8 +110,6 @@ static inline int ulib_shea_post_insq_tail( /* foo2 */
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#endif	/* notdef_perf_0001 */
-#ifndef	notdef_perf_0001
 
 static inline void ulib_shea_cash_remq_head( /* foo3 */
     struct ulib_toqd_cash *toqd,
@@ -187,8 +184,6 @@ static inline int ulib_shea_post_remq_head( /* foo3 */
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#endif	/* notdef_perf_0001 */
-#ifndef	notdef_perf_0001
 
 static inline void ulib_shea_cash_incr_cntr( /* foo4 */
     struct ulib_toqd_cash *toqd,
@@ -259,8 +254,6 @@ static inline int ulib_shea_post_incr_cntr( /* foo4 */
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#endif	/* notdef_perf_0001 */
-#ifndef	notdef_perf_0001
 
 static inline void ulib_shea_cash_data_wait( /* foo7 */
     struct ulib_toqd_cash *toqd,
@@ -342,7 +335,6 @@ static inline int ulib_shea_post_data_wait( /* foo7 */
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#endif	/* notdef_perf_0001 */
 
 
 /* ulib_shea_exec() */
@@ -352,22 +344,14 @@ int ulib_shea_foo0(
 {
     int uc = UTOFU_SUCCESS;
     struct ulib_toqc *toqc;
-#ifdef	notdef_perf_0001
-    struct ulib_toqc_cash *cash;
-#else	/* notdef_perf_0001 */
     struct ulib_toqc_cash *cash_tmpl;
     struct ulib_toqc_cash *cash_real;
-#endif	/* notdef_perf_0001 */
 
     ENTER_RC_C(uc);
 
     toqc = ulib_shea_data_toqc(esnd->data);
-#ifdef	notdef_perf_0001
-    cash = ulib_shea_data_toqc_cash(esnd->data);
-#else	/* notdef_perf_0001 */
     cash_tmpl = ulib_shea_data_toqc_cash_tmpl(esnd->data);
     cash_real = ulib_shea_data_toqc_cash_real(esnd->data);
-#endif	/* notdef_perf_0001 */
 
 next_state:
     switch (esnd->l_st) { /* local state */
@@ -376,22 +360,14 @@ next_state:
 	uint64_t pred;
     case INSQ_TAIL:
 	ulib_shea_perf_l_st(INSQ_TAIL, esnd->data);
-#ifdef	notdef_perf_0001
-	toqd = cash->swap;
-	/* uc = ulib_shea_insq_tail(toqc, toqd, esnd); */
-	uc = ulib_shea_foo2(toqc, toqd, esnd);
-	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 	if (cash_real->swap[0].size == 0) {
 	    ulib_shea_cash_insq_tail(cash_real->swap, cash_tmpl->swap, esnd);
 	}
 	toqd = cash_real->swap;
 	uc = ulib_shea_post_insq_tail(toqc, toqd, esnd);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#endif	/* notdef_perf_0001 */
 	/* INSQ_TAIL --> INSQ_CHCK */
 	ulib_shea_chst(esnd, INSQ_CHCK);
-#ifndef	notdef_perf_0001
 	if (cash_real->fadd[0].size == 0) {
 	    ulib_shea_cash_incr_cntr(cash_real->fadd, cash_tmpl->fadd, esnd);
 	}
@@ -401,7 +377,6 @@ next_state:
 	if (cash_real->puti[0].size == 0) {
 	    ulib_shea_cash_data_wait(cash_real->puti, cash_tmpl->puti, esnd);
 	}
-#endif	/* notdef_perf_0001 */
 	break;
     case INSQ_CHCK:
 	ulib_shea_perf_l_st(INSQ_CHCK, esnd->data);
@@ -436,18 +411,11 @@ printf("#%d\twait_head YYY schd_self()\n", __LINE__);
 	break;
     case INCR_CNTR:
 	ulib_shea_perf_l_st(INCR_CNTR, esnd->data);
-#ifdef	notdef_perf_0001
-	toqd = cash->fadd;
-	/* uc = ulib_shea_incr_cntr(toqc, toqd, esnd) */
-	uc = ulib_shea_foo4(toqc, toqd, esnd);
-	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 	if (cash_real->fadd[0].size == 0) {
 	    ulib_shea_cash_incr_cntr(cash_real->fadd, cash_tmpl->fadd, esnd);
 	}
 	toqd = cash_real->fadd;
 	uc = ulib_shea_post_incr_cntr(toqc, toqd, esnd);
-#endif	/* notdef_perf_0001 */
 	/* INCR_CNTR --> HAVE_ROOM */
 	ulib_shea_chst(esnd, HAVE_ROOM);
 	break;
@@ -485,19 +453,12 @@ fflush(stdout);
 	    ulib_shea_chst(esnd, WAIT_NEXT);
 	    goto next_state;
 	}
-#ifdef	notdef_perf_0001
-	toqd = cash->cswp;
-	/* uc = ulib_shea_remq_head(toqc, toqd, esnd); */
-	uc = ulib_shea_foo3(toqc, toqd, esnd);
-	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 	if (cash_real->cswp[0].size == 0) {
 	    ulib_shea_cash_remq_head(cash_real->cswp, cash_tmpl->cswp, esnd);
 	}
 	toqd = cash_real->cswp;
 	uc = ulib_shea_post_remq_head(toqc, toqd, esnd);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#endif	/* notdef_perf_0001 */
 	/* REMQ_HEAD --> REMQ_CHCK */
 	ulib_shea_chst(esnd, REMQ_CHCK);
 	break;
@@ -532,15 +493,9 @@ printf("#%d\twait_next YYY schd_self()\n", __LINE__);
     case SEND_NORM:
 	rblk = ulib_shea_data_rblk(esnd->data);
 	if (rblk > 0) {
-#ifdef	notdef_perf_0001
-	    /* uc = ulib_shea_data(toqc, cash, esnd); */
-	    uc = ulib_shea_foo9(toqc, cash, esnd);
-	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 	    /* uc = ulib_shea_data(toqc, cash_tmpl, cash_real, esnd); */
 	    uc = ulib_shea_foo9(toqc, cash_tmpl, cash_real, esnd);
 	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#endif	/* notdef_perf_0001 */
 #ifdef	CONF_ULIB_UTOF_FIX2
 	    break; /* for progress */
 #endif	/* CONF_ULIB_UTOF_FIX2 */
@@ -561,15 +516,9 @@ rblk, esnd->d_st);
 fflush(stdout);
 }
 	if (rblk > 0) {
-#ifdef	notdef_perf_0001
-	    /* uc = ulib_shea_data(toqc, cash, esnd); */
-	    uc = ulib_shea_foo9(toqc, cash, esnd);
-	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 	    /* uc = ulib_shea_data(toqc, cash_tmpl, cash_real, esnd); */
 	    uc = ulib_shea_foo9(toqc, cash_tmpl, cash_real, esnd);
 	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#endif	/* notdef_perf_0001 */
 #ifdef	CONF_ULIB_UTOF_FIX2
 	    break; /* for progress */
 #endif	/* CONF_ULIB_UTOF_FIX2 */
@@ -1063,7 +1012,6 @@ printf("\tW: R->S ccnt %"PRIu64"\n", lval);
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#ifndef	notdef_perf_0001
 
 static inline void  ulib_shea_cash_data_phdr( /* foo10 */
 			struct ulib_toqd_cash *toqd,
@@ -1098,7 +1046,6 @@ static inline int   ulib_shea_post_data_data( /* foo12 */
 			struct ulib_toqd_cash toqd[2],
 			struct ulib_shea_esnd *esnd
 		    );
-#endif	/* notdef_perf_0001 */
 static inline void  ulib_shea_recv_info(
 			const void *vp_rpkt,
 			struct ulib_shea_uexp *rinf
@@ -1107,12 +1054,8 @@ static inline void  ulib_shea_recv_info(
 /* ulib_shea_data() */
 int ulib_shea_foo9(
     struct ulib_toqc *toqc,
-#ifdef	notdef_perf_0001
-    struct ulib_toqc_cash *cash,
-#else	/* notdef_perf_0001 */
     struct ulib_toqc_cash *cash_tmpl,
     struct ulib_toqc_cash *cash_real,
-#endif	/* notdef_perf_0001 */
     struct ulib_shea_esnd *esnd
 )
 {
@@ -1158,11 +1101,6 @@ fflush(stdout);
 }
 }
 	if (nsnd > 0) {
-#ifdef	notdef_perf_0001
-	    /* uc = ulib_shea_data_data(toqc, cash->data, esnd, nsnd); */
-	    uc = ulib_shea_foo12(toqc, 0 /* YYY */, esnd, nsnd);
-	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 if (0) {
 printf("cash tmpl putd %2ld %2ld real %2ld %2ld\n",
 cash_tmpl->putd[0].size, cash_tmpl->putd[1].size,
@@ -1190,13 +1128,7 @@ cash_real->putd[0].size, cash_real->putd[1].size);
 	    }
 	    uc =  ulib_shea_post_data_data(toqc, cash_real->putd, esnd);
 	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#endif	/* notdef_perf_0001 */
 
-#ifdef	notdef_perf_0001
-	    /* uc = ulib_shea_data_phdr(toqc, cash->phdr, esnd, nsnd); */
-	    uc = ulib_shea_foo10(toqc, cash->phdr, esnd, nsnd);
-	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 	    if ( 1 /* cash_real->phdr[0].size == 0 */ ) {
 		ulib_shea_cash_data_phdr(cash_real->phdr,
 		    cash_tmpl->phdr, esnd, nsnd);
@@ -1207,7 +1139,6 @@ cash_real->putd[0].size, cash_real->putd[1].size);
 		RETURN_BAD_C(uc);
 	    }
 	    /* cash_real->phdr[0].size = 0; */
-#endif	/* notdef_perf_0001 */
 	    /* update pcnt and boff */
 	    {
 		(void) ulib_shea_data_incr_boff(esnd->data, nsnd);
@@ -1228,10 +1159,6 @@ fflush(stdout);
 }
 	if (go_wait != 0) {
 	    if (go_wait == 1) {
-#ifdef	notdef_perf_0001
-		uc = ulib_shea_foo11(toqc, cash->phdr, esnd, nsnd);
-		if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 		if ( 1 /* cash_real->phdr[0].size == 0 */ ) {
 		    ulib_shea_cash_data_phdr_wait(cash_real->phdr,
 			cash_tmpl->phdr, esnd, nsnd);
@@ -1242,22 +1169,15 @@ fflush(stdout);
 		    RETURN_BAD_C(uc);
 		}
 		/* cash_real->phdr[0].size = 0; */
-#endif	/* notdef_perf_0001 */
 	    }
 	    else {
 		assert(go_wait == 2);
-#ifdef	notdef_perf_0001
-		/* uc = ulib_shea_data_wait(toqc, cash->puti, esnd); */
-		uc = ulib_shea_foo7(toqc, cash->puti, esnd);
-		if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#else	/* notdef_perf_0001 */
 		if ( 1 /* cash_real->puti[0].size == 0 */) {
 		    ulib_shea_cash_data_wait(cash_real->puti,
 			cash_tmpl->puti, esnd);
 		}
 		uc = ulib_shea_post_data_wait(toqc, cash_real->puti, esnd);
 		if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-#endif	/* notdef_perf_0001 */
 	    }
 	    esnd->d_st = DATA_FULL;
 	}
@@ -1268,94 +1188,6 @@ fflush(stdout);
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
-#ifdef	notdef_shea_fix5
-/*
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             seqn                              | [0]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * | type|z|t| aoff|      llen     |      ///      |      ///      | [1]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             nblk                              | [2]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             mblk                              | [3]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             utag (1)                          | [4]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             utag (2)                          | [5]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             srci                              | [6]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             c_id                              | [7]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- */
-
-struct ulib_shea_phlh {
-    uint32_t    seqn;
-    uint8_t     type : 3; /* ULIB_SHEA_PH_LARGE */
-    uint8_t     zflg : 1;
-    uint8_t     tflg : 1;
-    uint8_t     aoff : 3;
-    uint8_t     llen;
-    uint8_t     rsv1;
-    uint8_t     rsv2;
-    uint32_t    nblk;
-    uint32_t    mblk;
-    uint64_t    utag;
-    uint32_t    srci;
-    uint32_t    c_id;
-};
-
-struct ulib_shea_phlc {
-    uint32_t    seqn;
-    uint8_t     type : 3; /* ULIB_SHEA_PH_LARGE_CONT */
-    uint8_t     zflg : 1;
-    uint8_t     tflg : 1;
-    uint8_t     aoff : 3;
-    uint8_t     llen;
-    uint8_t     rsv1;
-    uint8_t     rsv2;
-    uint32_t    nblk;
-    uint32_t    boff;
-    uint64_t    utag;
-    uint32_t    srci;
-    uint32_t    c_id;
-};
-
-/*
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             seqn                              | [0]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * | type|z|t| /// |      ///      |      ///      |      ///      | [1]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             addr (1)                          | [2]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             addr (2)                          | [3]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             cntr (1)                          | [4]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             cntr (2)                          | [5]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             srci                              | [6]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             c_id                              | [7]
- * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- */
-
-struct ulib_shea_phwl {
-    uint32_t    seqn;
-    uint8_t     type : 3; /* ULIB_SHEA_PH_WAIT[SA] */
-    uint8_t     zflg : 1;
-    uint8_t     tflg : 1;
-    uint8_t     rsv4 : 3;
-    uint8_t     rsv3;
-    uint8_t     rsv1;
-    uint8_t     rsv2;
-    uint64_t    addr;
-    uint64_t    cntr;
-    uint32_t    srci;
-    uint32_t    c_id;
-};
-#else	/* notdef_shea_fix5 */
 /*
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             srci                              | [0]
@@ -1442,7 +1274,6 @@ struct ulib_shea_phwl {
     uint32_t    c_id;
     uint32_t    seqn;
 };
-#endif	/* notdef_shea_fix5 */
 
 union ulib_shea_ph_u {
     struct ulib_shea_phlh   phlh;
@@ -1522,7 +1353,6 @@ static inline void ulib_shea_make_phdr(
 
     return /* uc */;
 }
-#ifndef	notdef_perf_0001
 
 static inline void ulib_shea_cash_data_phdr( /* foo10 */
     struct ulib_toqd_cash *toqd,
@@ -1618,7 +1448,6 @@ static inline int ulib_shea_post_data_phdr( /* foo10 */
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#endif	/* notdef_perf_0001 */
 
 /* ulib_shea_data_phdr() */
 int ulib_shea_foo10(
@@ -1723,7 +1552,6 @@ pcnt + nsnd, pcnt, (uint32_t)ulib_shea_data_rblk(esnd->data));
 
     return /* uc */;
 }
-#ifndef	notdef_perf_0001
 
 static inline void ulib_shea_cash_data_phdr_wait( /* foo11 */
     struct ulib_toqd_cash *toqd,
@@ -1819,7 +1647,6 @@ static inline int ulib_shea_post_data_phdr_wait( /* foo11 */
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#endif	/* notdef_perf_0001 */
 
 /* ulib_shea_data_phdr_wait() */
 int ulib_shea_foo11(
@@ -1889,7 +1716,6 @@ int ulib_shea_foo11(
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#ifndef	notdef_perf_0001
 
 static inline void ulib_shea_cash_data_data( /* foo12 */
     struct ulib_toqd_cash toqd[2],
@@ -2055,7 +1881,6 @@ static inline int ulib_shea_post_data_data( /* foo12 */
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#endif	/* notdef_perf_0001 */
 
 /* ulib_shea_data_data() */
 int ulib_shea_foo12(
@@ -2073,7 +1898,6 @@ int ulib_shea_foo12(
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#ifndef	notdef_shea_phdr
 
 static inline union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
     struct ulib_shea_ercv *ercv
@@ -2091,7 +1915,6 @@ static inline union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
 
     return phdr;
 }
-#endif	/* notdef_shea_phdr */
 
 static inline void /* int */ ulib_shea_recv_hndr_full(
     struct ulib_shea_ercv *ercv,
@@ -2099,60 +1922,23 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
 )
 {
     /* int uc = UTOFU_SUCCESS; */
-#ifdef	notdef_shea_phdr
-    volatile union ulib_shea_ph_u *phdr = ercv->phdr;
-#else	/* notdef_shea_phdr */
     volatile union ulib_shea_ph_u *phdr;
-#endif	/* notdef_shea_phdr */
     union ulib_shea_ph_u phwl;
 
     assert(ercv->cntr.ct_s.pcnt != ercv->cntr.ct_s.ccnt);
     full->addr.va64 = ULIB_SHEA_NIL8;
 
-#ifdef	notdef_shea_phdr
-    /* powerof2(ULIB_SHEA_MBLK) */
-    assert((((ULIB_SHEA_MBLK) - 1) & (ULIB_SHEA_MBLK)) == 0);
-    /* phdr */
-    {
-	uint32_t hloc = ercv->cntr.ct_s.ccnt & (ULIB_SHEA_MBLK-1);
-	// phdr += (hloc * sizeof (phdr[0]));
-	phdr += hloc;
-    }
-#else	/* notdef_shea_phdr */
     /* phdr */
     phdr = ulib_shea_recv_hdlr_phdr(ercv);
-#endif	/* notdef_shea_phdr */
 
-#ifdef	notdef_shea_fix5
-    phwl.ui64[0] = phdr->ui64[0];
-#else	/* notdef_shea_fix5 */
     phwl.phwl.seqn = phdr->phwl.seqn;
-#endif	/* notdef_shea_fix5 */
     if (phwl.phwl.seqn != ercv->cntr.ct_s.ccnt) {
 	full->cntr.ct_s.pcnt = ULIB_SHEA_PH_UNDEF;
 	goto bad; /* XXX - is not an error */
     }
-#ifndef	notdef_shea_fix5
     phwl.phwl.type = phdr->phwl.type;
-#endif	/* notdef_shea_fix5 */
 
     if (phwl.phwl.type == ULIB_SHEA_PH_WAITS) {
-#ifdef	notdef_shea_fix5
-
-	/* wait for updating last word (phdr->ui64[3]) */
-	{
-	    unsigned long loop = 1000; /* XXX */
-
-	    do {
-		if (phdr->phwl.c_id == ULIB_SHEA_PH_MARKER_W) {
-		    break;
-		}
-	    } while (loop-- == 1);
-	    if (loop == 0) {
-		/* YYY abort  */
-	    }
-	}
-#endif	/* notdef_shea_fix5 */
 	/* copy phdr */
 	phwl.ui64[0] = phdr->ui64[0];
 	phwl.ui64[1] = phdr->ui64[1];
@@ -2171,9 +1957,6 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
 #ifndef	DEBUG_SHEA_PHWL
 	{
 	    phdr->phwl.type = ULIB_SHEA_PH_WAITA;
-#ifdef	NOTDEF
-	    phdr->phwl.c_id = UINT32_MAX; /* ULIB_SHEA_PH_MARKER_A */
-#endif	/* NOTDEF */
 	}
 #else	/* DEBUG_SHEA_PHWL */
 	{
@@ -2189,21 +1972,6 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
 		/* YYY abort  */
 	    }
 	}
-#ifdef	NOTDEF
-	{
-	    union ulib_shea_ph_u umod;
-	    uint64_t sval, fval; /* fetch and store value */
-
-	    umod.ui64[3] = phwl.ui64[3];
-	    umod.phwl.c_id = UINT32_MAX; /* ULIB_SHEA_PH_MARKER_A */
-
-	    sval = umod.ui64[3];
-	    fval = atomic_exchange( &phdr->ui64[3], sval ); /* YYY */
-	    if (fval != phwl.ui64[3]) {
-		/* YYY abort  */
-	    }
-	}
-#endif	/* NOTDEF */
 #endif	/* DEBUG_SHEA_PHWL */
     }
     else if (phwl.phwl.type == ULIB_SHEA_PH_WAITA) {
@@ -2434,11 +2202,7 @@ int ulib_shea_recv_hndr_prog(
 )
 {
     int uc = UTOFU_SUCCESS;
-#ifdef	notdef_shea_phdr
-    volatile union ulib_shea_ph_u *phdr = ercv->phdr;
-#else	/* notdef_shea_phdr */
     union ulib_shea_ph_u *phdr;
-#endif	/* notdef_shea_phdr */
     uint32_t nblk;
 #ifdef	CONF_ULIB_PERF_SHEA
     uint64_t tick[4];
@@ -2479,19 +2243,6 @@ int ulib_shea_recv_hndr_prog(
 	}
     }
 
-#ifdef	notdef_shea_phdr
-    /* powerof2(ULIB_SHEA_MBLK) */
-    assert((((ULIB_SHEA_MBLK) - 1) & (ULIB_SHEA_MBLK)) == 0);
-    /* phdr */
-    {
-	uint32_t hloc = ercv->cntr.ct_s.ccnt & (ULIB_SHEA_MBLK-1);
-	// phdr += (hloc * sizeof (phdr[0]));
-	phdr += hloc;
-    }
-    if (phdr->phlh.seqn != ercv->cntr.ct_s.ccnt) {
-	goto chck_wait;
-    }
-#else	/* notdef_shea_phdr */
     /* phdr */
     phdr = ulib_shea_recv_hdlr_phdr(ercv);
     {
@@ -2501,7 +2252,6 @@ int ulib_shea_recv_hndr_prog(
 	    goto chck_wait;
 	}
     }
-#endif	/* notdef_shea_phdr */
 
     if (phdr->phlh.type == ULIB_SHEA_PH_LARGE) {
 	assert(phdr->phlh.nblk > 0);
@@ -2589,7 +2339,6 @@ chck_wait:
 
     RETURN_RC_C(uc, /* do nothing */ );
 }
-#ifndef	notdef_perf_0001
 
 void ulib_shea_data_init_cash(
     struct ulib_shea_data *data,
@@ -2604,7 +2353,6 @@ void ulib_shea_data_init_cash(
 
     return ;
 }
-#endif	/* notdef_perf_0001 */
 
 /* #define TEST_CBUF_ESND */
 
@@ -2887,18 +2635,7 @@ int ulib_shea_cbuf_enab_buff(
 	    /* ercv init */
 	    ulib_shea_cbuf_ercv_init(cbuf, 0 /* func */ , 0 /* farg */ ); /* YYY */
 	    /* hdrs init */
-#ifdef	NOTDEF
-	    {
-		union ulib_shea_ph_u *phdr = cbuf->cptr_hdrs;
-
-		phdr[0].phlh.seqn = UINT32_MAX;
-#ifndef	NDEBUG
-		phdr[0].phlh.type = ULIB_SHEA_PH_UNDEF;
-#endif	/* NDEBUG */
-	    }
-#else	/* NOTDEF */
 	    ulib_shea_cbuf_hdrs_init(cbuf);
-#endif	/* NOTDEF */
 	    /* cptr_esnd */
 	    {
 		uint32_t ic, nc = cbuf->scnt;
