@@ -727,7 +727,7 @@ static inline int ulib_icqu_comp_tsnd(
 	uint32_t nblk, llen;
 
 	nblk = ulib_shea_data_nblk(udat);
-	llen = ulib_shea_data_nblk(udat);
+	llen = ulib_shea_data_llen(udat);
 
 	assert(nblk > 0);
 	tlen = ((nblk - 1) * ULIB_SHEA_DBLK) + llen; /* YYY MACRO ? */
