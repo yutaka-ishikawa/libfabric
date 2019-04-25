@@ -2209,7 +2209,7 @@ static inline void ulib_shea_recv_info(
 	    } else {
 		iovs[0].iov_base = (void *)(((char*)ercv->dptr) + hloc * bsiz);
 		iovs[0].iov_len  = ((hcnt - hloc) * bsiz);
-		iovs[1].iov_base = 0;
+		iovs[1].iov_base = (void *)((char*)ercv->dptr);
 		iovs[1].iov_len  = ((nblk - (hcnt - hloc)) * bsiz);
 		if (llen > 0) {
 		    iovs[1].iov_len -= (bsiz - llen);
