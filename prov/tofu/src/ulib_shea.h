@@ -42,6 +42,7 @@ struct ulib_shea_data {
     uint32_t llen; /* last length */
     uint32_t rank;
     uint64_t utag;
+    uint64_t idat;
     uint64_t flag;
     void *ctxt;
     void *toqc;
@@ -57,6 +58,7 @@ struct ulib_shea_data {
 
 #define ULIB_SHEA_DATA_TFLG	(1ULL << 0)
 #define ULIB_SHEA_DATA_ZFLG	(1ULL << 1)
+#define ULIB_SHEA_DATA_IFLG	(1ULL << 2)
 
 struct ulib_shea_full {
     union ulib_shea_ct_u    cntr;
@@ -308,6 +310,14 @@ static inline uint64_t ulib_shea_data_utag(const struct ulib_shea_data *data)
     return rv;
 }
 
+static inline uint64_t ulib_shea_data_idat(const struct ulib_shea_data *data)
+{
+    uint64_t rv;
+    assert(data != 0);
+    rv = data->idat;
+    return rv;
+}
+
 static inline uint64_t ulib_shea_data_flag(const struct ulib_shea_data *data)
 {
     uint64_t rv;
@@ -430,6 +440,7 @@ static inline void ulib_shea_data_init(
     size_t tlen,
     uint32_t vpid,
     uint64_t utag,
+    uint64_t idat,
     uint64_t flag
 )
 {
@@ -439,6 +450,7 @@ static inline void ulib_shea_data_init(
     /* data->buff = buff; */
     data->rank = vpid;
     data->utag = utag;
+    data->idat = idat;
     data->boff = boff;
     data->ctxt = ctxt;
 
@@ -515,15 +527,17 @@ struct ulib_shea_uexp {
     uint32_t mblk;                 /* # of blocks will be received */
     uint32_t nblk;      /* current # of blocks received */
     uint32_t boff;      /* current last pointer */
-    uint32_t flag;      /* fi flag */
+    uint32_t flag;      /* ULIB_SHEA_UEXP_FLAG_+ (see below) */
     uint32_t srci;      /* for debug perpose (source rank) */
     struct ulib_shea_rbuf rbuf; /* receive buffer */
+    uint64_t idat;	/* immediate data */
     uint64_t tims[1];   /* used for statistics (time) */
 };
 
 #define ULIB_SHEA_UEXP_FLAG_MBLK    0x01
 #define ULIB_SHEA_UEXP_FLAG_TFLG    0x02
 #define ULIB_SHEA_UEXP_FLAG_ZFLG    0x04
+#define ULIB_SHEA_UEXP_FLAG_IFLG    0x08
 
 /* ======================================================================== */
 

@@ -563,10 +563,11 @@ tofu_imp_ulib_send_post_fast(
     {
 	uint32_t vpid;
 	uint64_t flag = ((iflg & FI_TAGGED) == 0)? 0: ULIB_SHEA_DATA_TFLG;
+	uint64_t idat = -2UL;
 
 	vpid = cash_tmpl->vpid; /* remote vpid */
 
-	ulib_shea_data_init(udat, ctxt, tlen, vpid, utag, flag);
+	ulib_shea_data_init(udat, ctxt, tlen, vpid, utag, idat, flag);
     }
     /* data_init_cash() */
     {

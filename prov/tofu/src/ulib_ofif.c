@@ -686,11 +686,13 @@ ulib_icqu_comp_trcv(void *vp_cq__priv,
     cq_e->flags		=   FI_RECV
 			    | FI_MULTI_RECV
 			    | (expd->flgs & FI_TAGGED)
+			    | (expd->rflg & FI_REMOTE_CQ_DATA)
 			    ;
     cq_e->len		= expd->wlen;
     cq_e->buf		= expd->tmsg.msg_iov[0].iov_base;
-    cq_e->data		= 0;
+    cq_e->data		= expd->idat; /* FI_REMOTE_CQ_DATA */
     cq_e->tag		= expd->rtag;
+
 
     if (vp_cq__priv != 0) {
 	int fc;
@@ -843,6 +845,11 @@ ulib_icep_recv_frag(struct ulib_shea_expd *trcv,
     if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
 	trcv->mblk  = rinf->mblk;
 	trcv->rtag  = rinf->utag;
+	trcv->rflg |= ((rinf->flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0)?
+			FI_TAGGED: 0;
+	trcv->rflg |= ((rinf->flag & ULIB_SHEA_UEXP_FLAG_IFLG) != 0)?
+			FI_REMOTE_CQ_DATA: 0;
+	trcv->idat  = rinf->idat; /* FI_REMOTE_CQ_DATA */
     }
     /* copy to the user buffer */
     wlen = ulib_copy_iovs(trcv->iovs, trcv->niov,trcv->wlen,
@@ -1170,14 +1177,21 @@ int ulib_icep_shea_send_post(
 	size_t tlen;
 	uint32_t vpid; /* remote network address */
 	const uint64_t utag = tmsg->tag;
-	const uint64_t flag = ULIB_SHEA_DATA_TFLG;
+	uint64_t idat;
+	uint64_t flag = ULIB_SHEA_DATA_TFLG;
 
 	tlen = ofi_total_iov_len(tmsg->msg_iov, tmsg->iov_count);
 
 	vpid = cash_tmpl->vpid;
 
+	if ((flags & FI_REMOTE_CQ_DATA) != 0) {
+	    flag |= ULIB_SHEA_DATA_IFLG;
+	    idat = tmsg->data;
+	} else {
+	    idat = -2UL;
+	}
 // printf("tlen %5ld vpid %3d utag %016"PRIx64"\n", tlen, vpid, utag);
-	ulib_shea_data_init(udat, ctxt, tlen, vpid, utag, flag);
+	ulib_shea_data_init(udat, ctxt, tlen, vpid, utag, idat, flag);
     }
     /* data_init_cash */
     {

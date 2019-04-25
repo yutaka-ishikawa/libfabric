@@ -364,6 +364,7 @@ tofu_cep_tag_sendmsg(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
     return ret;
 }
 
@@ -402,7 +403,7 @@ tofu_cep_tag_senddata(struct fid_ep *fid_ep,
     tmsg.tag	    = tag;
     tmsg.ignore	    = -1ULL;	/* ???? */
     tmsg.context    = context;
-    tmsg.data	    = 0;
+    tmsg.data	    = data;
 
     ret = tofu_cep_msg_send_common(fid_ep, &tmsg, flags);
     return ret;

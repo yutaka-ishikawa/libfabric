@@ -209,8 +209,10 @@ struct ulib_shea_expd {
     uint64_t rtag;
     uint32_t wlen;
     uint32_t olen;
+    uint32_t rflg;
     uint32_t niov;
     struct iovec iovs[2];
+    uint64_t idat;
     uint64_t tims[16];
 };
 
@@ -235,7 +237,8 @@ ulib_shea_expd_init(struct ulib_shea_expd *expd,
     expd->rtag = 0;
     expd->wlen = 0;
     expd->olen = 0;
-    /* expd->flag = 0; */ /* YYY */
+    expd->rflg = 0;
+    expd->idat = 0;
     dlist_init(&expd->entry);
     expd->flgs = flags; /* | FI_TAGGED */
     expd->tmsg = tmsg[0]; /* structure copy */

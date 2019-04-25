@@ -1322,6 +1322,7 @@ static inline void ulib_shea_make_phdr(
 	uint32_t llen = 0;
 	const uint32_t rank = ulib_shea_data_rank(esnd->data); /* vpid */
 	const uint64_t utag = ulib_shea_data_utag(esnd->data);
+	const uint64_t idat = ulib_shea_data_idat(esnd->data);
 	const uint64_t flag = ulib_shea_data_flag(esnd->data);
 
 	assert(nblk <= (1 << 24));
@@ -1336,6 +1337,7 @@ static inline void ulib_shea_make_phdr(
             phdr->phlh.type = ULIB_SHEA_PH_LARGE;
             phdr->phlh.tflg = ((flag & ULIB_SHEA_DATA_TFLG) != 0);
             phdr->phlh.zflg = ((flag & ULIB_SHEA_DATA_ZFLG) != 0);
+            phdr->phlh.iflg = ((flag & ULIB_SHEA_DATA_IFLG) != 0);
             /* phdr->phlh.rsv1 = 0; */
             phdr->phlh.llen = llen;
             /* phdr->phlh.rsv2 = 0; */
@@ -1344,7 +1346,7 @@ static inline void ulib_shea_make_phdr(
             phdr->phlh.nblk = nsnd;
             phdr->phlh.mblk = nblk;
             phdr->phlh.srci = rank;
-            phdr->phlh.idat = 0; /* XXX ULIB_SHEA_PH_MARKER_L */
+            phdr->phlh.idat = idat; /* XXX ULIB_SHEA_PH_MARKER_L */
             phdr->phlh.utag = utag;
         } else {
             phdr->ui64[0] = 0;
@@ -1352,6 +1354,7 @@ static inline void ulib_shea_make_phdr(
             phdr->phlc.type = ULIB_SHEA_PH_LARGE_CONT;
             phdr->phlc.tflg = ((flag & ULIB_SHEA_DATA_TFLG) != 0);
             phdr->phlc.zflg = ((flag & ULIB_SHEA_DATA_ZFLG) != 0);
+            phdr->phlc.iflg = ((flag & ULIB_SHEA_DATA_IFLG) != 0);
             /* phdr->phlc.rsv1 = 0; */
             phdr->phlc.llen = llen;
             /* phdr->phlc.rsv2 = 0; */
@@ -1360,7 +1363,7 @@ static inline void ulib_shea_make_phdr(
             phdr->phlc.nblk = nsnd;
             phdr->phlc.boff = boff;
             phdr->phlc.srci = rank;
-            phdr->phlc.idat = 0; /* XXX ULIB_SHEA_PH_MARKER_L */
+            phdr->phlc.idat = idat; /* XXX ULIB_SHEA_PH_MARKER_L */
             phdr->phlc.utag = utag;
         }
     }
@@ -1564,6 +1567,7 @@ static inline void ulib_shea_make_phdr_wait(
 	phdr->phwl.type = ULIB_SHEA_PH_WAITS;
 	phdr->phwl.tflg = ((flag & ULIB_SHEA_DATA_TFLG) != 0);
 	phdr->phwl.zflg = ((flag & ULIB_SHEA_DATA_ZFLG) != 0);
+	phdr->phwl.iflg = ((flag & ULIB_SHEA_DATA_IFLG) != 0); /* XXX */
 	/* phdr->phwl.rsv1 = 0; */
 	/* phdr->phwl.rsv4 = 0; */
 	/* phdr->phwl.rsv2 = 0; */
@@ -2135,6 +2139,8 @@ static inline void ulib_shea_recv_info(
 	rinf->flag = ULIB_SHEA_UEXP_FLAG_MBLK;
 	rinf->flag |= ((ph_u->phlh.tflg != 0)? ULIB_SHEA_UEXP_FLAG_TFLG: 0);
 	rinf->flag |= ((ph_u->phlh.zflg != 0)? ULIB_SHEA_UEXP_FLAG_ZFLG: 0);
+	rinf->flag |= ((ph_u->phlh.iflg != 0)? ULIB_SHEA_UEXP_FLAG_IFLG: 0);
+	rinf->idat = ph_u->phlh.idat;
     } else if (ph_u->phlh.type == ULIB_SHEA_PH_LARGE_CONT) {
 	rinf->utag = ph_u->phlc.utag;
 	rinf->srci = ph_u->phlc.srci;
@@ -2143,6 +2149,8 @@ static inline void ulib_shea_recv_info(
 	rinf->flag  = 0;
 	rinf->flag |= ((ph_u->phlc.tflg != 0)? ULIB_SHEA_UEXP_FLAG_TFLG: 0);
 	rinf->flag |= ((ph_u->phlc.zflg != 0)? ULIB_SHEA_UEXP_FLAG_ZFLG: 0);
+	rinf->flag |= ((ph_u->phlc.iflg != 0)? ULIB_SHEA_UEXP_FLAG_IFLG: 0);
+	rinf->idat = ph_u->phlc.idat;
     } else {
 	/* YYY abort */
 	rinf->utag = UINT64_MAX;

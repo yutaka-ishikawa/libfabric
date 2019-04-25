@@ -235,7 +235,7 @@ static struct fi_domain_attr tofu_domain_attr = {
     .mr_mode = FI_MR_BASIC,			/* YYY */ 
 #endif	/* NOTYET */
     .mr_key_size = sizeof (uint64_t),
-    .cq_data_size = 0,
+    .cq_data_size = 4,
     .cq_cnt = 44 * 2 /* tx+rx */,
 		/* = 44 (= (12-1) * 4 */
 		/* = 66 (= (12-1) * 6 */
