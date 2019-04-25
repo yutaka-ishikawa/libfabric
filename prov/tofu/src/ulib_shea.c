@@ -978,7 +978,7 @@ int ulib_shea_foo8(
 	struct ulib_toqd_cash toqd[1];
         uint64_t * const retp = 0;
 
-        //fprintf(stderr, "\tYIUTOFU***: %s toqc(%p) raui(%ld) ercv(%p)\n", __func__, toqc, raui, ercv);
+        fprintf(stderr, "\tYIPROTOCOL***: %s toqc(%p) raui(%ld) ercv(%p)\n", __func__, toqc, raui, ercv);
 	uc = ulib_utof_cash_remote(raui, c_id, epnt, rcsh);
         //fprintf(stderr, "\tYIUTOFU***: %s uc(%d)\n", __func__, uc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
@@ -1063,13 +1063,13 @@ int ulib_shea_foo9(
     nava = ulib_shea_cntr_diff(&esnd->cntr[0]);
 
     if (esnd->d_st == DATA_FULL) {
-if (0) {
-if (esnd->l_st == SEND_EXCL) {
-printf("#%d\tnava %"PRIu64" (pc %u cc %u)\n", __LINE__,
-nava, esnd->cntr[0].ct_s.pcnt, esnd->cntr[0].ct_s.ccnt);
-fflush(stdout);
-}
-}
+        if (0) {
+            if (esnd->l_st == SEND_EXCL) {
+                printf("#%d\tnava %"PRIu64" (pc %u cc %u)\n", __LINE__,
+                       nava, esnd->cntr[0].ct_s.pcnt, esnd->cntr[0].ct_s.ccnt);
+                fflush(stdout);
+            }
+        }
 	if (nava <= 1) {
 	    RETURN_OK_C(uc);
 	}
@@ -1919,11 +1919,11 @@ int ulib_shea_foo12(
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
-static inline union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
+static inline volatile union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
     volatile struct ulib_shea_ercv *ercv
 )
 {
-    union ulib_shea_ph_u *phdr = ercv->phdr;
+    volatile union ulib_shea_ph_u *phdr = ercv->phdr;
 
     //fprintf(stderr, "\tYIUTOFU***: ercv->cntr.ct_s.ccnt(%d)\n", ercv->cntr.ct_s.ccnt);
     /* powerof2(ULIB_SHEA_MBLK) */
@@ -1939,7 +1939,7 @@ static inline union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
 
 static inline void /* int */ ulib_shea_recv_hndr_full(
     volatile struct ulib_shea_ercv *ercv,
-    volatile struct ulib_shea_full *full
+    struct ulib_shea_full *full
 )
 {
     /* int uc = UTOFU_SUCCESS; */
@@ -2037,7 +2037,7 @@ static inline void ulib_shea_recv_hndr_seqn_wrap(
     assert(nblk <= ULIB_SHEA_MBLK);
 
     if (ccnt >= lcnt) {
-	union ulib_shea_ph_u *phdr = ercv->phdr;
+	volatile union ulib_shea_ph_u *phdr = ercv->phdr;
 	uint32_t ii, ni, iv, hloc;
 
 	hloc = ccnt & (ULIB_SHEA_MBLK-1);
@@ -2060,7 +2060,7 @@ static inline void ulib_shea_recv_hndr_seqn_wrap(
 	}
     }
     else if ((ccnt + nblk) > lcnt) {
-	union ulib_shea_ph_u *phdr = ercv->phdr;
+	volatile union ulib_shea_ph_u *phdr = ercv->phdr;
 	uint32_t ii, ni, iv, hloc;
 
 	hloc = ccnt & (ULIB_SHEA_MBLK-1);
@@ -2091,7 +2091,7 @@ void ulib_shea_recv_hndr_seqn_init( /* obsolated */
 {
     /* int uc = UTOFU_SUCCESS; */
     {
-	union ulib_shea_ph_u *phdr = ercv->phdr;
+	volatile union ulib_shea_ph_u *phdr = ercv->phdr;
 	uint32_t ii, ni = ULIB_SHEA_MBLK;
 
 	phdr[0].phlh.seqn = UINT32_MAX;
@@ -2224,7 +2224,7 @@ int ulib_shea_recv_hndr_prog(
 )
 {
     int uc = UTOFU_SUCCESS;
-    union ulib_shea_ph_u *phdr;
+    volatile union ulib_shea_ph_u *phdr;
     uint32_t nblk;
 #ifdef	CONF_ULIB_PERF_SHEA
     uint64_t tick[4];
@@ -2308,7 +2308,8 @@ int ulib_shea_recv_hndr_prog(
     {
 	struct ulib_shea_uexp rinf[1];
 
-	ulib_shea_recv_info(ercv, phdr, rinf);
+        /* phdr is now OK not for volatile 2019/04/25 */
+	ulib_shea_recv_info(ercv, (union ulib_shea_ph_u *) phdr, rinf);
 #ifdef	notdef
 	if (rinf->nblk != nblk) {
 printf("nblk %u %u\n", rinf->nblk, nblk);

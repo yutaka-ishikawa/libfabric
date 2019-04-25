@@ -83,7 +83,7 @@ struct ulib_shea_ercv {
     union ulib_shea_ct_u    cntr;
     struct ulib_shea_full   full; /* waiting esnd */
     uint64_t		    r_no;
-    void *		    phdr; /* top address of array of ulib_shea_ph_u */
+    volatile void *	    phdr; /* top address of array of ulib_shea_ph_u */
     void *                  dptr; /* top address of data buffer */
     ulib_shea_ercv_cbak_f   func; /* recv call back */
     void *farg;
@@ -411,7 +411,7 @@ static inline void ulib_shea_esnd_init(struct ulib_shea_esnd *esnd)
 #define ULIB_ROUNDUP(x,y)		((((x) + ((y) - 1)) / (y)) * (y))
 
 
-static inline uint64_t ulib_shea_cntr_diff(const union ulib_shea_ct_u *cntr)
+static inline uint64_t ulib_shea_cntr_diff(volatile union ulib_shea_ct_u *cntr)
 {
     uint64_t rv = 0;
     uint32_t diff;
