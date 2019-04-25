@@ -1188,7 +1188,7 @@ fflush(stdout);
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             srci                              | [0]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * | type|z|t| aoff|      llen     |      ///      |      ///      | [1]
+ * | type|z|t|i| / |      llen     |   ///   | aoff|      ///      | [1]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             nblk                              | [2]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
@@ -1198,7 +1198,7 @@ fflush(stdout);
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             utag (2)                          | [5]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             c_id                              | [6]
+ * |                             idat                              | [6]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             seqn                              | [7]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
@@ -1209,14 +1209,16 @@ struct ulib_shea_phlh {
     uint8_t     type : 3; /* ULIB_SHEA_PH_LARGE */
     uint8_t     zflg : 1;
     uint8_t     tflg : 1;
-    uint8_t     aoff : 3;
+    uint8_t     iflg : 1;
+    uint8_t     rsv1 : 2;
     uint8_t     llen;
-    uint8_t     rsv1;
-    uint8_t     rsv2;
+    uint8_t     rsv2 : 5;
+    uint8_t     aoff : 3;
+    uint8_t     rsv3;
     uint32_t    nblk;
     uint32_t    mblk;
     uint64_t    utag;
-    uint32_t    c_id;
+    uint32_t    idat;
     uint32_t    seqn;
 };
 
@@ -1225,14 +1227,16 @@ struct ulib_shea_phlc {
     uint8_t     type : 3; /* ULIB_SHEA_PH_LARGE_CONT */
     uint8_t     zflg : 1;
     uint8_t     tflg : 1;
-    uint8_t     aoff : 3;
+    uint8_t     iflg : 1;
+    uint8_t     rsv1 : 2;
     uint8_t     llen;
-    uint8_t     rsv1;
-    uint8_t     rsv2;
+    uint8_t     rsv2 : 5;
+    uint8_t     aoff : 3;
+    uint8_t     rsv3;
     uint32_t    nblk;
     uint32_t    boff;
     uint64_t    utag;
-    uint32_t    c_id;
+    uint32_t    idat;
     uint32_t    seqn;
 };
 
@@ -1240,7 +1244,7 @@ struct ulib_shea_phlc {
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             srci                              | [0]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * | type|z|t| /// |      ///      |      ///      |      ///      | [1]
+ * | type|z|t|i| / |      ///      |   ///   | aoff|      ///      | [1]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             addr (1)                          | [2]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
@@ -1250,7 +1254,7 @@ struct ulib_shea_phlc {
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             cntr (2)                          | [5]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
- * |                             c_id                              | [6]
+ * |                             idat                              | [6]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
  * |                             seqn                              | [7]
  * |-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|-+-+-+-+-+-+-+-|
@@ -1261,13 +1265,15 @@ struct ulib_shea_phwl {
     uint8_t     type : 3; /* ULIB_SHEA_PH_WAIT[SA] */
     uint8_t     zflg : 1;
     uint8_t     tflg : 1;
-    uint8_t     rsv4 : 3;
+    uint8_t     iflg : 1;
+    uint8_t     rsv1 : 2;
+    uint8_t     rsv4;
+    uint8_t     rsv2 : 5;
+    uint8_t     aoff : 3;
     uint8_t     rsv3;
-    uint8_t     rsv1;
-    uint8_t     rsv2;
     uint64_t    addr;   /* struct tofa for receiving wait completion */
     uint64_t    cntr;   /* pair of counters, pcnt, ccnt for wait ??? */
-    uint32_t    c_id;   /* XXXX ??? */
+    uint32_t    idat;   /* immediate data */
     uint32_t    seqn;   /* producer's counter */
 };
 
@@ -1330,14 +1336,15 @@ static inline void ulib_shea_make_phdr(
             phdr->phlh.type = ULIB_SHEA_PH_LARGE;
             phdr->phlh.tflg = ((flag & ULIB_SHEA_DATA_TFLG) != 0);
             phdr->phlh.zflg = ((flag & ULIB_SHEA_DATA_ZFLG) != 0);
-            /* phdr->phlh.aoff = 0; */
-            phdr->phlh.llen = llen;
             /* phdr->phlh.rsv1 = 0; */
+            phdr->phlh.llen = llen;
             /* phdr->phlh.rsv2 = 0; */
+            /* phdr->phlh.aoff = 0; */
+            /* phdr->phlh.rsv3 = 0; */
             phdr->phlh.nblk = nsnd;
             phdr->phlh.mblk = nblk;
             phdr->phlh.srci = rank;
-            phdr->phlh.c_id = 0; /* XXX ULIB_SHEA_PH_MARKER_L */
+            phdr->phlh.idat = 0; /* XXX ULIB_SHEA_PH_MARKER_L */
             phdr->phlh.utag = utag;
         } else {
             phdr->ui64[0] = 0;
@@ -1345,14 +1352,15 @@ static inline void ulib_shea_make_phdr(
             phdr->phlc.type = ULIB_SHEA_PH_LARGE_CONT;
             phdr->phlc.tflg = ((flag & ULIB_SHEA_DATA_TFLG) != 0);
             phdr->phlc.zflg = ((flag & ULIB_SHEA_DATA_ZFLG) != 0);
-            /* phdr->phlc.aoff = 0; */
-            phdr->phlc.llen = llen;
             /* phdr->phlc.rsv1 = 0; */
+            phdr->phlc.llen = llen;
             /* phdr->phlc.rsv2 = 0; */
+            /* phdr->phlc.aoff = 0; */
+            /* phdr->phlc.rsv3 = 0; */
             phdr->phlc.nblk = nsnd;
             phdr->phlc.boff = boff;
             phdr->phlc.srci = rank;
-            phdr->phlc.c_id = 0; /* XXX ULIB_SHEA_PH_MARKER_L */
+            phdr->phlc.idat = 0; /* XXX ULIB_SHEA_PH_MARKER_L */
             phdr->phlc.utag = utag;
         }
     }
@@ -1556,13 +1564,13 @@ static inline void ulib_shea_make_phdr_wait(
 	phdr->phwl.type = ULIB_SHEA_PH_WAITS;
 	phdr->phwl.tflg = ((flag & ULIB_SHEA_DATA_TFLG) != 0);
 	phdr->phwl.zflg = ((flag & ULIB_SHEA_DATA_ZFLG) != 0);
-	/* phdr->phwl.rsv4 = 0; */
-	/* phdr->phwl.srv3 = 0; */
 	/* phdr->phwl.rsv1 = 0; */
+	/* phdr->phwl.rsv4 = 0; */
 	/* phdr->phwl.rsv2 = 0; */
+	/* phdr->phwl.rsv3 = 0; */
 	phdr->phwl.addr = esnd->self.addr.va64;
 	phdr->phwl.cntr = ulib_shea_cntr_ui64(pcnt + nsnd /*pc*/, pcnt /*cc*/);
-	phdr->phwl.c_id = ULIB_SHEA_PH_MARKER_W;
+	phdr->phwl.idat = ULIB_SHEA_PH_MARKER_W;
 	phdr->phwl.seqn = pcnt; /* seqn */
 if (0) {
 printf("\tW: S->R pcnt %u ccnt %u rblk %u\n",
@@ -1968,7 +1976,7 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
 	phwl.ui64[2] = phdr->ui64[2];
 	phwl.ui64[3] = phdr->ui64[3];
 	assert(phwl.phwl.type == ULIB_SHEA_PH_WAITS);
-	assert(phwl.phwl.c_id == ULIB_SHEA_PH_MARKER_W);
+	assert(phwl.phwl.idat == ULIB_SHEA_PH_MARKER_W);
 
 	/* set full */
 	full->cntr.ct64 = phwl.phwl.cntr;
@@ -2007,13 +2015,13 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
 	    unsigned long loop = 1000; /* XXX */
 
 	    do {
-		if (phdr->phwl.c_id != ULIB_SHEA_PH_MARKER_W) {
+		if (phdr->phwl.idat != ULIB_SHEA_PH_MARKER_W) {
 		    break;
 		}
 	    } while (loop-- == 1);
 	    if (loop == 0) {
-printf("%s():%d\ttype %d loop %ld c_id %u\n", __func__, __LINE__,
-phwl.phwl.type, loop, phdr->phwl.c_id);
+printf("%s():%d\ttype %d loop %ld idat %u\n", __func__, __LINE__,
+phwl.phwl.type, loop, phdr->phwl.idat);
 		/* YYY abort  */
 	    }
 	}
