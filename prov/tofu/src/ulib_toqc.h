@@ -411,6 +411,7 @@ static inline void ulib_toqc_match_tcqd(
 )
 {
     ulib_toqc_cnt_t ccnt, pcnt;
+    void *toqe_done = 0; /* XXX hack */
 
     ulib_toqc_lock(toqc);
 
@@ -425,6 +426,7 @@ static inline void ulib_toqc_match_tcqd(
 	    (toqe->flag == 0 /* all done */ )
 	    || ((toqe->flag & ULIB_TOQE_FLAG_TCQD) != 0)
 	) {
+	    if (toqe == cbdata) { toqe_done = toqe; } /* XXX hack */
 	    ccnt++; continue;
 	}
 
@@ -453,13 +455,17 @@ static inline void ulib_toqc_match_tcqd(
 
 	break;
     }
-if (ccnt == pcnt) {
-printf("ccnt %u pcnt %u cc %d pc %d\n", ccnt, pcnt, toqc->ccnt, toqc->pcnt);
-fflush(stdout);
-fflush(stderr);
-}
 
-    assert(ccnt != pcnt); /* if not found */
+    if (toqe_done == 0) { /* XXX hack */
+	if (ccnt == pcnt) {
+	    fprintf(stderr, "%s:%d\t%s: ccnt %u pcnt %u cc %d pc %d\n",
+		__FILE__, __LINE__, __func__,
+		ccnt, pcnt, toqc->ccnt, toqc->pcnt);
+	    fflush(stdout);
+	    fflush(stderr);
+	}
+	assert(ccnt != pcnt); /* if not found */
+    }
 
     ulib_toqc_unlock(toqc);
     return ;
