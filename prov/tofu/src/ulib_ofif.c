@@ -670,9 +670,6 @@ static inline void ulib_icep_link_expd_head(
     else {
 	head = &icep->expd_list_mrcv;
     }
-#ifndef	NDEBUG
-    assert(dlist_empty(&expd->entry));
-#endif	/* NDEBUG */
     dlist_insert_head(&expd->entry, head);
 
     return ;
@@ -903,7 +900,7 @@ ulib_uexp_fs_index(icep->uexp_fs, uexp));
 	rbuf->iovs[0].iov_len = rbuf->leng;
 	rbuf->niov = 1;
 
-	assert(sizeof (iovs) == sizeof (rinf->rbuf.iovs));
+	//assert(sizeof (iovs) == sizeof (rinf->rbuf.iovs));
 	//ulib_icep_recv_rbuf_base(icep, rinf, iovs);
 
 	wlen = ulib_copy_iovs(
