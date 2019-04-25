@@ -132,6 +132,7 @@ static ssize_t tofu_cq_read(
 bad:
     fastlock_release( &cq__priv->cq__lck );
 #endif	/* NOTDEF */
+    FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s return %ld\n", __FILE__, ret);
     return ret;
 }
 

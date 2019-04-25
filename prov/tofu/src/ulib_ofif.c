@@ -1178,12 +1178,15 @@ int ulib_icep_shea_send_post(
 	uint32_t vpid; /* remote network address */
 	const uint64_t utag = tmsg->tag;
 	uint64_t idat;
-	uint64_t flag = ULIB_SHEA_DATA_TFLG;
+	uint64_t flag = 0;
 
 	tlen = ofi_total_iov_len(tmsg->msg_iov, tmsg->iov_count);
 
 	vpid = cash_tmpl->vpid;
 
+        if ((flags & FI_TAGGED) != 0) {
+            flag |= ULIB_SHEA_DATA_TFLG;
+        }
 	if ((flags & FI_REMOTE_CQ_DATA) != 0) {
 	    flag |= ULIB_SHEA_DATA_IFLG;
 	    idat = tmsg->data;

@@ -184,11 +184,7 @@ static struct fi_ep_attr tofu_ep_attr = {
 		/* = FI_PROTO_TOFU */
     .protocol_version = FI_VERSION(0,0),
 		/* FX1  (0), MP10 (1), FX10 (2), FX100 (3) */
-#ifdef	notdef
-    .max_msg_size = 0, /* YYY */
-#else	/* notdef */
-    .max_msg_size = (16 * 1024 * 1024) - 1, /* YYY */
-#endif	/* notdef */
+    .max_msg_size = CONF_TOFU_MSGSIZE,
     .msg_prefix_size = 0, /* YYY */
     .max_order_raw_size = 256, /* YYY */
     .max_order_war_size = 256, /* YYY */

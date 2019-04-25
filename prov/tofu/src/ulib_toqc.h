@@ -416,35 +416,44 @@ static inline void ulib_toqc_match_tcqd(
     ulib_toqc_lock(toqc);
 
     assert(toqc->ccnt != toqc->pcnt);
-    ccnt = toqc->ccnt;
-    pcnt = toqc->pcnt;
+    ccnt = toqc->ccnt;  /* the number of completed requests */
+    pcnt = toqc->pcnt;  /* the number of requests posted */
     while (ccnt != pcnt) {
 	struct ulib_toqe *toqe;
 
 	toqe = ulib_toqc_toqe_ccnt_wloc(toqc, ccnt);
-	if (
-	    (toqe->flag == 0 /* all done */ )
-	    || ((toqe->flag & ULIB_TOQE_FLAG_TCQD) != 0)
-	) {
-	    if (toqe == cbdata) { toqe_done = toqe; } /* XXX hack */
-	    ccnt++; continue;
-	}
+	if ((toqe->flag == 0 /* all done */ )
+	    || ((toqe->flag & ULIB_TOQE_FLAG_TCQD) != 0)) {
+            /* 
+             * all done(toq and mrq completed) or
+             * utofu_post_toq() fails
+             */
+            if (toqe == cbdata) { toqe_done = toqe; } /* XXX hack */
+            ccnt++; continue;
+        }
 
-// printf("tcqd [%ld] flag %x\n", toqe - &toqc->toqe[0], toqe->flag);
-// fflush(stdout);
+        //printf("tcqd [%ld] flag %x\n", toqe - &toqc->toqe[0], toqe->flag);
+        //fflush(stdout);
 	assert((toqe->flag & ULIB_TOQE_FLAG_USED) != 0);
 	/* assert((toqe->flag & ULIB_TOQE_FLAG_TCQD) == 0); */
-#ifdef	notdef_fix3
-	toqe->flag |= ULIB_TOQE_FLAG_TCQD;
-#else	/* notdef_fix3 */
 	assert(toqe->csiz < toqe->dsiz);
 	toqe->csiz += 32 /* XXX */;
 	if (toqe->csiz >= toqe->dsiz) {
+            /*
+             * Each toqe manages one request consisting of one or more
+             * utofu_post_toq() calls
+             * dsiz represents the number of calls
+             * csiz represents the number of completions
+             */
 	    assert(toqe->csiz == toqe->dsiz);
 	    toqe->flag |= ULIB_TOQE_FLAG_TCQD;
 	}
-#endif	/* notdef_fix3 */
 	if (r_uc != 0) { /* UTOFU_ISA_ERR_TCQ(uc) */
+            /*
+             * r_uc represents the return value of utofu_poll_tcq()
+             * Here this call fails, and in that case, we assume
+             * the Ack has been received.
+             */
 	    toqe->flag |= ULIB_TOQE_FLAG_ACKD; /* never ack */
 	}
 	if (ULIB_TOQE_COMPLETED(toqe->flag)) {
@@ -452,19 +461,30 @@ static inline void ulib_toqc_match_tcqd(
 	    ulib_toqc_toqe_ccnt_update(toqc);
 	    /* ccnt = toqc->ccnt; */
 	}
-
 	break;
     }
 
     if (toqe_done == 0) { /* XXX hack */
+        /*
+         *  toque_done should filled, but not
+         */
 	if (ccnt == pcnt) {
+            /*
+             * ccnt should not have the same value of pcnt, but not
+             */
 	    fprintf(stderr, "%s:%d\t%s: ccnt %u pcnt %u cc %d pc %d\n",
 		__FILE__, __LINE__, __func__,
 		ccnt, pcnt, toqc->ccnt, toqc->pcnt);
 	    fflush(stdout);
 	    fflush(stderr);
-	}
-	assert(ccnt != pcnt); /* if not found */
+	} else {
+            /*
+             * Unexepected behavior
+             *   utofu_poll_toq informs some completion event, but
+             *   the event was already informed.
+             */
+            assert(ccnt != pcnt);
+        }
     }
 
     ulib_toqc_unlock(toqc);

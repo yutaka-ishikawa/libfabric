@@ -58,9 +58,11 @@ tofu_cep_msg_recvmsg(struct fid_ep *fid_ep, const struct fi_msg *msg,
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     ret = tofu_cep_msg_recv_common(fid_ep, &tmsg, flags);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
     if (ret != 0) { goto bad; }
 
 bad:
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
     return ret;
 }
 
@@ -135,7 +137,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     fi_addr_t        fi_a = msg->addr;
     int fc;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\n\tdest(%ld) in %s\n", msg->addr, __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\n\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
 	ret = -FI_EINVAL; goto bad;
@@ -167,10 +169,9 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
 	}
     } else {
         const size_t    offs_ulib = sizeof (cep_priv[0]);
-	uint64_t        iflg = flags & ~FI_TAGGED;
 	/* post it */
 	fastlock_acquire(&cep_priv->cep_lck);
-	ret = tofu_imp_ulib_send_post(cep_priv, offs_ulib, msg, iflg,
+	ret = tofu_imp_ulib_send_post(cep_priv, offs_ulib, msg, flags,
 		tofu_cq_comp_tagged, cep_priv->cep_send_cq);
 	fastlock_release(&cep_priv->cep_lck);
 	if (ret != 0) { goto bad; }
@@ -312,6 +313,8 @@ tofu_cep_tag_recv(struct fid_ep *fid_ep,
     flags = FI_TAGGED;
     ret = tofu_cep_msg_recv_common(fid_ep, &tmsg, flags);
 
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
+
     return ret;
 }
 
@@ -324,6 +327,7 @@ tofu_cep_tag_recvv(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    fprintf(stderr, "\tYIYI: NEEDS to implement\n");
     return ret;
 }
 
@@ -332,7 +336,11 @@ tofu_cep_tag_recvmsg(struct fid_ep *fid_ep,
                      const struct fi_msg_tagged *msg, uint64_t flags)
 {
     ssize_t ret = -FI_ENOSYS;
+
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    ret = tofu_cep_msg_recv_common(fid_ep, msg, flags);
+
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
     return ret;
 }
 

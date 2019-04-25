@@ -15,5 +15,7 @@
 #define CONF_TOFU_SHEA
 
 #define CONF_TOFU_CTXC	8   /* fi_ep_attr . [rt]x_ctx_cnt */
+//#define CONF_TOFU_MSGSIZE       ((16 * 1024 * 1024) - 1) // MAX in TOFU
+#define CONF_TOFU_MSGSIZE       (32 * 1024) // See also MPIDI_OFI_DEFAULT_SHORT_SEND_SIZE in MPICH
 
 #endif	/* _TOFU_CONF_H */
