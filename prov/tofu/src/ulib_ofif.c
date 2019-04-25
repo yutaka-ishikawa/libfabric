@@ -856,8 +856,9 @@ ulib_icep_recv_frag(struct ulib_shea_expd *trcv,
 	trcv->nblk += rinf->nblk;
     }
     //fprintf(stderr, "YI ********** mblk(%d) nblk(%d) in %s\n", trcv->mblk, trcv->nblk, __func__);
+    assert(trcv->mblk != 0);
+    assert(trcv->nblk <= trcv->mblk);
     done = (trcv->mblk == trcv->nblk);
-    done = 1; // MUST BE RESOLVE 2019/04/19
     return done;
 }
 
@@ -948,10 +949,11 @@ ulib_icep_recv_call_back(void *vptr,
                          int r_uc,
                          const void *vctx /* uexp */)
 {
-    int uc = -1;
+    int uc = 0;
     struct ulib_icep *icep = (struct ulib_icep *) vptr;
     const struct ulib_shea_uexp *uexp = vctx;
     struct ulib_shea_expd *trcv;
+    int done;
     uint64_t tick[4];
 
     assert(icep == icep->shadow);
@@ -994,17 +996,8 @@ ulib_icep_recv_call_back(void *vptr,
 
     //fprintf(stderr, "\tYIUTOFU***: %s 3)\n", __func__); fflush(stderr);
     /* update trcv */
-    ulib_icep_recv_frag(trcv, uexp);
-
-    //fprintf(stderr, "\tYIUTOFU***: %s 4)\n", __func__); fflush(stderr);
-    /* check if the packet is a last fragment */
-    if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
-        trcv->mblk  = uexp->mblk;
-        trcv->rtag  = uexp->utag;
-    }
-    trcv->nblk += uexp->nblk;
-    //fprintf(stderr, "\tYIUTOFU***: %s nblk(%d) mblk(%d)\n", __func__, trcv->nblk, trcv->mblk); fflush(stderr);
-    if (trcv->nblk < trcv->mblk) {
+    done = ulib_icep_recv_frag(trcv, uexp);
+    if (done == 0) {
         ulib_icep_link_expd_head(icep, trcv);
         goto bad; /* XXX - is not an error */
     }
@@ -1049,6 +1042,7 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
 
     ulib_shea_expd_init(expd, tmsg, flags);
 
+recheck:
     /* check unexpected queue */
     uexp = ulib_find_uexp_entry(icep, expd);
     if (uexp == NULL) {
@@ -1061,16 +1055,15 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
         int     done;
 	/* update expd */
 	done = ulib_icep_recv_frag(expd, uexp /* uexp */ );
-        if (done == 0) {
-            /* not yet received all fragments */
-            fprintf(stderr, "YI*************** HOW SHOULD WE DO ?\n"); fflush(stderr);
-            goto bad;
-        }
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
         /* free unexpected message */
         freestack_push(icep->uexp_fs, uexp);
 
+        if (done == 0) {
+            /* not yet received all fragments */
+	    goto recheck;
+        }
         /* notify recv cq */
         if (icep->vp_tofu_rcq != 0) {
             uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
@@ -1080,7 +1073,6 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
             }
         }
         freestack_push(icep->expd_fs, expd);
-        goto bad; /* XXX - is not an error */
     }
 
 bad:
