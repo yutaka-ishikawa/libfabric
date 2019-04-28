@@ -5,6 +5,20 @@
 
 #include <assert.h>	    /* for assert() */
 
+static ssize_t
+tofu_cep_rma_read(struct fid_ep *ep, void *buf, size_t len, void *desc,
+                  fi_addr_t src_addr, uint64_t addr, uint64_t key,
+                  void *context)
+{
+    ssize_t ret = 0;
+    struct tofu_cep *cep_priv = 0;
+
+    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
+    if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
+        ret = -FI_EINVAL; goto bad;
+    }
+    cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
+}
 
 static ssize_t tofu_cep_rma_readmsg(
     struct fid_ep *fid_ep,
@@ -174,20 +188,12 @@ bad:
 
 struct fi_ops_rma tofu_cep_ops_rma = {
     .size	    = sizeof (struct fi_ops_rma),
-    .read	    = fi_no_rma_read,
+    .read	    = tofu_cep_rma_read,
     .readv	    = fi_no_rma_readv,
-#ifdef	notdef
-    .readmsg	    = fi_no_rma_readmsg,
-#else	/* notdef */
     .readmsg	    = tofu_cep_rma_readmsg,
-#endif	/* notdef */
     .write	    = fi_no_rma_write,
     .writev	    = fi_no_rma_writev,
-#ifdef	notdef
-    .writemsg	    = fi_no_rma_writemsg,
-#else	/* notdef */
     .writemsg	    = tofu_cep_rma_writemsg,
-#endif	/* notdef */
     .inject	    = fi_no_rma_inject,
     .writedata	    = fi_no_rma_writedata,
     .injectdata	    = fi_no_rma_injectdata,
