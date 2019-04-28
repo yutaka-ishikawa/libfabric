@@ -191,9 +191,11 @@ extern int	ulib_shea_foo12(
 extern void	ulib_shea_recv_hndr_seqn_init(
 		    volatile struct ulib_shea_ercv *ercv
 		);
+struct ulib_icep;
 extern int	ulib_shea_recv_hndr_prog(
 		    struct ulib_toqc *toqc,
-		    volatile struct ulib_shea_ercv *ercv
+		    volatile struct ulib_shea_ercv *ercv,
+                    struct ulib_icep *icep      /* debug purpose */
 		);
 
 /* inline functions */
@@ -553,9 +555,9 @@ struct ulib_shea_mema {
 struct ulib_shea_cbuf {
     void *		    cptr;
     void *		    dptr;
-    struct ulib_shea_ercv * cptr_ercv;
-    void *		    cptr_hdrs; /* union ulib_shea_ph_u */
-    struct ulib_shea_esnd * cptr_esnd;
+    volatile struct ulib_shea_ercv * cptr_ercv;
+    volatile void *		    cptr_hdrs; /* union ulib_shea_ph_u */
+    volatile struct ulib_shea_esnd * cptr_esnd;
     DLST_DECH(ulib_head_esnd)	free_esnd;
     size_t		    csiz;
     size_t		    dsiz;

@@ -15,7 +15,6 @@
 #include <stdint.h>	    /* for uint64_t */
 
 /* ======================================================================== */
-#include "ulib_shea.h"
 
 /*
  * buffer pool for unexpected entries; see also ofi_mem.h
@@ -67,8 +66,6 @@ DECLARE_FREESTACK(struct ulib_ficq_en, ulib_ficq_fs);
 /* ------------------------------------------------------------------------ */
 #include <ofi_mem.h>	    /* linked list */
 #include <ofi.h>	    /* for container_of () */
-
-#include "ulib_shea.h"	    /* for struct ulib_shea_data */
 
 /*
  * buffer pool for user data (send) entries; see also ofi_mem.h
@@ -150,8 +147,8 @@ struct ulib_icep {
     struct ulib_shea_cbuf       *cbufp;      /* eager buffer controlling tofu */
     //struct ulib_shea_cbuf       cbuf;      /* eager buffer controlling tofu */
     DLST_DECH(ulib_head_esnd)   busy_esnd;
-    void                        *vp_tofu_scq;
-    void                        *vp_tofu_rcq;
+    void                        *vp_tofu_scq; /* struct tofu_cq */
+    void                        *vp_tofu_rcq; /* struct tofu_cq */
     /* unexpected queue */
     struct ulib_uexp_fs         *uexp_fs;
     struct dlist_entry          uexp_list_trcv; /* fi_msg_tagged */
@@ -226,7 +223,11 @@ struct ulib_shea_expd {
  */
 DECLARE_FREESTACK(struct ulib_shea_expd, ulib_expd_fs);
 
-
+/*
+ * Expected entry has flags specified by fi_msg(3) operations.
+ * This flags field is checked in CQ operations.
+ *      See ulib_icqu_comp_trcv() in ulib_ofif.c
+ */
 static inline void 
 ulib_shea_expd_init(struct ulib_shea_expd *expd,
                     const struct fi_msg_tagged *tmsg,
@@ -241,8 +242,8 @@ ulib_shea_expd_init(struct ulib_shea_expd *expd,
     expd->idat = 0;
     dlist_init(&expd->entry);
     expd->flgs = flags; /* | FI_TAGGED */
-    expd->tmsg = tmsg[0]; /* structure copy */
-    /* (sizeof (expd->iovs) / sizeof (expd->iovs[0]) */
+    expd->tmsg = tmsg[0];    /* The fi_msg_tagged structure is copied. */
+    expd->tmsg.msg_iov = 0;  /* tmsg->msg_iov is no more valid */
     assert(tmsg->iov_count <= 2); /* XXX */
     {
 	size_t iv, nv = tmsg->iov_count;
@@ -258,6 +259,7 @@ ulib_shea_expd_init(struct ulib_shea_expd *expd,
 	    expd->tims[it] = 0ULL;
 	}
     }
+    fprintf(stderr, "YICHECK****: %s expd(%p)->flgs(0x%lx)\n", __func__, expd, expd->flgs); fflush(stderr);
     return ;
 }
 
@@ -519,11 +521,13 @@ ulib_icep_find_expd(struct ulib_icep *icep,
     assert(icep == icep->shadow);
     head = (uexp->flag & ULIB_SHEA_UEXP_FLAG_TFLG) ?
 	&icep->expd_list_trcv : &icep->expd_list_mrcv;
+
     match = dlist_remove_first_match(head, ulib_match_expd, uexp);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }
     expd = container_of(match, struct ulib_shea_expd, entry);
+
 bad:
     return expd;
 }
@@ -575,6 +579,7 @@ ulib_icep_link_expd(struct ulib_icep *icep,
      dlist_insert_tail(&expd->entry, head);
     return ;
 }
+
 
 static inline struct ulib_shea_data 
 *ulib_icep_shea_data_qget(struct ulib_icep *icep)

@@ -60,12 +60,15 @@ bad:
     return fc;
 }
 
+/*
+ * flags: FI_SELECTIVE_COMPLETION
+ */
 static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 {
     int fc = FI_SUCCESS;
     struct tofu_cep *cep_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s flags(%lx)\n", __FILE__, flags);
     assert(fid != 0);
     cep_priv = container_of(fid, struct tofu_cep, cep_fid.fid);
 

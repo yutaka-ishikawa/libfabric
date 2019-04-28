@@ -445,12 +445,10 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
         dlist_init(dlist);
         head = (flags & FI_TAGGED) ?
             &ricep->uexp_list_trcv : &ricep->uexp_list_mrcv;
-        //fprintf(stderr, "YI****** Enqueued in unexpected FI_TAGGED(%lld) entry(%p) head(%p)\n", flags & FI_TAGGED, dlist, head);
         dlist_insert_tail(dlist, head);
         return FI_SUCCESS;
     }
     /* corresponding posted receive request has been registered */
-    //fprintf(stderr, "YI********** NEW CODE CHECK IT! %s in %s\n", __func__, __FILE__); fflush(stderr);
     expd = container_of(match, struct ulib_shea_expd, entry);
     done = ulib_icep_recv_frag(expd, sndreq /* uexp */);
     if (done) {
@@ -458,7 +456,7 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
         tofu_imp_ulib_uexp_rbuf_free(sndreq);
         /* free unexpected message */
         freestack_push(ricep->uexp_fs, sndreq);
-        /* notify recv cq */
+        /* notify receive completion */
         if (ricep->vp_tofu_rcq != 0) {
             ulib_icqu_comp_trcv(ricep->vp_tofu_rcq, expd);
         }

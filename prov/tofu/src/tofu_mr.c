@@ -58,6 +58,10 @@ static int tofu_mr_reg(
     }
     dom_priv = container_of(fid, struct tofu_domain, dom_fid.fid );
 
+    fprintf(stderr, "YIRMA: %s:%d buf(%p) len (%ld) offset(0x%lx)"
+            "key(0x%lx) flags(0x%lx) context(%p)\n",
+            __func__, __LINE__, buf, len, offset, requested_key, flags, context);
+    fflush(stderr);
     mr__priv = calloc(1, sizeof (mr__priv[0]));
     if (mr__priv == 0) {
 	fc = -FI_ENOMEM; goto bad;

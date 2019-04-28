@@ -5,8 +5,8 @@
 #include "ulib_dlog.h"	    /* for ENTER_RC_C() */
 
 #include "utofu.h"	    /* for UTOFU_SUCCESS */
-
 #include "ulib_shea.h"
+#include "ulib_ofif.h"  /* should be removed 2019/04/27 */
 #include "ulib_desc.h"
 #include "ulib_toqc.h"
 #include "ulib_tick.h"
@@ -17,6 +17,8 @@
 
 /* #include "ulib_conf.h" */
 #define CONF_ULIB_UTOF_FIX4
+
+extern void ulib_show_expd(const char *fnnam, int lno, struct ulib_icep *icep);
 
 static inline uint64_t ulib_shea_cntr_ui64(uint64_t pc, uint64_t cc)
 {
@@ -1949,6 +1951,7 @@ static inline volatile union ulib_shea_ph_u *ulib_shea_recv_hdlr_phdr(
     return phdr;
 }
 
+
 static inline void /* int */ ulib_shea_recv_hndr_full(
     volatile struct ulib_shea_ercv *ercv,
     struct ulib_shea_full *full
@@ -2008,12 +2011,10 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
 	    }
 	}
 #endif	/* DEBUG_SHEA_PHWL */
-    }
-    else if (phwl.phwl.type == ULIB_SHEA_PH_WAITA) {
+    } else if (phwl.phwl.type == ULIB_SHEA_PH_WAITA) {
 	/* full->addr.va64 = ULIB_SHEA_NIL8; */
 	full->cntr.ct_s.pcnt = ULIB_SHEA_PH_WAITA /* phwl.phwl.type */;
-    }
-    else {
+    } else {
 	/* wait for overwriting last word in ULIB_SHEA_PH_WAITS */
 	{
 	    unsigned long loop = 1000; /* XXX */
@@ -2120,6 +2121,9 @@ void ulib_shea_recv_hndr_seqn_init( /* obsolated */
     return /* uc */;
 }
 
+/*
+ * Copy from eager buffer to local
+ */
 static inline void ulib_shea_recv_info(
     volatile struct ulib_shea_ercv *ercv,
     const void *vp_rpkt,
@@ -2224,7 +2228,11 @@ static inline void ulib_shea_recv_info(
 		}
 		rbuf->niov = 2;
 	    }
-            //fprintf(stderr, "\tYIPROTOCOL***: iovs[0].iov_base(%p) iovs[0].iov_len(%lx)\n", iovs[0].iov_base, iovs[0].iov_len); fflush(stderr);
+            if (rbuf->niov == 1) {
+                fprintf(stderr, "\tYICHECK***: %s iov_count(%d) iovs[0].iov_base(%p) iovs[0].iov_len(%ld) rbuf->leng(%d)\n", __func__, rbuf->niov, iovs[0].iov_base, iovs[0].iov_len, rbuf->leng); fflush(stderr);
+            } else {
+                fprintf(stderr, "\tYICHECK***: %s iov_count(%d) iovs[0].iov_base(%p) iovs[0].iov_len(%ld) iovs[1].iov_len(%ld) rbuf->leng(%d)\n", __func__, rbuf->niov, iovs[0].iov_base, iovs[0].iov_len, iovs[1].iov_len, rbuf->leng); fflush(stderr);
+            }
 	}
     }
 #ifdef	CONF_ULIB_PERF_SHEA
@@ -2236,7 +2244,8 @@ static inline void ulib_shea_recv_info(
 
 int ulib_shea_recv_hndr_prog(
     struct ulib_toqc *toqc,
-    volatile struct ulib_shea_ercv *ercv
+    volatile struct ulib_shea_ercv *ercv,
+    struct ulib_icep *icep /* debugging purpose */
 )
 {
     int uc = UTOFU_SUCCESS;
@@ -2271,7 +2280,7 @@ int ulib_shea_recv_hndr_prog(
 
 	ulib_shea_recv_hndr_full(ercv, full);
 
-        //fprintf(stderr, "\tYIUTOFU***: full->addr.va64(%ld) full->ctr.ct_s.pcnt(%d)\n", full->addr.va64, full->cntr.ct_s.pcnt);
+        //fprintf(stderr, "\tYIPROTOCOL***: full->addr.va64(%ld) full->ctr.ct_s.pcnt(%d)\n", full->addr.va64, full->cntr.ct_s.pcnt);
 	if (full->addr.va64 != ULIB_SHEA_NIL8) { /* ULIB_SHEA_PH_WAITS */
 	    /* uc = ulib_shea_data_wake(tocq, addr.va64, ercv) */
 	    uc = ulib_shea_foo8(toqc, full->addr.va64, ercv);
@@ -2307,13 +2316,11 @@ int ulib_shea_recv_hndr_prog(
 	assert(phdr->phlh.mblk <= (1<<24));
 	assert(phdr->phlh.nblk <= phdr->phlh.mblk);
 	nblk = phdr->phlh.nblk;
-    }
-    else if (phdr->phlh.type == ULIB_SHEA_PH_LARGE_CONT) {
+    } else if (phdr->phlh.type == ULIB_SHEA_PH_LARGE_CONT) {
 	assert(phdr->phlc.nblk > 0);
 	assert(phdr->phlc.boff > 0);
 	nblk = phdr->phlc.nblk;
-    }
-    else {
+    } else {
 	/* YYY abort  */
 	assert(phdr->phlh.type == ULIB_SHEA_PH_LARGE);
 	nblk = 0; /* YYY */
@@ -2608,7 +2615,7 @@ void ulib_shea_cbuf_hdrs_init(
 {
     /* int uc = UTOFU_SUCCESS; */
     {
-	union ulib_shea_ph_u *phdr = cbuf->cptr_hdrs;
+	volatile union ulib_shea_ph_u *phdr = cbuf->cptr_hdrs;
 	uint32_t ii, ni = cbuf->hcnt;
 
 	assert(cbuf->hcnt > 0);
@@ -2630,7 +2637,7 @@ void ulib_shea_cbuf_esnd_init_addr(
     struct ulib_shea_cbuf *cbuf
 )
 {
-    struct ulib_shea_esnd *esnd = cbuf->cptr_esnd;
+    volatile struct ulib_shea_esnd *esnd = cbuf->cptr_esnd;
 
     assert(esnd != 0);
     assert(cbuf->ctrl.stag != -1U);
@@ -2686,7 +2693,7 @@ int ulib_shea_cbuf_enab_buff(
 		uint32_t ic, nc = cbuf->scnt;
 
 		for (ic = 0; ic < nc; ic++) {
-		    struct ulib_shea_esnd *esnd = &cbuf->cptr_esnd[ic];
+		    struct ulib_shea_esnd *esnd = (struct ulib_shea_esnd *) &cbuf->cptr_esnd[ic];
 
 		    /* insert tail */
 		    DLST_INST(&cbuf->free_esnd, esnd, list);

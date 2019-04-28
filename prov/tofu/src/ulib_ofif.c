@@ -4,6 +4,7 @@
 #include "ulib_conf.h"
 #include "ulib_dlog.h"	    /* for ENTER_RC_C() */
 
+#include "ulib_shea.h"
 #include "ulib_conv.h"	    /* for struct ulib_epnt_info */
 #include "ulib_ofif.h"	    /* for struct ulib_isep */
 #ifndef	notdef_icep_toqc
@@ -21,6 +22,27 @@
 #include <stdio.h>	    /* for printf() */
 
 extern void tofu_imp_ulib_uexp_rbuf_free(struct ulib_shea_uexp *uexp);
+
+void
+ulib_show_expd(const char *fnnam, int lno, struct ulib_icep *icep)
+{
+    struct dlist_entry *head, *item;
+
+    fprintf(stderr, "YI_SHOWEXPD: Tagged at %s:%d\n", fnnam, lno);
+    head = &icep->expd_list_trcv;
+    dlist_foreach(head, item) {
+        struct ulib_shea_expd   *expd;
+	expd = container_of(item, struct ulib_shea_expd, entry);
+        fprintf(stderr, "\t: expd(%p) expd->iovs[0].iov_base(%p)\n", expd, expd->iovs[0].iov_base); fflush(stderr);
+    }
+    fprintf(stderr, "YI_SHOWEXPD: No tagged\n");
+    head = &icep->expd_list_mrcv;
+    dlist_foreach(head, item) {
+        struct ulib_shea_expd   *expd;
+	expd = container_of(item, struct ulib_shea_expd, entry);
+        fprintf(stderr, "\t: expd(%p) expd->iovs[0].iov_base(%p)\n", expd, expd->iovs[0].iov_base); fflush(stderr);
+    }
+}
 
 
 const char *
@@ -675,6 +697,10 @@ static inline void ulib_icep_link_expd_head(
     return ;
 }
 
+/*
+ * Notify receive completion -- Creating completion entry
+ *      Handling the FI_MULTI_RECV flag 2019/4/27
+ */
 int
 ulib_icqu_comp_trcv(void *vp_cq__priv,
                     const struct ulib_shea_expd *expd)
@@ -684,18 +710,20 @@ ulib_icqu_comp_trcv(void *vp_cq__priv,
 
     cq_e->op_context	= expd->tmsg.context;
     cq_e->flags		=   FI_RECV
-			    | FI_MULTI_RECV
+                            | (expd->flgs & FI_MULTI_RECV)
 			    | (expd->flgs & FI_TAGGED)
 			    | (expd->rflg & FI_REMOTE_CQ_DATA)
 			    ;
     cq_e->len		= expd->wlen;
-    cq_e->buf		= expd->tmsg.msg_iov[0].iov_base;
+    cq_e->buf		= expd->iovs[0].iov_base;
     cq_e->data		= expd->idat; /* FI_REMOTE_CQ_DATA */
     cq_e->tag		= expd->rtag;
 
+    fprintf(stderr, "YICHECK!!****: %s expd(%p)->flgs(0x%lx) cq_e(%p)->flags(0x%lx) cq_e->buf(%p) expd->iovs[0].iov_base(%p)\n", __func__, expd, expd->flgs, cq_e, cq_e->flags, cq_e->buf,  expd->iovs[0].iov_base); fflush(stderr);
 
     if (vp_cq__priv != 0) {
 	int fc;
+        /* enter the entry into CQ */
 	fc = tofu_cq_comp_tagged(vp_cq__priv, cq_e);
 	if (fc != 0) {
 	    uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
@@ -837,35 +865,35 @@ static inline void ulib_icep_recv_rbuf_base(
 }
 
 int
-ulib_icep_recv_frag(struct ulib_shea_expd *trcv,
-                    const struct ulib_shea_uexp *rinf)
+ulib_icep_recv_frag(struct ulib_shea_expd *expd,
+                    const struct ulib_shea_uexp *uexp)
 {
     size_t      wlen;
     int         done;
-    if ((rinf->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
-	trcv->mblk  = rinf->mblk;
-	trcv->rtag  = rinf->utag;
-	trcv->rflg |= ((rinf->flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0)?
+    if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
+	expd->mblk  = uexp->mblk;
+	expd->rtag  = uexp->utag;
+	expd->rflg |= ((uexp->flag & ULIB_SHEA_UEXP_FLAG_TFLG) != 0)?
 			FI_TAGGED: 0;
-	trcv->rflg |= ((rinf->flag & ULIB_SHEA_UEXP_FLAG_IFLG) != 0)?
+	expd->rflg |= ((uexp->flag & ULIB_SHEA_UEXP_FLAG_IFLG) != 0)?
 			FI_REMOTE_CQ_DATA: 0;
-	trcv->idat  = rinf->idat; /* FI_REMOTE_CQ_DATA */
+	expd->idat  = uexp->idat; /* FI_REMOTE_CQ_DATA */
     }
     /* copy to the user buffer */
-    wlen = ulib_copy_iovs(trcv->iovs, trcv->niov,trcv->wlen,
-                          rinf->rbuf.iovs, rinf->rbuf.niov);
-    trcv->wlen += wlen;
-    trcv->olen += (rinf->rbuf.leng - wlen);
+    wlen = ulib_copy_iovs(expd->iovs, expd->niov,expd->wlen,
+                          uexp->rbuf.iovs, uexp->rbuf.niov);
+    expd->wlen += wlen;
+    expd->olen += (uexp->rbuf.leng - wlen);
     /* update nblk */
-    if (rinf->rbuf.leng == 0) {
-	trcv->nblk += 1;
+    if (uexp->rbuf.leng == 0) {
+	expd->nblk += 1;
     } else {
-	trcv->nblk += rinf->nblk;
+	expd->nblk += uexp->nblk;
     }
-    //fprintf(stderr, "YI ********** mblk(%d) nblk(%d) in %s\n", trcv->mblk, trcv->nblk, __func__);
-    assert(trcv->mblk != 0);
-    assert(trcv->nblk <= trcv->mblk);
-    done = (trcv->mblk == trcv->nblk);
+    //fprintf(stderr, "YI ********** mblk(%d) nblk(%d) in %s\n", expd->mblk, expd->nblk, __func__);
+    assert(expd->mblk != 0);
+    assert(expd->nblk <= expd->mblk);
+    done = (expd->mblk == expd->nblk);
     return done;
 }
 
@@ -966,7 +994,7 @@ ulib_icep_recv_call_back(void *vptr,
     assert(icep == icep->shadow);
     tick[0] = ulib_tick_time();
     trcv = ulib_icep_find_expd(icep, uexp);
-    //fprintf(stderr, "\tYIUTOFU***: %s icep(%p) uxp(%p) trcv(%p)\n", __func__, icep, vctx, trcv); fflush(stderr);
+
     if (trcv == 0) {
 	uc = ulib_icep_recv_cbak_uexp(icep, uexp);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
@@ -983,25 +1011,6 @@ ulib_icep_recv_call_back(void *vptr,
     /*
      * iov_base : offs => base + offs
      */
-    //ulib_icep_recv_rbuf_base(icep, uexp, (struct iovec *)uexp->rbuf.iovs);
-    /* copy to the user buffer */
-    {
-        size_t wlen;
-
-        //fprintf(stderr, "\t\t: uexp.iovs[0]=%p\n", uexp->rbuf.iovs[0]);
-        wlen = ulib_copy_iovs(
-            trcv->iovs,
-            trcv->niov,
-            trcv->wlen,
-            uexp->rbuf.iovs,
-            uexp->rbuf.niov
-            );
-        trcv->wlen += wlen;
-        assert(wlen <= uexp->rbuf.leng);
-        trcv->olen += (uexp->rbuf.leng - wlen);
-    }
-
-    //fprintf(stderr, "\tYIUTOFU***: %s 3)\n", __func__); fflush(stderr);
     /* update trcv */
     done = ulib_icep_recv_frag(trcv, uexp);
     if (done == 0) {
@@ -1021,7 +1030,6 @@ ulib_icep_recv_call_back(void *vptr,
     freestack_push(icep->expd_fs, trcv); /* expd */
 
 bad:
-    //fprintf(stderr, "\tYIUTOFU***: %s return %d\n", __func__, uc);
     return uc;
 }
 
@@ -1048,7 +1056,6 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
     }
 
     ulib_shea_expd_init(expd, tmsg, flags);
-
 recheck:
     /* check unexpected queue */
     uexp = ulib_find_uexp_entry(icep, expd);
@@ -1061,7 +1068,8 @@ recheck:
     } else {
         int     done;
 	/* update expd */
-	done = ulib_icep_recv_frag(expd, uexp /* uexp */ );
+	done = ulib_icep_recv_frag(expd, uexp);
+        fprintf(stderr, "YIMPICH***2: EXPD-BUF(%p)\n", expd->iovs[0].iov_base); fflush(stderr);
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
         /* free unexpected message */
@@ -1086,14 +1094,13 @@ bad:
     return uc;
 }
 
-int ulib_icep_shea_recv_prog(
-    struct ulib_icep *icep_ctxt
-)
+int
+ulib_icep_shea_recv_prog(struct ulib_icep *icep_ctxt)
 {
     int uc = 0;
     struct ulib_icep *icep;
     struct ulib_toqc *toqc;
-    struct ulib_shea_ercv *ercv;
+    volatile struct ulib_shea_ercv *ercv;
 
     assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
     assert(icep->toqc != 0);
@@ -1102,7 +1109,7 @@ int ulib_icep_shea_recv_prog(
     assert(icep->cbufp->cptr_ercv != 0);
     ercv = icep->cbufp->cptr_ercv;
 
-    uc = ulib_shea_recv_hndr_prog(toqc, ercv);
+    uc = ulib_shea_recv_hndr_prog(toqc, ercv, icep);
     if (uc != UTOFU_SUCCESS) {
 	goto bad;
     }

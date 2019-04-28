@@ -2,22 +2,46 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "ulib_conv.h"
 
 #include <assert.h>	    /* for assert() */
 
+/* should be moved to somewhere */
+static inline char *
+fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
+{
+    struct tofu_cep *cep_priv;
+    struct tofu_av *av__priv;
+    uint64_t ui64;
+
+    cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
+    av__priv = cep_priv->cep_sep->sep_av_;
+    tofu_av_lup_tank(av__priv, fi_addr, &ui64);
+    return tank2string(buf, sz, ui64);
+}
+
 static ssize_t
-tofu_cep_rma_read(struct fid_ep *ep, void *buf, size_t len, void *desc,
+tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
                   fi_addr_t src_addr, uint64_t addr, uint64_t key,
                   void *context)
 {
     ssize_t ret = 0;
     struct tofu_cep *cep_priv = 0;
+    char        prbuf[128];
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
     }
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
+    fprintf(stderr, "YIRMA: %s:%d "
+            "remote(%s) len(%ld) desc(%p) addr(0x%lx) key(0x%lx)\n",
+            __func__, __LINE__,
+            fi_addr2string(prbuf, 128, src_addr, fid_ep), len, desc, addr, key);
+    fflush(stderr);
+            
+bad:
+    return ret;
 }
 
 static ssize_t tofu_cep_rma_readmsg(

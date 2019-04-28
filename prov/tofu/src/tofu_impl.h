@@ -83,7 +83,7 @@ struct tofu_cq {
 /*  struct dlist_entry	cq__ent; */
     struct dlist_entry	cq__htx;    /* head for ep tx ctxs */
     struct dlist_entry	cq__hrx;    /* head for ep rx ctxs */
-    struct tofu_ccirq * cq__ccq;    /* _cirq : circular queue for CQ */
+    struct tofu_ccirq * cq__ccq;    /* _cirq : circular queue for fi_cq_tagged_entry */
 };
 
 struct tofu_cntr {

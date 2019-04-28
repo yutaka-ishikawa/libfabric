@@ -6,9 +6,51 @@
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
+#include "ulib_shea.h"	    /* for struct ulib_shea_data */
 #include "ulib_ofif.h"	    /* for ulib_icep_shea_send_prog() */
 
-static int tofu_cq_close(struct fid *fid)
+void
+yi_showcntrl(const char *func, int lno, void *ptr)
+{
+#define MPIDI_OFI_AM_HANDLER_ID_BITS   8
+#define MPIDI_OFI_AM_TYPE_BITS         8
+#define MPIDI_OFI_AM_HDR_SZ_BITS       8
+#define MPIDI_OFI_AM_DATA_SZ_BITS     48
+    struct MPIDI_OFI_am_header {
+        uint64_t handler_id:MPIDI_OFI_AM_HANDLER_ID_BITS;
+        uint64_t am_type:MPIDI_OFI_AM_TYPE_BITS;
+        uint64_t am_hdr_sz:MPIDI_OFI_AM_HDR_SZ_BITS;
+        uint64_t data_sz:MPIDI_OFI_AM_DATA_SZ_BITS;
+        uint64_t payload[0];
+    } *head;
+    struct mpich_cntl {
+        int16_t type;          int16_t seqno;
+        int origin_rank;       void *ackreq;
+        uintptr_t send_buf;    size_t msgsize;
+        int comm_id;           int endpoint_id;
+        uint64_t rma_key;      int tag;
+    } *ctrl;
+
+    head = (struct MPIDI_OFI_am_header*) ptr;
+    ctrl = (struct mpich_cntl*) (head + 1);
+    fprintf(stderr, "YIMPICH***: %s:%d ctrl->type(%d) ctrl->tag(0x%x)\n",
+            func, lno, ctrl->type, ctrl->tag);
+    fflush(stderr);
+}
+
+void
+yi_debug(const char *func, int lno, struct fi_cq_tagged_entry *comp)
+{
+
+    /* flags defined in fabric.h */
+    fprintf(stderr, "YIMPICH***: %s:%d completion entry comp(%p) flags(%lx) len(%ld) data(%ld) tag(%ld) buf(%p)\n", func, lno, comp, comp->flags, comp->len, comp->data, comp->tag, comp->buf); fflush(stderr);
+    if (comp->buf) {
+        yi_showcntrl(func, lno, comp->buf);
+    }
+}
+
+static int
+tofu_cq_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
     struct tofu_cq *cq__priv;
@@ -39,15 +81,12 @@ static struct fi_ops tofu_cq__fi_ops = {
     .ops_open	    = fi_no_ops_open,
 };
 
-static ssize_t tofu_cq_read(
-    struct fid_cq *fid_cq,
-    void *buf,
-    size_t count
-)
+static ssize_t
+tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 {
-    ssize_t ret = 0;
+    ssize_t        ret = 0;
     struct tofu_cq *cq__priv;
-    ssize_t ment = (ssize_t)count, ient;
+    ssize_t        ment = (ssize_t)count, ient;
 
     FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
     assert(fid_cq != 0);
@@ -62,56 +101,50 @@ static ssize_t tofu_cq_read(
 
     fastlock_acquire( &cq__priv->cq__lck );
 
-    //fprintf(stderr, "\tYIUTOFU***: %s cq__priv->cq_ccq(%p)\n", __func__, cq__priv->cq__ccq);
+    fprintf(stderr, "\tYIPROTOCOL***: %s cq__priv->cq_ccq is %s\n", __func__, ofi_cirque_isempty(cq__priv->cq__ccq) ? "empty": "filled");
+    /*
+     * Checking CQ
+     */
     if (ofi_cirque_isempty( cq__priv->cq__ccq )) {
-	{
-	    struct dlist_entry *head = &cq__priv->cq__htx;
-	    struct dlist_entry *curr, *next;
+        struct dlist_entry *head = &cq__priv->cq__htx;
+        struct dlist_entry *curr, *next;
 
-            //fprintf(stderr, "\tYIUTOFU***: %s cq__htx(%p)\n", __func__, head);
-	    dlist_foreach_safe(head, curr, next) {
-		struct tofu_cep *cep_priv;
-		struct ulib_icep *icep;
-		int uc;
+        //fprintf(stderr, "\tYIUTOFU***: %s cq__htx(%p)\n", __func__, head);
+        dlist_foreach_safe(head, curr, next) {
+            struct tofu_cep *cep_priv;
+            struct ulib_icep *icep;
+            int uc;
 
-		cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
-		assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
-		icep = (struct ulib_icep *)(cep_priv + 1);
+            cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
+            assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+            icep = (struct ulib_icep *)(cep_priv + 1);
 
-		uc = ulib_icep_shea_send_prog(icep, 0, 0 /* tims */);
-		if (uc != 0 /* UTOFU_SUCCESS */ ) { }
-	    }
-
-	    if ( ! ofi_cirque_isempty( cq__priv->cq__ccq ) ) {
-	    }
+            uc = ulib_icep_shea_send_prog(icep, 0, 0 /* tims */);
+            if (uc != 0 /* UTOFU_SUCCESS */ ) { }
         }
-	{
-	    struct dlist_entry *head = &cq__priv->cq__hrx;
-	    struct dlist_entry *curr, *next;
+        head = &cq__priv->cq__hrx;
+        //fprintf(stderr, "\tYIUTOFU***: %s cq__hrx(%p)\n", __func__, head);
+        dlist_foreach_safe(head, curr, next) {
+            struct tofu_cep *cep_priv;
+            struct ulib_icep *icep;
+            int uc;
 
-            //fprintf(stderr, "\tYIUTOFU***: %s cq__hrx(%p)\n", __func__, head);
-	    dlist_foreach_safe(head, curr, next) {
-		struct tofu_cep *cep_priv;
-		struct ulib_icep *icep;
-		int uc;
+            cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
+            assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
+            icep = (struct ulib_icep *)(cep_priv + 1);
 
-		cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
-		assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
-		icep = (struct ulib_icep *)(cep_priv + 1);
-
-		uc = ulib_icep_shea_recv_prog(icep);
-		if (uc != 0 /* UTOFU_SUCCESS */ ) { }
-	    }
-
-	    if ( ! ofi_cirque_isempty( cq__priv->cq__ccq ) ) {
-	    }
+            uc = ulib_icep_shea_recv_prog(icep);
+            if (uc != 0 /* UTOFU_SUCCESS */ ) { }
         }
-	ret = -FI_EAGAIN; goto bad;
+        if (ofi_cirque_isempty(cq__priv->cq__ccq)) {
+            ret = -FI_EAGAIN; goto bad;
+        }
     }
-
+    /* CQ has entries */
     if (ment > ofi_cirque_usedcnt( cq__priv->cq__ccq )) {
 	ment = ofi_cirque_usedcnt( cq__priv->cq__ccq );
     }
+    fprintf(stderr, "YIPROTOCOL: ment(%ld) in %s\n", ment, __func__);
 
     for (ient = 0; ient < ment; ient++) {
 	struct fi_cq_tagged_entry *comp;
@@ -122,7 +155,7 @@ static ssize_t tofu_cq_read(
 
 	/* copy */
 	((struct fi_cq_tagged_entry *)buf)[ient] = comp[0];
-
+        yi_debug(__func__, __LINE__, comp);
 	/* advance r.p. by one  */
 	ofi_cirque_discard( cq__priv->cq__ccq );
     }
@@ -177,6 +210,16 @@ int tofu_cq_open(
 	if (fc != 0) {
 	    goto bad;
 	}
+        if (attr->format != FI_CQ_FORMAT_TAGGED) {
+            /* FI_CQ_FORMAT_TAGGED is only supported in this version */
+            fc = -1;
+            goto bad;
+        }
+        if (attr->size != 0
+            && attr->size != sizeof(struct fi_cq_tagged_entry)) {
+            fc = -1;
+            goto bad;
+        }
     }
 
     cq__priv = calloc(1, sizeof (cq__priv[0]));
@@ -200,12 +243,9 @@ int tofu_cq_open(
     }
 
     /* tofu_comp_cirq */
-    {
-	/* YYY fi_cq_attr . size */
-	cq__priv->cq__ccq = tofu_ccirq_create( 256 /* YYY */ );
-	if (cq__priv->cq__ccq == 0) {
-	    fc = -FI_ENOMEM; goto bad;
-	}
+    cq__priv->cq__ccq = tofu_ccirq_create(CONF_TOFU_CQSIZE);
+    if (cq__priv->cq__ccq == 0) {
+        fc = -FI_ENOMEM; goto bad;
     }
 
     /* return fid_dom */

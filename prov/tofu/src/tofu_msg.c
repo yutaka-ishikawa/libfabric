@@ -17,7 +17,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     struct tofu_cep     *cep_priv = 0;
     struct ulib_icep    *icep;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\n\tsrc(%ld) in %s\n", msg->addr, __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\tsrc(%ld) iovcount(%ld) buf(%p) size(%ld) flags(0x%lx) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_base, msg->msg_iov[0].iov_len, flags, __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
@@ -124,6 +124,8 @@ bad:
 
 }
 
+extern void yi_showcntrl(const char *func, int lno, void *ptr);
+
 static ssize_t
 tofu_cep_msg_send_common(struct fid_ep *fid_ep,
                          const struct fi_msg_tagged *msg,
@@ -137,7 +139,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     fi_addr_t        fi_a = msg->addr;
     int fc;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\n\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
 	ret = -FI_EINVAL; goto bad;
@@ -146,6 +148,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     if ((flags & FI_TRIGGER) != 0) {
 	ret = -FI_ENOSYS; goto bad;
     }
+    yi_showcntrl(__func__, __LINE__, msg->msg_iov[0].iov_base);
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
     /* convert fi_addr to tank */
     av__priv = cep_priv->cep_sep->sep_av_;
@@ -281,7 +284,29 @@ static ssize_t tofu_cep_msg_inject(
 )
 {
     ssize_t ret = -FI_ENOSYS;
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    struct fi_msg_tagged tmsg;
+    struct iovec iovs[1];
+    uint64_t flags = FI_INJECT;
+    void        *alocbuf;
+
+    alocbuf = malloc(len);
+    memcpy(alocbuf, buf, len); // NEEDDS to handle dynamic memory allocation!!
+    iovs->iov_base  = alocbuf;
+    iovs->iov_len   = len;
+
+    tmsg.msg_iov    = iovs;
+    tmsg.desc	    = 0;
+    tmsg.iov_count  = 1;
+    tmsg.addr	    = dest_addr;
+    tmsg.tag	    = 0;	/* XXX */
+    tmsg.ignore	    = -1ULL;	/* XXX */
+    tmsg.context    = 0;
+    tmsg.data	    = 0;
+
+    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "%s in %s  len(%ld)\n", __func__, __FILE__, len);
+    ret = tofu_cep_msg_send_common(fid_ep, &tmsg, flags);
+
     return ret;
 }
 
@@ -399,7 +424,7 @@ tofu_cep_tag_senddata(struct fid_ep *fid_ep,
     void                 *dscs[1];
     int                  flags = FI_TAGGED | FI_REMOTE_CQ_DATA;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s data(%ld)\n", __FILE__, data);
 
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;
