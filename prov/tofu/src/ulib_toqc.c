@@ -259,9 +259,10 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
 	    ulib_toqc_abort(toqc, uc);
 	    RETURN_BAD_C(uc);
 	}
+        fprintf(stderr, "YIRMA***: %s in %s edata(0x%lx)\n", __func__, __FILE__, tmrq[0].edata);
         if (tmrq[0].edata != 0) { /* fi_read is completed */
             extern void ulib_notify_rma_cmpl(void *ptr);
-            ulib_rma_notify_rma_cmpl(tmrq[0].edata);
+            ulib_notify_rma_cmpl((void*) tmrq[0].edata);
         }
 	ulib_toqc_match(toqc, tmrq, 0 /* uc */ );
     }

@@ -50,14 +50,13 @@ static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
                        struct fid_mr **fid_mr_, void *context)
 {
     int fc = FI_SUCCESS;
-    int rc = UTOFU_SUCCESS;
+    int uc;
     struct tofu_domain *dom_priv;
     struct tofu_mr     *mr__priv = 0;
-    struct ulib_icep   *icep;
     utofu_stadd_t      stadd;
     uint64_t           utofu_flg = 0;
 
-    FI_INFO( &tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p) in %s\n", __FILE__, buf, len, offset, requested_key, flags, context);
+    FI_INFO( &tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p) in %s\n", buf, len, offset, requested_key, flags, context, __FILE__);
     assert(fid != 0);
     if (fid->fclass != FI_CLASS_DOMAIN) {
 	fc = -FI_EINVAL; goto bad;
@@ -69,11 +68,26 @@ static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
 	fc = -FI_ENOMEM; goto bad;
     }
 
-    /* utofu_vcq_hdl_t */
-    uc = utofu_reg_mem(icep->vcqh, buf, len, utofu_flg, &stadd);
-    if (uc != 0) {
-        fc = -FI
+    /* 
+     * Registering memry region.
+     * For all vcqhs, we need to register the same memory region so that
+     * the area are accessed by any vcqh.
+     * The current implementation, only one vcqh and thus it is much easy.
+     */
+    uc = utofu_reg_mem((utofu_vcq_hdl_t )dom_priv->dom_vcqh[0],
+                       (void*) buf, len, utofu_flg, &stadd);
+#if 0
+    for (i = 0; i < dom_priv->dom_nvcq; i++) {
+        unsigned int    stag = 20; /* temporal hack */
+        fprintf(stderr, "YIRMA***: %s:%d vcqh(%p)\n");
+        uc = utofu_reg_mem_with_stag(
+                (utofu_vcq_hdl_t )dom_priv->dom_vcqh[i],
+                buf, len, stag, utofu_flg, &stadd);
+        if (uc != 0) {
+            fc = -FI_ENOMEM; goto bad;
+        }
     }
+#endif /* 0 */
     
     /* initialize mr__priv */
     {
@@ -107,13 +121,12 @@ static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
 
 	mr__priv->mr__flg = flags;
     }
+    fprintf(stderr, "YIRMA: %s:%d registered key(0x%lx)\n",
+            __func__, __LINE__, mr__priv->mr__fid.key); fflush(stderr);
 
     /* return fid_dom */
     fid_mr_[0] = &mr__priv->mr__fid;
     mr__priv = 0; /* ZZZ */
-
-    fprintf(stderr, "YIRMA: %s:%d registered key(0x%lx)\n",
-            __func__, __LINE__, mr__priv->mr__fid.key); fflush(stderr);
 bad:
     if (mr__priv != 0) {
 	tofu_mr_close( &mr__priv->mr__fid.fid );

@@ -2,7 +2,9 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "ulib_shea.h"
 #include "ulib_conv.h"
+#include "ulib_ofif.h"
 
 #include <assert.h>	    /* for assert() */
 
@@ -17,15 +19,19 @@ struct ulib_rma_cmpl {
 void
 ulib_notify_rma_cmpl(void *ptr)
 {
-    struct ulib_rma_cmpl *rma_vmpl = (struct ulib_rma_cmpl *) ptr;
+    struct ulib_rma_cmpl *rma_cmpl = (struct ulib_rma_cmpl *) ptr;
     struct fi_cq_tagged_entry *cmpl;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "rma_cmpl(%p)\n", rma_cmpl);
+    if (ofi_cirque_isfull(rma_cmpl->cq__priv->cq__ccq)) {
+        /* ERROR */
+    }
     /* get an entry pointed by w.p. */
-    cmpl = ofi_cirque_tail(cq__priv->cq__ccq);
+    cmpl = ofi_cirque_tail(rma_cmpl->cq__priv->cq__ccq);
+    /* copy */
     *cmpl = rma_cmpl->cmpl;
     /* advance w.p. by one  */
-    ofi_cirque_commit(cirq);
+    ofi_cirque_commit(rma_cmpl->cq__priv->cq__ccq);
     free(rma_cmpl);
 }
 
@@ -55,7 +61,8 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
     ssize_t     ret = 0;
     int         uc, fc;
     struct tofu_cep     *cep_priv = 0;
-    struct tofu_sep     *sep_priv = 0;
+    struct tofu_av      *av__priv;
+    struct ulib_icep    *icep;
     union ulib_tofa_u   tank;
     utofu_vcq_id_t      rmt_vcq_id;
     utofu_stadd_t       lcl_stadd;
@@ -65,33 +72,36 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
     struct ulib_rma_cmpl *rma_cmpl;
     char        prbuf[128];
 
-    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "buf(%p) len(%ld) desc(%p) addr(0x%lx) key(%lx) context(%p) in %s\n", __FILE__, buf, len, desc, addr, key, context);
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "buf(%p) len(%ld) desc(%p) addr(0x%lx) key(%lx) context(%p) in %s\n", buf, len, desc, addr, key, context, __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
     }
-    fprintf(stderr, "YIRMA: %s:%d remote(%s)\n",
-            __func__, __LINE__,  fi_addr2string(prbuf, 128));
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
     av__priv = cep_priv->cep_sep->sep_av_;
-    fc = tofu_av_lup_tank(av__priv, fi_src_addr, &tank.ui64);
+    fprintf(stderr, "YIRMA: %s:%d remote(%s)\n",
+            __func__, __LINE__, fi_addr2string(prbuf, 128, src_addr, fid_ep));
+    /* finding source address */
+    fc = tofu_av_lup_tank(av__priv, src_addr, &tank.ui64);
     if (fc != 0) {
         fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, fc);
         ret = -1;  goto bad;
     }
+    /* registering local memory */
     rmt_vcq_id = tank.ui64;
-    uc = utofu_reg_mem(cep_priv->vcqh, buf, len, 0, &lcl_stadd);
+    icep = (struct ulib_icep*) (cep_priv + 1);
+    uc = utofu_reg_mem(icep->vcqh, buf, len, 0, &lcl_stadd);
     if (uc != UTOFU_SUCCESS) {
         fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, uc);
         ret = -1;  goto bad;
     }
     /* preparing completion entry */
     rma_cmpl = calloc(sizeof(struct ulib_rma_cmpl), 1);
-    rma_cmpl.cq__priv = cep_priv->cep_recv_cq;
-    rma_cmpl.cmpl->flags = flags;
-    rma_cmpl.cmpl->len = len;
-    rma_cmpl.cmpl->buf = buf;
-    rma_cmpl.cmpl->data = 0;
-    rma_cmpl.cmpl->tag = 0;
+    rma_cmpl->cq__priv = cep_priv->cep_recv_cq;
+    rma_cmpl->cmpl.flags = flags;
+    rma_cmpl->cmpl.len = len;
+    rma_cmpl->cmpl.buf = buf;
+    rma_cmpl->cmpl.data = 0;
+    rma_cmpl->cmpl.tag = 0;
     fprintf(stderr, "YIRMA: %s:%d rma_cmpl(%p)\n", __func__, __LINE__, rma_cmpl); fflush(stderr);
     retry = 10;
     do {
@@ -102,11 +112,11 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
          * utofu_toqc_prog_ackd() handles this notice.
          * cbdata points to a completion entry.
          */
-        uc = utofu_get(cep_priv->vcqh, rmt_vcq_id, lcl_stadd, key,
+        uc = utofu_get(icep->vcqh, rmt_vcq_id, lcl_stadd, key,
                        len, edata, flags, rma_cmpl);
     } while (uc == UTOFU_ERR_BUSY && --retry > 0);
     
-    if (uc != UTOFU_SUCCCES) {
+    if (uc != UTOFU_SUCCESS) {
         fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, uc);
         fflush(stderr);
         ret = -1;  goto bad;

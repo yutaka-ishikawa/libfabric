@@ -101,7 +101,11 @@ int ulib_isep_open_tnis_info(struct ulib_isep *isep)
 	}
 	/* copy tnis[] and ntni */
 	for (ni = 0; ni < nn; ni++) {
+            struct utofu_onesided_caps *cap;
 	    isep->tnis[ni] = tnis[ni];
+            utofu_query_onesided_caps(tnis[ni], &cap);
+            fprintf(stderr, "YIRMA***: %s tnid(%d) num_stags(%d)\n",
+                    __func__, tnis[ni], cap->num_reserved_stags);
 	}
 	isep->ntni = ntni;
 	if (tnis != 0) {
@@ -119,6 +123,7 @@ int
 ulib_icep_ctrl_enab(void *ptr, size_t off)
 {
     int uc = UTOFU_SUCCESS;
+    struct tofu_cep *cep_priv  = (struct tofu_cep*) ptr;
     struct ulib_icep *icep = (struct ulib_icep*) ((char*)ptr + off);
     struct ulib_isep *isep;
 
@@ -129,7 +134,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     }
     /* shadow icep */
     if (icep->shadow == 0) {
-        struct tofu_cep *cep_priv  = (struct tofu_cep*) ptr;
         struct tofu_cep *cep_peer = 0;
         struct tofu_sep *sep_priv = cep_priv->cep_sep;
         struct ulib_icep *icep_peer;
@@ -231,6 +235,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     {
 	utofu_vcq_hdl_t vcqh = 0;
 	utofu_tni_id_t tni_id;
+        struct tofu_domain  *dom = cep_priv->cep_sep->sep_dom;
 	const utofu_cmp_id_t c_id = CONF_ULIB_CMP_ID;
 	const unsigned long flags =	0
 				/* | UTOFU_VCQ_FLAG_THREAD_SAFE */
@@ -247,6 +252,13 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 
 	assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
 	icep->vcqh = vcqh;
+        /*
+         * vcqh is copied to domain
+         *   It seems that vcqh should be created at domain creation time,
+         *   but vcqh associated with TNI is only created at this time.
+         */
+        dom->dom_vcqh[dom->dom_nvcq] = icep->vcqh;
+        dom->dom_nvcq++;
     }
     if (icep->toqc == 0) {
         uc = ulib_toqc_init(icep->vcqh, &icep->toqc);
@@ -278,6 +290,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
         utofu_vcq_id_t vcqi = -1UL;
 	uint8_t xyz[8];	uint16_t tni[1], tcq[1], cid[1];
         int uc;
+        char    buf[128];
         uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
         if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
         uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
@@ -293,8 +306,8 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
         icep->tofa.tank.tcq = tcq[0];
         icep->tofa.tank.cid = cid[0];
         fprintf(stderr, "YI****** self TOFU ADDR ******"
-                " %s = tofa.ui64=%lx in %s of %\n",
-                tank2string(buf, 128, icep->tofa.tank), icep->tofa.ui64,
+                " %s = tofa.ui64=%lx in %s of %s\n",
+                tank2string(buf, 128, icep->tofa.ui64), icep->tofa.ui64,
                 __func__, __FILE__);
     }
 

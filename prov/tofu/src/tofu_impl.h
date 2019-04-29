@@ -73,6 +73,9 @@ struct tofu_domain {
     fastlock_t		dom_lck;
 /*  struct dlist_entry	dom_ent; */
     uint32_t		dom_fmt;    /* addr_format */
+    /* For MR */
+    uintptr_t           dom_vcqh[8];
+    int                 dom_nvcq;
 };
 
 struct tofu_cq {
