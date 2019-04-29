@@ -35,38 +35,46 @@ static struct fi_ops tofu_mr__fi_ops = {
     .ops_open	    = fi_no_ops_open,
 };
 
-static int tofu_mr_reg(
-    struct fid *fid,
-    const void *buf,
-    size_t len,
-    uint64_t access,
-    uint64_t offset,
-    uint64_t requested_key,
-    uint64_t flags,
-    struct fid_mr **fid_mr_,
-    void *context
-)
+/*
+ * fi_mr_reg:
+ *  The key in fid_mr has a stadd value in utofu.
+ *  The mr is FI_MR_BASIC mode, not FI_MR_SCALABLE mode.
+ *  This means that the key of a memory area is managed by Tofu provider.
+ *  An application obtains the key using fi_mr_key().
+ *  Unknown: what are puposes of a descriptor obtained by fi_mr_desc() ?
+ *  2019/04/29
+ */
+static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
+                       uint64_t access, uint64_t offset,
+                       uint64_t requested_key,  uint64_t flags,
+                       struct fid_mr **fid_mr_, void *context)
 {
     int fc = FI_SUCCESS;
+    int rc = UTOFU_SUCCESS;
     struct tofu_domain *dom_priv;
-    struct tofu_mr *mr__priv = 0;
+    struct tofu_mr     *mr__priv = 0;
+    struct ulib_icep   *icep;
+    utofu_stadd_t      stadd;
+    uint64_t           utofu_flg = 0;
 
-    FI_INFO( &tofu_prov, FI_LOG_MR, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p) in %s\n", __FILE__, buf, len, offset, requested_key, flags, context);
     assert(fid != 0);
     if (fid->fclass != FI_CLASS_DOMAIN) {
 	fc = -FI_EINVAL; goto bad;
     }
     dom_priv = container_of(fid, struct tofu_domain, dom_fid.fid );
 
-    fprintf(stderr, "YIRMA: %s:%d buf(%p) len (%ld) offset(0x%lx)"
-            "key(0x%lx) flags(0x%lx) context(%p)\n",
-            __func__, __LINE__, buf, len, offset, requested_key, flags, context);
-    fflush(stderr);
     mr__priv = calloc(1, sizeof (mr__priv[0]));
     if (mr__priv == 0) {
 	fc = -FI_ENOMEM; goto bad;
     }
 
+    /* utofu_vcq_hdl_t */
+    uc = utofu_reg_mem(icep->vcqh, buf, len, utofu_flg, &stadd);
+    if (uc != 0) {
+        fc = -FI
+    }
+    
     /* initialize mr__priv */
     {
 	mr__priv->mr__dom = dom_priv;
@@ -77,8 +85,7 @@ static int tofu_mr_reg(
 	mr__priv->mr__fid.fid.context   = context;
 	mr__priv->mr__fid.fid.ops       = &tofu_mr__fi_ops;
 	mr__priv->mr__fid.mem_desc      = mr__priv; /* YYY */
-	mr__priv->mr__fid.key           = (uintptr_t)mr__priv; /* YYY */
-
+	mr__priv->mr__fid.key           = (uintptr_t) stadd;
 	/* dlist_init( &mr__priv->mr__ent ); */
     }
     /* fi_mr_attr */
@@ -105,6 +112,8 @@ static int tofu_mr_reg(
     fid_mr_[0] = &mr__priv->mr__fid;
     mr__priv = 0; /* ZZZ */
 
+    fprintf(stderr, "YIRMA: %s:%d registered key(0x%lx)\n",
+            __func__, __LINE__, mr__priv->mr__fid.key); fflush(stderr);
 bad:
     if (mr__priv != 0) {
 	tofu_mr_close( &mr__priv->mr__fid.fid );

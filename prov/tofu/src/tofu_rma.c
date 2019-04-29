@@ -6,6 +6,30 @@
 
 #include <assert.h>	    /* for assert() */
 
+struct ulib_rma_cmpl {
+    struct tofu_cq              *cq__priv;
+    struct fi_cq_tagged_entry   cmpl;
+};
+
+/*
+ * MUST BE CRITIAL REGION 2019/04/29
+ */
+void
+ulib_notify_rma_cmpl(void *ptr)
+{
+    struct ulib_rma_cmpl *rma_vmpl = (struct ulib_rma_cmpl *) ptr;
+    struct fi_cq_tagged_entry *cmpl;
+
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "rma_cmpl(%p)\n", rma_cmpl);
+    /* get an entry pointed by w.p. */
+    cmpl = ofi_cirque_tail(cq__priv->cq__ccq);
+    *cmpl = rma_cmpl->cmpl;
+    /* advance w.p. by one  */
+    ofi_cirque_commit(cirq);
+    free(rma_cmpl);
+}
+
+
 /* should be moved to somewhere */
 static inline char *
 fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
@@ -20,25 +44,74 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
     return tank2string(buf, sz, ui64);
 }
 
+/*
+ * fi_read:
+ */
 static ssize_t
 tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
                   fi_addr_t src_addr, uint64_t addr, uint64_t key,
                   void *context)
 {
-    ssize_t ret = 0;
-    struct tofu_cep *cep_priv = 0;
+    ssize_t     ret = 0;
+    int         uc, fc;
+    struct tofu_cep     *cep_priv = 0;
+    struct tofu_sep     *sep_priv = 0;
+    union ulib_tofa_u   tank;
+    utofu_vcq_id_t      rmt_vcq_id;
+    utofu_stadd_t       lcl_stadd;
+    uint64_t            edata = 123UL; /* temporal value */
+    int                 retry;
+    uint64_t            flags = UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE;
+    struct ulib_rma_cmpl *rma_cmpl;
     char        prbuf[128];
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "buf(%p) len(%ld) desc(%p) addr(0x%lx) key(%lx) context(%p) in %s\n", __FILE__, buf, len, desc, addr, key, context);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
     }
+    fprintf(stderr, "YIRMA: %s:%d remote(%s)\n",
+            __func__, __LINE__,  fi_addr2string(prbuf, 128));
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
-    fprintf(stderr, "YIRMA: %s:%d "
-            "remote(%s) len(%ld) desc(%p) addr(0x%lx) key(0x%lx)\n",
-            __func__, __LINE__,
-            fi_addr2string(prbuf, 128, src_addr, fid_ep), len, desc, addr, key);
-    fflush(stderr);
+    av__priv = cep_priv->cep_sep->sep_av_;
+    fc = tofu_av_lup_tank(av__priv, fi_src_addr, &tank.ui64);
+    if (fc != 0) {
+        fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, fc);
+        ret = -1;  goto bad;
+    }
+    rmt_vcq_id = tank.ui64;
+    uc = utofu_reg_mem(cep_priv->vcqh, buf, len, 0, &lcl_stadd);
+    if (uc != UTOFU_SUCCESS) {
+        fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, uc);
+        ret = -1;  goto bad;
+    }
+    /* preparing completion entry */
+    rma_cmpl = calloc(sizeof(struct ulib_rma_cmpl), 1);
+    rma_cmpl.cq__priv = cep_priv->cep_recv_cq;
+    rma_cmpl.cmpl->flags = flags;
+    rma_cmpl.cmpl->len = len;
+    rma_cmpl.cmpl->buf = buf;
+    rma_cmpl.cmpl->data = 0;
+    rma_cmpl.cmpl->tag = 0;
+    fprintf(stderr, "YIRMA: %s:%d rma_cmpl(%p)\n", __func__, __LINE__, rma_cmpl); fflush(stderr);
+    retry = 10;
+    do {
+        /*
+         * The edata is used for the ID of the fi_read transaction.
+         * When the utogu_get transaction is completed, i.e., the remote
+         * date has been received, the local MRQ notice raises.
+         * utofu_toqc_prog_ackd() handles this notice.
+         * cbdata points to a completion entry.
+         */
+        uc = utofu_get(cep_priv->vcqh, rmt_vcq_id, lcl_stadd, key,
+                       len, edata, flags, rma_cmpl);
+    } while (uc == UTOFU_ERR_BUSY && --retry > 0);
+    
+    if (uc != UTOFU_SUCCCES) {
+        fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, uc);
+        fflush(stderr);
+        ret = -1;  goto bad;
+    }
+
             
 bad:
     return ret;

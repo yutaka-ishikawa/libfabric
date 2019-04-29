@@ -375,13 +375,13 @@ static inline void ulib_toqc_match(
     int uc
 )
 {
-    if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_PUT) {
+    if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_PUT) { /* Put local MRQ */
 	ulib_toqc_match_ackd(toqc, ulib_toqd_dcmp_put, tmrq, uc);
     }
-    else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_GET) {
+    else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_GET) { /* Get local MRQ */
 	ulib_toqc_match_ackd(toqc, ulib_toqd_dcmp_get, tmrq, uc);
     }
-    else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_ARMW) {
+    else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_ARMW) { /* ARMW local MRQ */
 	ulib_toqc_match_ackd(toqc, ulib_toqd_dcmp_armw, tmrq, uc);
 if (0) {
 printf("%s():%d rmt_value %"PRIu64"\n", __func__, __LINE__, tmrq->rmt_value);

@@ -122,7 +122,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     struct ulib_icep *icep = (struct ulib_icep*) ((char*)ptr + off);
     struct ulib_isep *isep;
 
-    //fprintf(stderr, "YI********** %s is CALLED\n", __func__); fflush(stderr);
     ENTER_RC_C(uc);
 
     if (icep == 0) {
@@ -187,7 +186,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     }
     isep = icep->isep;
 
-    //fprintf(stderr, "YI*********** HERE in %s\n", __func__); fflush(stderr);
     /* unexpected entries */
     if (icep->uexp_fs == 0) {
 	/* YYY fi_rx_attr . total_buffered_recv and size ? */
@@ -196,7 +194,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
-    //fprintf(stderr, "YI*********** UEXP_FS(%p) in %s\n", icep->uexp_fs, __func__); fflush(stderr);
     /* expected entries */
     if (icep->expd_fs == 0) {
 	/* YYY fi_rx_attr . size ? */
@@ -245,68 +242,16 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_INVALID_TNI_ID; RETURN_BAD_C(uc);
 	}
 	tni_id = isep->tnis[icep->index];
-
-        //fprintf(stderr, "YI******** CHECKCHECK tni_id(%d) %s\n", tni_id, __func__);
 	uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 
 	assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
 	icep->vcqh = vcqh;
     }
-    {
-        uint64_t vcqi;
-        //uint8_t coords[6];
-        //utofu_tni_id_t tni_id;
-	uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
-        //uc = utofu_query_vcq_info(vcqi, coords, &tni_id, &cq_id, &extraval);
-        fprintf(stderr, "\t\tYIYI: icep(%p)->vcqh(%lx) LOCAL_VCQ(%lx, --, --\n", icep, icep->vcqh, vcqi); fflush(stderr);
-    }
     if (icep->toqc == 0) {
         uc = ulib_toqc_init(icep->vcqh, &icep->toqc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
     }
-#ifdef	NOTDEF
-    /* initializing cbuf */
-    {
-        struct tofu_cep  *cep  = (struct tofu_cep*) ptr;
-        struct tofu_cep  *cep_peer;
-        struct tofu_sep *sep_priv = cep->cep_sep;
-        struct ulib_icep *icep_peer;
-	const unsigned int ctag = 10, dtag = 11;
-	const ulib_shea_ercv_cbak_f func = ulib_icep_recv_call_back;
-	void *farg = icep;
-
-	if (icep->ioav == 0) {
-	    icep->ioav = sep_priv->sep_av_; /* av__priv */
-	}
-        switch (cep->cep_fid.fid.fclass) {
-        case FI_CLASS_TX_CTX:
-            cep_peer = tofu_sep_lup_cep_byi_unsafe(sep_priv,
-                            FI_CLASS_RX_CTX, cep->cep_idx);
-            icep_peer = (struct ulib_icep *)(cep_peer + 1);
-            break;
-        case FI_CLASS_RX_CTX:
-            cep_peer = tofu_sep_lup_cep_byi_unsafe(sep_priv,
-                            FI_CLASS_TX_CTX, cep->cep_idx);
-            icep_peer = (struct ulib_icep *)(cep_peer + 1);
-            break;
-        default:
-            fprintf(stderr, "YI*********** ERRRRRRRRRRRRR\n");
-            uc = UTOFU_ERR_FATAL;
-            RETURN_BAD_C(uc);
-        }
-        if (icep_peer->cbufp == NULL) {
-            icep->cbufp = (struct ulib_shea_cbuf*)
-                malloc(sizeof(struct ulib_shea_cbuf));
-            uc = ulib_shea_cbuf_init(icep->cbufp);
-            if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-            uc = ulib_shea_cbuf_enab(icep->cbufp, icep->vcqh,
-                                     ctag, dtag, func, farg);
-            if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-            icep_peer->cbufp = icep->cbufp;
-        }
-    }
-#else	/* NOTDEF */
     {
         struct tofu_cep *cep_priv = (struct tofu_cep*) ptr;
         struct tofu_sep *sep_priv = cep_priv->cep_sep;
@@ -329,9 +274,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 				 ctag, dtag, func, farg);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
     }
-#endif	/* NOTDEF */
-    icep->enabled = 1;
-    icep->shadow = icep;
     {
         utofu_vcq_id_t vcqi = -1UL;
 	uint8_t xyz[8];	uint16_t tni[1], tcq[1], cid[1];
@@ -341,19 +283,26 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
         uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
         if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
         icep->tofa.ui64 = 0;
-        icep->tofa.tofa.tux = xyz[0];
-        icep->tofa.tofa.tuy = xyz[1];
-        icep->tofa.tofa.tuz = xyz[2];
-        icep->tofa.tofa.tua = xyz[3];
-        icep->tofa.tofa.tub = xyz[4];
-        icep->tofa.tofa.tuc = xyz[5];
-        icep->tofa.tofa.tni = tni[0];
-        icep->tofa.tofa.tcq = tcq[0];
+        icep->tofa.tank.tux = xyz[0];
+        icep->tofa.tank.tuy = xyz[1];
+        icep->tofa.tank.tuz = xyz[2];
+        icep->tofa.tank.tua = xyz[3];
+        icep->tofa.tank.tub = xyz[4];
+        icep->tofa.tank.tuc = xyz[5];
+        icep->tofa.tank.tni = tni[0];
+        icep->tofa.tank.tcq = tcq[0];
+        icep->tofa.tank.cid = cid[0];
         fprintf(stderr, "YI****** self TOFU ADDR ******"
-                " xyz=%2x%2x%2x%2x%2x%2x tni=%x tcq=%x cid=%x tofa.ui64=%lx\n",
-                xyz[0],xyz[1],xyz[2],xyz[3],xyz[4],xyz[5],
-                tni[0], tcq[0], cid[0], icep->tofa.ui64);
+                " %s = tofa.ui64=%lx in %s of %\n",
+                tank2string(buf, 128, icep->tofa.tank), icep->tofa.ui64,
+                __func__, __FILE__);
     }
+
+    icep->enabled = 1;
+    /*
+     * Ask Hatanaka-san, what is the purpose of shadow ?
+     */
+    icep->shadow = icep;
 
     RETURN_OK_C(uc);
 

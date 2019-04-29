@@ -154,11 +154,11 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     av__priv = cep_priv->cep_sep->sep_av_;
     fc = tofu_av_lup_tank(av__priv, fi_a, &tank.ui64);
     if (fc != FI_SUCCESS) { ret = fc; goto bad; }
-    tank.tank.pid = 0; tank.tank.vld = 0; tank.tank.cid = 0;
+    tank.tank.pid = 0; tank.tank.vld = 0;
     icep = (struct ulib_icep*) (cep_priv + 1);
     {
         char buf1[128], buf2[128];
-        fprintf(stderr, "YI****** dest(%s) my tofa(%s) in %s\n",
+        fprintf(stderr, "YI****** dest_tank(%s) my_tank(%s) in %s\n",
                 tank2string(buf1, 128, tank.ui64),
                 tank2string(buf2, 128, icep->tofa.ui64), __func__);
     }
