@@ -81,43 +81,6 @@ showCEP(struct ulib_icep *icep)
     fprintf(stderr, "\t\t%s\n", fi_class_string(cep));
 }
 
-int ulib_isep_open_tnis_info(struct ulib_isep *isep)
-{
-    int uc = UTOFU_SUCCESS;
-
-    ENTER_RC_C(uc);
-
-    {
-	utofu_tni_id_t *tnis = 0;
-	size_t ntni = 0, ni, nn;
-	const size_t mtni = sizeof (isep->tnis) / sizeof (isep->tnis[0]);
-
-	uc = utofu_get_onesided_tnis( &tnis, &ntni );
-	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-
-	nn = ntni;
-	if (nn > mtni) {
-	    nn = mtni;
-	}
-	/* copy tnis[] and ntni */
-	for (ni = 0; ni < nn; ni++) {
-            struct utofu_onesided_caps *cap;
-	    isep->tnis[ni] = tnis[ni];
-            utofu_query_onesided_caps(tnis[ni], &cap);
-            fprintf(stderr, "YIRMA***: %s tnid(%d) num_stags(%d)\n",
-                    __func__, tnis[ni], cap->num_reserved_stags);
-	}
-	isep->ntni = ntni;
-	if (tnis != 0) {
-	    assert(ntni > 0);
-	    free(tnis); tnis = 0;
-	}
-    }
-
-    RETURN_OK_C(uc);
-
-    RETURN_RC_C(uc, /* do nothing */ );
-}
 
 int
 ulib_icep_ctrl_enab(void *ptr, size_t off)
@@ -310,7 +273,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
                 tank2string(buf, 128, icep->tofa.ui64), icep->tofa.ui64,
                 __func__, __FILE__);
     }
-
+    icep->nrma = 0;
     icep->enabled = 1;
     /*
      * Ask Hatanaka-san, what is the purpose of shadow ?
@@ -696,22 +659,22 @@ bad:
     return uc;
 }
 
-static inline int ulib_icqu_comp_tsnd(
-    void *vp_cq__priv,
-    const struct ulib_shea_data *udat
-)
+/*
+ * Notify send completion
+ */
+static inline int 
+ulib_icqu_comp_tsnd(void *vp_cq__priv, const struct ulib_shea_data *udat)
 {
     int uc = UTOFU_SUCCESS;
     struct fi_cq_tagged_entry cq_e[1];
+    uint64_t dflg;
     uint64_t flgs;
     size_t tlen;
 
-    /* FI_TAGGED */
-    {
-	uint64_t dflg = ulib_shea_data_flag(udat);
-
-	flgs = ((dflg & ULIB_SHEA_DATA_TFLG) != 0)? FI_TAGGED: 0;
-    }
+    dflg = ulib_shea_data_flag(udat);
+    /* converted to fi_flags */
+    flgs = ((dflg & ULIB_SHEA_DATA_TFLG) != 0)? FI_TAGGED: 0;
+    flgs |= ((dflg & ULIB_SHEA_DATA_CFLG) != 0)? FI_COMPLETION: 0;
     /* tlen */
     {
 	uint32_t nblk, llen;
@@ -732,12 +695,15 @@ static inline int ulib_icqu_comp_tsnd(
     cq_e->data		= 0;
     cq_e->tag		= ulib_shea_data_utag(udat);
 
-    if (vp_cq__priv != 0) {
-	int fc;
-	fc = tofu_cq_comp_tagged(vp_cq__priv, cq_e);
-	if (fc != 0) {
-	    uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
-	}
+    fprintf(stderr, "YISENDCMPLT****: %s in %s flags(0x%lx)\n", __func__, __FILE__, flgs); fflush(stderr);
+    if (flgs & FI_COMPLETION) {
+        if (vp_cq__priv != 0) {
+            int fc;
+            fc = tofu_cq_comp_tagged(vp_cq__priv, cq_e);
+            if (fc != 0) {
+                uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
+            }
+        }
     }
 
 bad:
@@ -1153,16 +1119,15 @@ int ulib_icep_shea_send_post(
 
 	vpid = cash_tmpl->vpid;
 
-        if ((flags & FI_TAGGED) != 0) {
-            flag |= ULIB_SHEA_DATA_TFLG;
-        }
+        flag |= (flags & FI_TAGGED) ? ULIB_SHEA_DATA_TFLG : 0;
+        flag |= (flags & FI_COMPLETION) ? ULIB_SHEA_DATA_CFLG : 0;
 	if ((flags & FI_REMOTE_CQ_DATA) != 0) {
 	    flag |= ULIB_SHEA_DATA_IFLG;
 	    idat = tmsg->data;
 	} else {
 	    idat = -2UL;
 	}
-// printf("tlen %5ld vpid %3d utag %016"PRIx64"\n", tlen, vpid, utag);
+        //printf("tlen %5ld vpid %3d utag %016"PRIx64"\n", tlen, vpid, utag);
 	ulib_shea_data_init(udat, ctxt, tlen, vpid, utag, idat, flag);
     }
     /* data_init_cash */
@@ -1337,22 +1302,11 @@ int ulib_icep_shea_send_prog(
     if (esnd == 0) { /* all */
 	DLST_DECH(ulib_head_esnd) *head = &icep->busy_esnd;
 	struct dlist_entry *curr, *next;
-
-if (0) {
-printf("%s:%d\tbusy_esnd %p empt %d\n", __FILE__, __LINE__,
-head, dlist_empty(head));
-fflush(stdout);
-}
 	dlist_foreach_safe(head, curr, next) {
 	    void *vp_esnd;
 
 	    vp_esnd = container_of(curr, struct ulib_shea_esnd, list);
 	    assert(vp_esnd != 0);
-
-if (0) {
-printf("%s:%d\tesnd %p toqc %p\n", __FILE__, __LINE__, vp_esnd, icep->toqc);
-fflush(stdout);
-}
 	    uc = ulib_icep_shea_send_prog(icep, &vp_esnd, tims);
 	    if (uc != UTOFU_SUCCESS) { /* goto bad; */ }
 	    if (vp_esnd == 0) { /* done */

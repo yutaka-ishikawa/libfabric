@@ -270,6 +270,7 @@ bad:
     if (sep_priv != 0) {
 	tofu_sep_close( &sep_priv->sep_fid.fid );
     }
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "return %d in %s\n", fc, __FILE__);
     return fc;
 }
 

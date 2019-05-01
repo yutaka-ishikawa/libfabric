@@ -1472,24 +1472,24 @@ int tofu_imp_ulib_isep_open(
     struct ulib_isep *isep;
     utofu_tni_id_t *tnis = 0;
     size_t ntni = 0;
-    size_t ni, nn = ntni;
+    size_t ni;
     const size_t mtni = sizeof (isep->tnis) / sizeof (isep->tnis[0]);
 
     isep = (struct ulib_isep*) (sep_priv + 1);
-#if 0
-    fprintf(stderr, "YI***** %s:%d\t%p %p\n",
-            __func__, __LINE__, sep_priv, isep); fflush(stderr);
-#endif /* 0 */
 
     uc = utofu_get_onesided_tnis( &tnis, &ntni );
+    fprintf(stderr, "YIRMACHECK***: uc(%d) ntni(%ld)\n", uc, ntni);
     if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
-    /* isep */
-    if (nn > mtni) {
-        nn = mtni;
+    if (ntni > mtni) {
+        ntni = mtni;
     }
     /* copy tnis[] and ntni */
-    for (ni = 0; ni < nn; ni++) {
+    for (ni = 0; ni < ntni; ni++) {
+        struct utofu_onesided_caps *cap;
         isep->tnis[ni] = tnis[ni];
+        utofu_query_onesided_caps(tnis[ni], &cap);
+        fprintf(stderr, "YIRMA***: %s tnid(%d) num_stags(%d)\n",
+                __func__, tnis[ni], cap->num_reserved_stags);
     }
     isep->ntni = ntni;
     /* free tnis[] */

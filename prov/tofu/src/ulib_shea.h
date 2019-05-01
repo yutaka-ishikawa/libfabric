@@ -56,9 +56,10 @@ struct ulib_shea_data {
 #endif	/* CONF_ULIB_PERF_SHEA */
 };
 
-#define ULIB_SHEA_DATA_TFLG	(1ULL << 0)
-#define ULIB_SHEA_DATA_ZFLG	(1ULL << 1)
-#define ULIB_SHEA_DATA_IFLG	(1ULL << 2)
+#define ULIB_SHEA_DATA_TFLG	(1ULL << 0)     /* FI_TAGGED */
+#define ULIB_SHEA_DATA_ZFLG	(1ULL << 1)     /* zero length */
+#define ULIB_SHEA_DATA_IFLG	(1ULL << 2)     /* FI_REMOTE_CQ_DATA */
+#define ULIB_SHEA_DATA_CFLG     (1ULL << 3)     /* FI_COMPLETION */
 
 struct ulib_shea_full {
     union ulib_shea_ct_u    cntr;

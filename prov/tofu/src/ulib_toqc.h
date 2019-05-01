@@ -29,6 +29,7 @@
 typedef uint32_t	    ulib_toqc_cnt_t;
 
 struct ulib_toqe {
+    int      magic;     /* 0: original 1: rma */
     uint32_t dsiz;
 #ifndef	notdef_fix3
     uint32_t csiz;
@@ -56,6 +57,19 @@ struct ulib_toqe {
 				== ULIB_TOQE_FLAG_DONE \
 			    )
 
+#define ULIB_RMA_NUM    128
+struct ulib_rma_cmpl {
+    int                 magic;
+    struct tofu_cep     *cep_priv;
+    struct tofu_cq      *cq__priv;
+    /* members of struct fi_cq_tagged_entry  */
+    void                *op_context;
+    uint64_t		flags;
+    size_t		len;
+    void		*buf;
+    uint64_t		data;
+    uint64_t		tag;
+};
 
 struct ulib_toqc {
     utofu_vcq_hdl_t vcqh;
@@ -63,6 +77,7 @@ struct ulib_toqc {
     ulib_toqc_cnt_t pcnt; /* producer counter : write pointer */
     ulib_toqc_cnt_t ccnt; /* consumer counter : read  pointer */
     struct ulib_toqe *toqe;
+    struct ulib_rma_cmpl *rma_cmpl;
 };
 
 typedef int (*ulib_toqc_match_ackd_f)(
@@ -415,7 +430,13 @@ static inline void ulib_toqc_match_tcqd(
 
     ulib_toqc_lock(toqc);
 
-    assert(toqc->ccnt != toqc->pcnt);
+// YI 2019/04/30   assert(toqc->ccnt != toqc->pcnt);
+    if (toqc->ccnt == toqc->pcnt) {
+        fprintf(stderr, "YIPOLL_TCQ: spurious notification ?\n");
+        fflush(stderr);
+        ulib_toqc_unlock(toqc);
+        return;
+    }
     ccnt = toqc->ccnt;  /* the number of completed requests */
     pcnt = toqc->pcnt;  /* the number of requests posted */
     while (ccnt != pcnt) {

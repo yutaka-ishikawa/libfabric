@@ -409,7 +409,7 @@ next_state:
 	    goto next_state;
 	}
 	/* YYY SCHEDULE_SELF() */
-printf("#%d\twait_head YYY schd_self()\n", __LINE__);
+        /*printf("#%d\twait_head YYY schd_self()\n", __LINE__);*/
 	break;
     case INCR_CNTR:
 	ulib_shea_perf_l_st(INCR_CNTR, esnd->data);

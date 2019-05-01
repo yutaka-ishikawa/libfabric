@@ -61,7 +61,20 @@ bad:
 }
 
 /*
- * flags: FI_SELECTIVE_COMPLETION
+ * int
+ *  fi_ep_bind(struct fid_ep *ep, struct fid *fid, uint64_t flags)
+ *      ep: FI_CLASS_TX_CTX or FI_CLASS_RX_CTX
+ *      fid: resources FI_CLASS_CQ or FI_CLASS_CNTR
+ *      flags: FI_RECV(0x400), FI_SEND (0x800),
+ *             FI_SELECTIVE_COMPLETION (0x800000000000000)
+ *                Indicates that a completion queue entry should be
+ *                written for data transfer operations. This flag only
+ *                applies to operations issued on an endpoint that was
+ *                bound to a completion queue with the
+ *                FI_SELECTIVE_COMPLETION flag set, otherwise, it is
+ *                ignored. fi_endpoint(3)
+ *              Other flags are currently not yet implemented.
+ *             
  */
 static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 {

@@ -100,7 +100,7 @@ static struct fi_tx_attr tofu_tx_attr = {
 		/* | FI_ORDER_STRICT */
 		/* | FI_ORDER_DATA */
 	    ,
-    .inject_size = 1024,        /* 2019/04/26 */
+    .inject_size = 0, /*1024,*/        /* 2019/04/26 */
     .size = 2048, /* YYY */
     .iov_limit = 1, /* XXX TOFU_IOV_LIMIT */
     .rma_iov_limit = 1, /* XXX TOFU_IOV_LIMIT */

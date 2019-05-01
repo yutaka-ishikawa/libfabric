@@ -144,8 +144,7 @@ struct ulib_icep {
     utofu_vcq_hdl_t             vcqh;
     fastlock_t                  icep_lck;
     struct ulib_toqc            *toqc;
-    struct ulib_shea_cbuf       *cbufp;      /* eager buffer controlling tofu */
-    //struct ulib_shea_cbuf       cbuf;      /* eager buffer controlling tofu */
+    struct ulib_shea_cbuf       *cbufp;     /* eager buffer controlling tofu */
     DLST_DECH(ulib_head_esnd)   busy_esnd;
     void                        *vp_tofu_scq; /* struct tofu_cq */
     void                        *vp_tofu_rcq; /* struct tofu_cq */
@@ -163,9 +162,9 @@ struct ulib_icep {
     DLST_DECH(ulib_head_desc)   cash_list_desc; /* head of desc_cash */
     union ulib_tofa_u           tofa;           /* TOFu network Address */  
                                   /* xyzabc, tni, and tcq are effective */
+    int                 nrma; /* # of rma operations on the fly */
 };
 
-extern int  ulib_isep_open_tnis_info(struct ulib_isep *isep);
 extern int  ulib_icep_ctrl_enab(void *ptr, size_t off);
 extern void ulib_ofif_icep_init(void *ptr, size_t off);
 extern int  ulib_icep_close(void *ptr, size_t off);

@@ -124,9 +124,11 @@ struct fi_provider *fi_prov_ini(void)
 }
 
 /**************************************************************************/
+int mypid;
 
 TOFU_INI
 {
     FI_INFO(&tofu_prov, FI_LOG_DEBUG, "\n**** TOFU INIT ****\n");
+    mypid = getpid();
     return &tofu_prov;
 }

@@ -6,6 +6,7 @@
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
+extern int mypid;
 
 static int tofu_mr_close(struct fid *fid)
 {
@@ -69,7 +70,7 @@ static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     }
 
     /* 
-     * Registering memry region.
+     * Registering memory region.
      * For all vcqhs, we need to register the same memory region so that
      * the area are accessed by any vcqh.
      * The current implementation, only one vcqh and thus it is much easy.
@@ -121,8 +122,10 @@ static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
 
 	mr__priv->mr__flg = flags;
     }
-    fprintf(stderr, "YIRMA: %s:%d registered key(0x%lx)\n",
-            __func__, __LINE__, mr__priv->mr__fid.key); fflush(stderr);
+    FI_DBG(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) registered key(0x%lx)\n",
+           buf, len, mr__priv->mr__fid.key);
+    printf("%d:YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n",
+          mypid, buf, len, mr__priv->mr__fid.key); fflush(stdout);
 
     /* return fid_dom */
     fid_mr_[0] = &mr__priv->mr__fid;

@@ -233,7 +233,7 @@ static ssize_t tofu_cep_msg_sendv(
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    ret = tofu_cep_msg_send_common(fid_ep, &tmsg, 0 /* flags */ );
+    ret = tofu_cep_msg_send_common(fid_ep, &tmsg, FI_COMPLETION /* flags */ );
     if (ret != 0) { goto bad; }
 
 bad:
@@ -269,7 +269,7 @@ static ssize_t tofu_cep_msg_send(
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    ret = tofu_cep_msg_send_common(fid_ep, &tmsg, 0 /* flags */ );
+    ret = tofu_cep_msg_send_common(fid_ep, &tmsg, FI_COMPLETION /* flags */ );
     if (ret != 0) { goto bad; }
 
 bad:
@@ -363,6 +363,7 @@ tofu_cep_tag_recvmsg(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+
     ret = tofu_cep_msg_recv_common(fid_ep, msg, flags);
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
@@ -377,6 +378,7 @@ tofu_cep_tag_send(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
     return ret;
 }
 
@@ -388,6 +390,7 @@ tofu_cep_tag_sendv(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
     return ret;
 }
 
@@ -407,8 +410,8 @@ tofu_cep_tag_inject(struct fid_ep *fid_ep,
                     fi_addr_t dest_addr, uint64_t tag)
 {
     ssize_t ret = -FI_ENOSYS;
-    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
     return ret;
 }
 
@@ -422,7 +425,7 @@ tofu_cep_tag_senddata(struct fid_ep *fid_ep,
     struct fi_msg_tagged tmsg;
     struct iovec         iovs[1];
     void                 *dscs[1];
-    int                  flags = FI_TAGGED | FI_REMOTE_CQ_DATA;
+    int                  flags = FI_TAGGED | FI_REMOTE_CQ_DATA | FI_COMPLETION;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s data(%ld)\n", __FILE__, data);
 
@@ -450,10 +453,7 @@ tofu_cep_tag_injectdata(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
     struct fi_msg_tagged tmsg;
     struct iovec iovs[1];
-    uint64_t flags = 0
-		    | FI_INJECT | FI_TAGGED | FI_REMOTE_CQ_DATA
-		    /* FI_REMOTE_CQ_DATA */ /* XXX */
-		    /* | TOFU_NO_COMPLETION */ /* YYY */
+    uint64_t flags = FI_INJECT | FI_TAGGED | FI_REMOTE_CQ_DATA
 		    /* | TOFU_USE_OP_FLAG */ /* YYY */
 		    ;
 
@@ -469,6 +469,7 @@ tofu_cep_tag_injectdata(struct fid_ep *fid_ep,
     tmsg.ignore	    = -1ULL;	/* XXX */
     tmsg.context    = 0;	/* XXX */
     tmsg.data	    = data;
+
     ret = tofu_cep_msg_send_common(fid_ep, &tmsg, flags);
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "fi_errno %ld in %s\n", ret, __FILE__);

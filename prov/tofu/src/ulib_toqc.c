@@ -27,6 +27,7 @@
 			    | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE \
 			    )
 
+extern int mypid;
 
 int ulib_toqc_post(
     struct ulib_toqc *toqc,
@@ -63,6 +64,7 @@ int ulib_toqc_post(
 	&& (((flags = ackd->reserved[1]) & ULIB_TOQC_NOTICES) != 0)
     ) {
 	toqe = ulib_toqc_toqe_pcnt(toqc);
+        fprintf(stderr, "%d:YIPOLL_TCQ: magic(%d)\n", mypid, toqe->magic); fflush(stderr);
     }
 
     uc = utofu_post_toq(toqc->vcqh, desc, desc_size, toqe);
@@ -130,14 +132,15 @@ int ulib_toqc_init(
 
 	msiz  = sizeof (toqc[0]);
 	msiz += (sizeof (toqc->toqe[0]) * ULIB_TOQC_SIZE);
+        msiz += (sizeof (toqc->rma_cmpl[0]) * ULIB_RMA_NUM);
 
 	toqc = calloc(1, msiz);
 	if (toqc == 0) {
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
-
 	toqc->vcqh = vcqh;
 	toqc->toqe = (struct ulib_toqe *)&toqc[1];;
+        toqc->rma_cmpl = (struct ulib_rma_cmpl*) ((char*) toqc->toqe + (sizeof (toqc->toqe[0]) * ULIB_TOQC_SIZE));
 
 	/* return */
 	pp_toqc[0] = toqc;
@@ -188,7 +191,6 @@ int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc)
 	    }
 	    /* fall thru */
 	}
-
 #ifndef	CONF_ULIB_UTOF_FIX2
 	/* toqe */
 	{
@@ -224,6 +226,14 @@ int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc)
 	    uc = UTOFU_SUCCESS;
 	}
 #else	/* CONF_ULIB_UTOF_FIX2 */
+        {
+            struct ulib_toqe *toqe = cbdata;
+            fprintf(stderr, "%d:YIPOLL_TCQ: cbdata(%p), toqe->magic(%d)\n", mypid, cbdata, toqe->magic); fflush(stderr);
+            if (toqe->magic != 0) {
+                /* currently no notification */
+                RETURN_OK_C(uc);
+            }
+        }
 	ulib_toqc_match_tcqd(toqc, cbdata, uc);
 	uc = UTOFU_SUCCESS;
 #endif	/* CONF_ULIB_UTOF_FIX2 */
@@ -249,9 +259,16 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
 	if (uc == UTOFU_ERR_NOT_FOUND) {
 	    uc = UTOFU_SUCCESS;
 	    break;
-	}
-	else if (uc != UTOFU_SUCCESS) {
+	} else if (uc != UTOFU_SUCCESS) {
 	    if (UTOFU_ISA_ERR_MRQ(uc)) { /* UTOFU_ERR_MRQ_+ */
+                /* -256 -- -192 */
+                fprintf(stderr, "%d: YIPOLL_MRQ: UTOFU_ERR_MRQ(%d) edata(0x%lx) %s\n", mypid, uc, tmrq[0].edata, __func__); fflush(stderr);
+                if (tmrq[0].edata > 0 && tmrq[0].edata <= ULIB_RMA_NUM) {
+                    /* fi_read is completed */
+                    extern void ulib_notify_rma_cmpl(struct ulib_toqc*, int);
+                    ulib_notify_rma_cmpl(toqc, tmrq[0].edata);
+                    continue;
+                }
 		ulib_toqc_match(toqc, tmrq, uc);
 		uc = UTOFU_SUCCESS;
 		continue;
@@ -259,10 +276,12 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
 	    ulib_toqc_abort(toqc, uc);
 	    RETURN_BAD_C(uc);
 	}
-        fprintf(stderr, "YIRMA***: %s in %s edata(0x%lx)\n", __func__, __FILE__, tmrq[0].edata);
-        if (tmrq[0].edata != 0) { /* fi_read is completed */
-            extern void ulib_notify_rma_cmpl(void *ptr);
-            ulib_notify_rma_cmpl((void*) tmrq[0].edata);
+        fprintf(stderr, "%d: YIPOLL_MRQ: edata(0x%lx) %s\n", mypid, tmrq[0].edata, __func__); fflush(stderr);
+        if (tmrq[0].edata > 0 && tmrq[0].edata <= ULIB_RMA_NUM) {
+            /* fi_read is completed */
+            extern void ulib_notify_rma_cmpl(struct ulib_toqc*, int);
+            ulib_notify_rma_cmpl(toqc, tmrq[0].edata);
+            continue;
         }
 	ulib_toqc_match(toqc, tmrq, 0 /* uc */ );
     }

@@ -5,34 +5,66 @@
 #include "ulib_shea.h"
 #include "ulib_conv.h"
 #include "ulib_ofif.h"
-
+#include "ulib_toqc.h" 
 #include <assert.h>	    /* for assert() */
 
-struct ulib_rma_cmpl {
-    struct tofu_cq              *cq__priv;
-    struct fi_cq_tagged_entry   cmpl;
-};
+extern int mypid;
+
+static inline int
+ulib_conv_paid(utofu_vcq_id_t vcqid, utofu_path_id_t *p_paid)
+{
+    int uc;
+    union ulib_tofa_u utofa;
+    uint8_t abc[3];
+
+    utofa.ui64 = vcqid;
+#if 0
+    abc[0] = utofa.tank.tua;
+    abc[1] = utofa.tank.tub;
+    abc[2] = utofa.tank.tuc;
+#else
+    abc[0] = abc[1] = abc[2] = 0; /* all zero */
+#endif
+    uc = utofu_get_path_id(vcqid, abc, p_paid);
+    printf("%d:PATH paid(0x%x) abc(%d:%d:%d)\n", mypid, *p_paid, abc[0], abc[1], abc[2]); fflush(stdout);
+    return uc;
+}
+
 
 /*
  * MUST BE CRITIAL REGION 2019/04/29
  */
 void
-ulib_notify_rma_cmpl(void *ptr)
+ulib_notify_rma_cmpl(struct ulib_toqc *toqc, int idx)
 {
-    struct ulib_rma_cmpl *rma_cmpl = (struct ulib_rma_cmpl *) ptr;
+    struct ulib_rma_cmpl *rma_cmpl;
     struct fi_cq_tagged_entry *cmpl;
+    struct ulib_icep *icep;
 
-    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "rma_cmpl(%p)\n", rma_cmpl);
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "idx(%d)\n", idx);
+    rma_cmpl = &toqc->rma_cmpl[idx - 1];
+    icep = (struct ulib_icep *)(rma_cmpl->cep_priv + 1);
+    assert(icep->nrma > 0);
+    --icep->nrma;     /* decrement # of rma ops on the fly */
     if (ofi_cirque_isfull(rma_cmpl->cq__priv->cq__ccq)) {
         /* ERROR */
+        fprintf(stderr, "YIRMA: CQ is full\n");
+        return;
     }
     /* get an entry pointed by w.p. */
     cmpl = ofi_cirque_tail(rma_cmpl->cq__priv->cq__ccq);
     /* copy */
-    *cmpl = rma_cmpl->cmpl;
+    cmpl->op_context = rma_cmpl->op_context;
+    cmpl->flags = rma_cmpl->flags;
+    cmpl->len = rma_cmpl->len;
+    cmpl->buf = rma_cmpl->buf;
+    cmpl->data = rma_cmpl->data;
+    cmpl->tag = rma_cmpl->tag;
     /* advance w.p. by one  */
     ofi_cirque_commit(rma_cmpl->cq__priv->cq__ccq);
-    free(rma_cmpl);
+    FI_DBG(&tofu_prov, FI_LOG_EP_DATA,
+           "%s Enter entry(%p) in to CQ nrma(%d)\n",
+           __func__, cmpl, icep->nrma);
 }
 
 
@@ -66,11 +98,12 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
     union ulib_tofa_u   tank;
     utofu_vcq_id_t      rmt_vcq_id;
     utofu_stadd_t       lcl_stadd;
-    uint64_t            edata = 123UL; /* temporal value */
-    int                 retry;
+    utofu_path_id_t     paid;
+    uint64_t            edata;
     uint64_t            flags = UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE;
+                               /* | UTOFU_ONESIDED_FLAG_TCQ_NOTICE; */
     struct ulib_rma_cmpl *rma_cmpl;
-    char        prbuf[128];
+    int                 retry;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "buf(%p) len(%ld) desc(%p) addr(0x%lx) key(%lx) context(%p) in %s\n", buf, len, desc, addr, key, context, __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
@@ -78,31 +111,55 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
     }
     cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
     av__priv = cep_priv->cep_sep->sep_av_;
-    fprintf(stderr, "YIRMA: %s:%d remote(%s)\n",
-            __func__, __LINE__, fi_addr2string(prbuf, 128, src_addr, fid_ep));
     /* finding source address */
     fc = tofu_av_lup_tank(av__priv, src_addr, &tank.ui64);
     if (fc != 0) {
         fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, fc);
         ret = -1;  goto bad;
     }
-    /* registering local memory */
+    /* remote vcqid */
     rmt_vcq_id = tank.ui64;
+
+    /* registering local memory */
     icep = (struct ulib_icep*) (cep_priv + 1);
     uc = utofu_reg_mem(icep->vcqh, buf, len, 0, &lcl_stadd);
     if (uc != UTOFU_SUCCESS) {
-        fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, uc);
+        fprintf(stderr, "%d:YIRMA: %s:%d ERROR(%d)\n", mypid, __func__, __LINE__, uc);
         ret = -1;  goto bad;
     }
+    /* edata and flag */
+    edata = icep->nrma + 1;
+    uc = ulib_conv_paid(rmt_vcq_id, &paid);
+    flags |= UTOFU_ONESIDED_FLAG_PATH(paid);
+
     /* preparing completion entry */
-    rma_cmpl = calloc(sizeof(struct ulib_rma_cmpl), 1);
-    rma_cmpl->cq__priv = cep_priv->cep_recv_cq;
-    rma_cmpl->cmpl.flags = flags;
-    rma_cmpl->cmpl.len = len;
-    rma_cmpl->cmpl.buf = buf;
-    rma_cmpl->cmpl.data = 0;
-    rma_cmpl->cmpl.tag = 0;
-    fprintf(stderr, "YIRMA: %s:%d rma_cmpl(%p)\n", __func__, __LINE__, rma_cmpl); fflush(stderr);
+    rma_cmpl = &icep->toqc->rma_cmpl[icep->nrma]; /* idx is (edata - 1) */
+    rma_cmpl->magic = 1;
+    rma_cmpl->cep_priv = cep_priv;
+    rma_cmpl->cq__priv = cep_priv->cep_send_cq;
+    rma_cmpl->op_context = context;
+    rma_cmpl->flags = flags;
+    rma_cmpl->len = len;
+    rma_cmpl->buf = buf;
+    rma_cmpl->data = 0;
+    rma_cmpl->tag = 0;
+    {
+        char        prbuf1[128], prbuf2[128];
+
+        FI_DBG(&tofu_prov, FI_LOG_EP_DATA, 
+               "YIRMA_READ: rmt fi_addr(%s) rmt_vcq_id(%s) "
+               "buf(%p) lcl_stadd(0x%lx) key(0x%lx) "
+               "len(%ld) edata(%ld) cbdata(%p) flags(0x%lx))\n",
+               fi_addr2string(prbuf1, 128, src_addr, fid_ep),
+               tank2string(prbuf2, 128, rmt_vcq_id), buf, lcl_stadd, key,
+               len, edata, rma_cmpl, flags);
+        printf("%d:YIRMA_READ: rmt fi_addr(%s) rmt_vcq_id(%s) "
+               "buf(%p) lcl_stadd(0x%lx) key(rmt_stadd)(0x%lx) "
+               "len(%ld) edata(%ld) cbdata(%p) flags(0x%lx))\n",
+               mypid, fi_addr2string(prbuf1, 128, src_addr, fid_ep),
+               tank2string(prbuf2, 128, rmt_vcq_id), buf, lcl_stadd, key,
+               len, edata, rma_cmpl, flags); fflush(stdout);
+    }
     retry = 10;
     do {
         /*
@@ -115,15 +172,15 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
         uc = utofu_get(icep->vcqh, rmt_vcq_id, lcl_stadd, key,
                        len, edata, flags, rma_cmpl);
     } while (uc == UTOFU_ERR_BUSY && --retry > 0);
-    
-    if (uc != UTOFU_SUCCESS) {
+    if (uc == UTOFU_SUCCESS) {
+        icep->nrma++;
+    } else {
         fprintf(stderr, "YIRMA: %s:%d ERROR(%d)\n", __func__, __LINE__, uc);
         fflush(stderr);
         ret = -1;  goto bad;
     }
-
-            
 bad:
+    FI_DBG(&tofu_prov, FI_LOG_EP_DATA, "return %ld\n", ret);
     return ret;
 }
 

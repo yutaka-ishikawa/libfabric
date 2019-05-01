@@ -9,6 +9,10 @@
 #include "ulib_shea.h"	    /* for struct ulib_shea_data */
 #include "ulib_ofif.h"	    /* for ulib_icep_shea_send_prog() */
 
+extern int ulib_toqc_prog_ackd(struct ulib_toqc *toqc);
+extern int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc);
+extern int mypid;
+
 void
 yi_showcntrl(const char *func, int lno, void *ptr)
 {
@@ -92,47 +96,38 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     assert(fid_cq != 0);
     cq__priv = container_of(fid_cq, struct tofu_cq, cq__fid);
     if (cq__priv == 0) { }
-#ifdef	NOTDEF
-    {
-	static uint32_t called = 0;
-	ret = ((called++ & 0x7) == 0x7) ? -FI_EOTHER: -FI_EAGAIN;
-    }
-#else	/* NOTDEF */
 
     fastlock_acquire( &cq__priv->cq__lck );
 
-    fprintf(stderr, "\tYIPROTOCOL***: %s cq__priv->cq_ccq is %s\n", __func__, ofi_cirque_isempty(cq__priv->cq__ccq) ? "empty": "filled");
+    fprintf(stderr, "%d:YICQREAD***: %s cq__priv->cq_ccq is %s\n", mypid, __func__, ofi_cirque_isempty(cq__priv->cq__ccq) ? "empty": "filled");
     /*
      * Checking CQ
      */
     if (ofi_cirque_isempty( cq__priv->cq__ccq )) {
-        struct dlist_entry *head = &cq__priv->cq__htx;
-        struct dlist_entry *curr, *next;
+        struct dlist_entry *head, *curr, *next;
+        struct tofu_cep *cep_priv;
+        struct ulib_icep *icep;
+        int uc;
 
-        //fprintf(stderr, "\tYIUTOFU***: %s cq__htx(%p)\n", __func__, head);
+        head = &cq__priv->cq__htx;
         dlist_foreach_safe(head, curr, next) {
-            struct tofu_cep *cep_priv;
-            struct ulib_icep *icep;
-            int uc;
-
             cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
             assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
             icep = (struct ulib_icep *)(cep_priv + 1);
-
             uc = ulib_icep_shea_send_prog(icep, 0, 0 /* tims */);
             if (uc != 0 /* UTOFU_SUCCESS */ ) { }
+            /* RMA operations */
+            if (icep->nrma > 0) {
+                fprintf(stderr, "%d:YICQREAD***: (%d) nrma(%d)\n", mypid, __LINE__, icep->nrma);
+                uc = ulib_toqc_prog_ackd(icep->toqc);
+                uc = ulib_toqc_prog_tcqd(icep->toqc);
+            }
         }
         head = &cq__priv->cq__hrx;
-        //fprintf(stderr, "\tYIUTOFU***: %s cq__hrx(%p)\n", __func__, head);
         dlist_foreach_safe(head, curr, next) {
-            struct tofu_cep *cep_priv;
-            struct ulib_icep *icep;
-            int uc;
-
             cep_priv = container_of(curr, struct tofu_cep, cep_ent_cq);
             assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
             icep = (struct ulib_icep *)(cep_priv + 1);
-
             uc = ulib_icep_shea_recv_prog(icep);
             if (uc != 0 /* UTOFU_SUCCESS */ ) { }
         }
@@ -144,7 +139,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     if (ment > ofi_cirque_usedcnt( cq__priv->cq__ccq )) {
 	ment = ofi_cirque_usedcnt( cq__priv->cq__ccq );
     }
-    fprintf(stderr, "YIPROTOCOL: ment(%ld) in %s\n", ment, __func__);
+    fprintf(stderr, "%d:YICQREAD: ment(%ld) in %s\n", mypid, ment, __func__);
 
     for (ient = 0; ient < ment; ient++) {
 	struct fi_cq_tagged_entry *comp;
@@ -164,7 +159,6 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 
 bad:
     fastlock_release( &cq__priv->cq__lck );
-#endif	/* NOTDEF */
     FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s return %ld\n", __FILE__, ret);
     return ret;
 }
@@ -184,6 +178,9 @@ static struct fi_ops_cq tofu_cq__ops = {
     .strerror	    = fi_no_cq_strerror,
 };
 
+/*
+ * fi_cq_open
+ */
 int tofu_cq_open(
     struct fid_domain *fid_dom,
     struct fi_cq_attr *attr,
