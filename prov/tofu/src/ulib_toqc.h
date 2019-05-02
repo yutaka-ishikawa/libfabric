@@ -432,8 +432,8 @@ static inline void ulib_toqc_match_tcqd(
 
 // YI 2019/04/30   assert(toqc->ccnt != toqc->pcnt);
     if (toqc->ccnt == toqc->pcnt) {
-        fprintf(stderr, "YIPOLL_TCQ: spurious notification ?\n");
-        fflush(stderr);
+        fprintf(stderr, "YIPOLL_TCQ: spurious notification ?\n"); fflush(stderr);
+        printf("\t%d: YIPOLL_TCQ: spurious notification ?\n", mypid); fflush(stdout);
         ulib_toqc_unlock(toqc);
         return;
     }

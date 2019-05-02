@@ -496,6 +496,13 @@ static inline void ulib_icqu_cque_deq_push(struct ulib_icqu *icqu, void *cent)
 #endif	/* defined(CONF_ULIB_FICQ) */
 #endif	/* CONF_ULIB_OFI */
 
+/*
+ * ulib_match_expd
+ *      The argument "item" is an expected message posted by the user.
+ *      The argument "farg" is an entry of unexpected message queue.
+ *   Note: a similar function, ulib_match_unexp is defined in ulib_ofif.c
+ *         This function should be also in that file ?
+ */
 static inline int
 ulib_match_expd(struct dlist_entry *item, const void *farg)
 {
@@ -503,7 +510,12 @@ ulib_match_expd(struct dlist_entry *item, const void *farg)
     const struct ulib_shea_uexp *uexp = farg;
     struct ulib_shea_expd *expd;
 
+    /* expd: posted entry, uexp: sender's data */
     expd = container_of(item, struct ulib_shea_expd, entry);
+
+    R_DBG0("expd->tag(0x%lx) expd->ignore(0x%lx) uexp->tag(0x%lx)",
+          expd->tmsg.tag, expd->tmsg.ignore, uexp->utag);
+
     ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
            == (uexp->utag & ~expd->tmsg.ignore));
     return ret;
@@ -522,6 +534,7 @@ ulib_icep_find_expd(struct ulib_icep *icep,
 	&icep->expd_list_trcv : &icep->expd_list_mrcv;
 
     match = dlist_remove_first_match(head, ulib_match_expd, uexp);
+    R_DBG0("\ttagmached(%p)", match);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }

@@ -3,12 +3,16 @@
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
+#include "tofu_debug.h"
 #include "tofu_impl.h"
 /* The following ulib interface should be defined in some file 2019/04/18 */
 extern int  ulib_icep_ctrl_enab(void *ptr, size_t off);
 extern void ulib_ofif_icep_init(void *ptr, size_t off);
 extern int  ulib_icep_close(void *ptr, size_t off);
 
+/*
+ * fi_ep_close
+ */
 static int tofu_cep_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
@@ -108,6 +112,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
+            R_DBG0("fi_ep_bind: CQ(%p) TX_CTX(%p)", cq__priv, cep_priv);
 	    if (flags & FI_SEND) {
 		/*
 		 * man fi_endpoint(3)
@@ -124,6 +129,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    }
 	    break;
 	case FI_CLASS_RX_CTX:
+            R_DBG0("fi_ep_bind: CQ(%p) RX_CTX(%p)", cq__priv, cep_priv);
 	    if (flags & FI_RECV) {
 		if (cep_priv->cep_recv_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
@@ -223,13 +229,8 @@ bad:
 static struct fi_ops tofu_cep_fi_ops = {
     .size	    = sizeof (struct fi_ops),
     .close	    = tofu_cep_close,
-#ifdef	notdef
-    .bind	    = fi_no_bind,
-    .control	    = fi_no_control,
-#else	/* notdef */
     .bind	    = tofu_cep_bind,
     .control	    = tofu_cep_ctrl,
-#endif	/* notdef */
     .ops_open	    = fi_no_ops_open,
 };
 

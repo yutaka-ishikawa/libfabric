@@ -1,6 +1,7 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_debug.h"
 #include "ulib_conf.h"
 #include "ulib_dlog.h"	    /* for ENTER_RC_C() */
 
@@ -20,6 +21,20 @@
 #include <assert.h>	    /* for assert() */
 #include <stdlib.h>	    /* for free() */
 #include <stdio.h>	    /* for printf() */
+
+/* should be moved */
+static inline char *
+fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
+{
+    struct tofu_cep *cep_priv;
+    struct tofu_av *av__priv;
+    uint64_t ui64;
+
+    cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
+    av__priv = cep_priv->cep_sep->sep_av_;
+    tofu_av_lup_tank(av__priv, fi_addr, &ui64);
+    return tank2string(buf, sz, ui64);
+}
 
 extern void tofu_imp_ulib_uexp_rbuf_free(struct ulib_shea_uexp *uexp);
 
@@ -212,6 +227,26 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	tni_id = isep->tnis[icep->index];
 	uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
+#if 0 /* checking vcq_id 2019/05/01 */
+        {
+            utofu_vcq_id_t vcqi = -1UL;
+            uint8_t xyz[8];	uint16_t tni[1], tcq[1], cid[1];
+            union ulib_tofa_u tofa;
+            char buf[128];
+            uc = utofu_query_vcq_id(vcqh, &vcqi);
+            uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
+            tofa.ui64 = 0;
+            tofa.tank.tux = xyz[0]; tofa.tank.tuy = xyz[1];
+            tofa.tank.tuz = xyz[2]; tofa.tank.tua = xyz[3];
+            tofa.tank.tub = xyz[4]; tofa.tank.tuc = xyz[5];
+            tofa.tank.tni = tni[0]; tofa.tank.tcq = tcq[0];
+            tofa.tank.cid = cid[0];
+            printf("%d: vcqh(0x%lx) vcqid(%s) in %s:%d of %s\n", mypid, vcqh,
+                   tank2string(buf, 128, tofa.ui64),
+                   __func__, __LINE__, __FILE__);
+            fflush(stdout);
+        }
+#endif
 
 	assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
 	icep->vcqh = vcqh;
@@ -268,8 +303,9 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
         icep->tofa.tank.tni = tni[0];
         icep->tofa.tank.tcq = tcq[0];
         icep->tofa.tank.cid = cid[0];
-        fprintf(stderr, "YI****** self TOFU ADDR ******"
-                " %s = tofa.ui64=%lx in %s of %s\n",
+        fprintf(stderr, "%d: YI****** self TOFU ADDR ******"
+                " vcqh(0x%lx) %s = tofa.ui64=%lx in %s of %s\n",
+                mypid, icep->vcqh,
                 tank2string(buf, 128, icep->tofa.ui64), icep->tofa.ui64,
                 __func__, __FILE__);
     }
@@ -319,6 +355,10 @@ int ulib_icep_close(void *ptr, size_t off)
     int uc = UTOFU_SUCCESS;
 
     ENTER_RC_C(uc);
+
+    R_DBG0("Finalizing but sleep 200msec now... icep(%p)", icep);
+    usleep(200*1000);
+    R_DBG0("Wakeup and now going to shutdown the utofu provider(%p).", icep);
 
     if ((icep == 0) || (icep->isep == 0)) {
 	uc = UTOFU_ERR_INVALID_ARG; RETURN_BAD_C(uc);
@@ -560,20 +600,29 @@ int ulib_foo(struct ulib_icep *icep)
 
 #include "ulib_shea.h"
 
-static inline int ulib_match_rinf_entry(
-    struct dlist_entry *item,
-    const void *farg
-)
+/*
+ * ulib_match_unexp:
+ *      The argument "item" is an unexpected message came from a sender.
+ *      The argument "farg" is an entry of expected queue, receive requested.
+ *      This function is called in order to find a message whose tag
+ *      is matched with the tag of taged receive operation posted by the user.
+ *      The receiver side has the ignore field.
+ */
+static inline int
+ulib_match_unexp(struct dlist_entry *item, const void *farg)
 {
     int ret;
-    const struct ulib_shea_expd *trcv = farg;
-    struct ulib_shea_uexp *rinf;
+    const struct ulib_shea_expd *expd = farg;
+    struct ulib_shea_uexp *uexp;
 
-    rinf = container_of(item, struct ulib_shea_uexp, entry);
-    ret =
-	((trcv->tmsg.tag | trcv->tmsg.ignore)
-	    == (rinf->utag | trcv->tmsg.ignore))
-	;
+    /* uexp: sender's data,  expd: posted entry */
+    uexp = container_of(item, struct ulib_shea_uexp, entry);
+
+    R_DBG0("expd->tag(0x%lx) expd->ignore(0x%lx) uexp->tag(0x%lx)",
+          expd->tmsg.tag, expd->tmsg.ignore, uexp->utag);
+
+    ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
+           == (uexp->utag & ~expd->tmsg.ignore));
     return ret;
 }
 
@@ -582,16 +631,17 @@ static inline int ulib_match_rinf_entry(
  */
 static inline struct ulib_shea_uexp *
 ulib_find_uexp_entry(struct ulib_icep *icep,
-                     const struct ulib_shea_expd *trcv)
+                     const struct ulib_shea_expd *expd)
 {
     struct ulib_shea_uexp *rval = 0;
     struct dlist_entry *head;
     struct dlist_entry *match;
 
     assert(icep == icep->shadow);
-    head = (trcv->flgs & FI_TAGGED) ?
+    head = (expd->flgs & FI_TAGGED) ?
         &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
-    match = dlist_remove_first_match(head, ulib_match_rinf_entry, trcv);
+    match = dlist_remove_first_match(head, ulib_match_unexp, expd);
+    R_DBG0("tagmached(%p)", match);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }
@@ -625,6 +675,11 @@ static inline void ulib_icep_link_expd_head(
 /*
  * Notify receive completion -- Creating completion entry
  *      Handling the FI_MULTI_RECV flag 2019/4/27
+ *  called by
+ *      ulib_icep_shea_send_prog()
+ *      tofu_impl_ulib_sendmsg_self()
+ *      ulib_icep_recv_call_back()
+ *      ulib_icep_shea_recv_post()
  */
 int
 ulib_icqu_comp_trcv(void *vp_cq__priv,
@@ -645,6 +700,13 @@ ulib_icqu_comp_trcv(void *vp_cq__priv,
     cq_e->tag		= expd->rtag;
 
     fprintf(stderr, "YICHECK!!****: %s expd(%p)->flgs(0x%lx) cq_e(%p)->flags(0x%lx) cq_e->buf(%p) expd->iovs[0].iov_base(%p)\n", __func__, expd, expd->flgs, cq_e, cq_e->flags, cq_e->buf,  expd->iovs[0].iov_base); fflush(stderr);
+    if (cq_e->buf) {
+        R_DBG0("\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf[]=%d",
+               cq_e->flags, cq_e->data, cq_e->len, *(int*)cq_e->buf);
+    } else {
+        R_DBG0("\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf=nil",
+               cq_e->flags, cq_e->data, cq_e->len);
+    }
 
     if (vp_cq__priv != 0) {
 	int fc;
@@ -696,6 +758,8 @@ ulib_icqu_comp_tsnd(void *vp_cq__priv, const struct ulib_shea_data *udat)
     cq_e->tag		= ulib_shea_data_utag(udat);
 
     fprintf(stderr, "YISENDCMPLT****: %s in %s flags(0x%lx)\n", __func__, __FILE__, flgs); fflush(stderr);
+    R_DBG0("\tSend Completion: flags(0x%lx)", cq_e->flags);
+
     if (flgs & FI_COMPLETION) {
         if (vp_cq__priv != 0) {
             int fc;
@@ -818,7 +882,7 @@ ulib_icep_recv_frag(struct ulib_shea_expd *expd,
     } else {
 	expd->nblk += uexp->nblk;
     }
-    //fprintf(stderr, "YI ********** mblk(%d) nblk(%d) in %s\n", expd->mblk, expd->nblk, __func__);
+    R_DBG0("\tfragment message handling nblk(%d) mblk(%d)", expd->mblk, expd->nblk);
     assert(expd->mblk != 0);
     assert(expd->nblk <= expd->mblk);
     done = (expd->mblk == expd->nblk);
@@ -928,7 +992,6 @@ ulib_icep_recv_call_back(void *vptr,
 	if (uc != UTOFU_SUCCESS) { goto bad; }
 	goto bad; /* XXX - is not an error */
     }
-    //fprintf(stderr, "\tYIUTOFU***: %s 1)\n", __func__); fflush(stderr);
 
     assert(trcv->nblk == uexp->boff);
     if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
@@ -947,7 +1010,6 @@ ulib_icep_recv_call_back(void *vptr,
     }
 
     /* notify recv cq */
-    //fprintf(stderr, "\tYIUTOFU***: %s icep->vp_tofu_rcq(%p)\n", __func__, icep->vp_tofu_rcq);
     if (icep->vp_tofu_rcq != 0) {
         uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, trcv); /* expd */
         if (uc != 0) {

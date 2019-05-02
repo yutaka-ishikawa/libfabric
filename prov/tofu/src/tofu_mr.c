@@ -1,12 +1,12 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_debug.h"
 #include "tofu_impl.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
-extern int mypid;
 
 static int tofu_mr_close(struct fid *fid)
 {

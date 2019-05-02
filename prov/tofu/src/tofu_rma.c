@@ -1,14 +1,13 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_debug.h"
 #include "tofu_impl.h"
 #include "ulib_shea.h"
 #include "ulib_conv.h"
 #include "ulib_ofif.h"
 #include "ulib_toqc.h" 
 #include <assert.h>	    /* for assert() */
-
-extern int mypid;
 
 static inline int
 ulib_conv_paid(utofu_vcq_id_t vcqid, utofu_path_id_t *p_paid)

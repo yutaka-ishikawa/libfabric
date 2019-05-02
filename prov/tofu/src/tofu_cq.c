@@ -1,6 +1,7 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_debug.h"
 #include "tofu_impl.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
@@ -11,7 +12,6 @@
 
 extern int ulib_toqc_prog_ackd(struct ulib_toqc *toqc);
 extern int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc);
-extern int mypid;
 
 void
 yi_showcntrl(const char *func, int lno, void *ptr)
@@ -53,6 +53,9 @@ yi_debug(const char *func, int lno, struct fi_cq_tagged_entry *comp)
     }
 }
 
+/*
+ * fi_close
+ */
 static int
 tofu_cq_close(struct fid *fid)
 {
@@ -85,6 +88,9 @@ static struct fi_ops tofu_cq__fi_ops = {
     .ops_open	    = fi_no_ops_open,
 };
 
+/*
+ * fi_cq_read
+ */
 static ssize_t
 tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 {
@@ -97,9 +103,10 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     cq__priv = container_of(fid_cq, struct tofu_cq, cq__fid);
     if (cq__priv == 0) { }
 
+    //R_DBG0("fi_cq_read: CQ(%p)", cq__priv);
+
     fastlock_acquire( &cq__priv->cq__lck );
 
-    fprintf(stderr, "%d:YICQREAD***: %s cq__priv->cq_ccq is %s\n", mypid, __func__, ofi_cirque_isempty(cq__priv->cq__ccq) ? "empty": "filled");
     /*
      * Checking CQ
      */
@@ -120,7 +127,9 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
             if (icep->nrma > 0) {
                 fprintf(stderr, "%d:YICQREAD***: (%d) nrma(%d)\n", mypid, __LINE__, icep->nrma);
                 uc = ulib_toqc_prog_ackd(icep->toqc);
+                fprintf(stderr, "\t%d:YICQREAD***: ulib_toqc_prog_ackd return %d\n", mypid, uc); fflush(stderr);
                 uc = ulib_toqc_prog_tcqd(icep->toqc);
+                fprintf(stderr, "\t%d:YICQREAD***: ulib_toqc_prog_tcqd return %d\n", mypid, uc); fflush(stderr);
             }
         }
         head = &cq__priv->cq__hrx;
@@ -165,11 +174,7 @@ bad:
 
 static struct fi_ops_cq tofu_cq__ops = {
     .size	    = sizeof (struct fi_ops_cq),
-#ifdef	notdef
-    .read	    = fi_no_cq_read,
-#else	/* notdef */
     .read	    = tofu_cq_read,
-#endif	/* notdef */
     .readfrom	    = fi_no_cq_readfrom,
     .readerr	    = fi_no_cq_readerr,
     .sread	    = fi_no_cq_sread,
@@ -244,6 +249,8 @@ int tofu_cq_open(
     if (cq__priv->cq__ccq == 0) {
         fc = -FI_ENOMEM; goto bad;
     }
+
+    R_DBG0("fi_cq_open: cq(%p)", cq__priv);
 
     /* return fid_dom */
     fid_cq_[0] = &cq__priv->cq__fid;

@@ -1,6 +1,7 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_debug.h"
 #include "ulib_conf.h"
 #include "ulib_dlog.h"
 
@@ -26,8 +27,6 @@
 			    | UTOFU_ONESIDED_FLAG_TCQ_NOTICE \
 			    | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE \
 			    )
-
-extern int mypid;
 
 int ulib_toqc_post(
     struct ulib_toqc *toqc,
@@ -230,6 +229,7 @@ int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc)
             struct ulib_toqe *toqe = cbdata;
             fprintf(stderr, "%d:YIPOLL_TCQ: cbdata(%p), toqe->magic(%d)\n", mypid, cbdata, toqe->magic); fflush(stderr);
             if (toqe->magic != 0) {
+                printf("\t%d:YIPOLL_TCQ: ??? if no rma cbdata(%p), toqe->magic(%d)\n", mypid, cbdata, toqe->magic); fflush(stdout);
                 /* currently no notification */
                 RETURN_OK_C(uc);
             }

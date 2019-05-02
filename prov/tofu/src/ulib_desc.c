@@ -1,6 +1,7 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_debug.h"
 #include "ulib_conf.h"
 #include "ulib_dlog.h"	    /* for ENTER_RC_C() */
 
@@ -411,7 +412,9 @@ static inline int ulib_ackd_put1(
     /* flag */
     flag =  uflg
 	    | UTOFU_ONESIDED_FLAG_PATH(rcsh->paid)
+            | UTOFU_ONESIDED_FLAG_CACHE_INJECTION
 	    ;
+    R_DBG0("cache injection added flag(0x%lx)", flag);
 
     /* desc */
     {

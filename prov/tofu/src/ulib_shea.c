@@ -1,6 +1,7 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_debug.h"
 #include "ulib_conf.h"
 #include "ulib_dlog.h"	    /* for ENTER_RC_C() */
 
@@ -490,7 +491,7 @@ fflush(stdout);
 	    goto next_state;
 	}
 	/* YYY SCHEDULE_SELF() */
-printf("#%d\twait_next YYY schd_self()\n", __LINE__);
+        //printf("#%d\twait_next YYY schd_self()\n", __LINE__);
 	break;
     case SEND_NORM:
 	rblk = ulib_shea_data_rblk(esnd->data);
