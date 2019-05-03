@@ -981,7 +981,7 @@ int ulib_shea_foo8(
 	struct ulib_toqd_cash toqd[1];
         uint64_t * const retp = 0;
 
-        fprintf(stderr, "\tYIPROTOCOL***: %s toqc(%p) raui(%ld) ercv(%p)\n", __func__, toqc, raui, ercv);
+        //fprintf(stderr, "\tYIPROTOCOL***: %s toqc(%p) raui(%ld) ercv(%p)\n", __func__, toqc, raui, ercv);
 	uc = ulib_utof_cash_remote(raui, c_id, epnt, rcsh);
         //fprintf(stderr, "\tYIUTOFU***: %s uc(%d)\n", __func__, uc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
@@ -1370,11 +1370,13 @@ static inline void ulib_shea_make_phdr(
             phdr->phlc.utag = utag;
         }
     }
+#if 0
     {
         char    buf[128];
         fprintf(stderr, "YIPROTOCOL: %s phdr[%s]\n", __func__,
                 phdr2string(phdr, buf, 128));
     }
+#endif
 
     return /* uc */;
 }
@@ -1969,8 +1971,8 @@ static inline void /* int */ ulib_shea_recv_hndr_full(
     phdr = ulib_shea_recv_hdlr_phdr(ercv);
 
     phwl.phwl.seqn = phdr->phwl.seqn;
-    fprintf(stderr, "\t\t: phwl.phwl.seqn(%d) ercv->cntr.ct_s.ccn(%d)\n",
-            phwl.phwl.seqn, ercv->cntr.ct_s.ccnt);
+    /*fprintf(stderr, "\t\t: phwl.phwl.seqn(%d) ercv->cntr.ct_s.ccn(%d)\n",
+      phwl.phwl.seqn, ercv->cntr.ct_s.ccnt);*/
     if (phwl.phwl.seqn != ercv->cntr.ct_s.ccnt) {
 	full->cntr.ct_s.pcnt = ULIB_SHEA_PH_UNDEF;
 	goto bad; /* XXX - is not an error */
@@ -2229,11 +2231,13 @@ static inline void ulib_shea_recv_info(
 		}
 		rbuf->niov = 2;
 	    }
+#if 0
             if (rbuf->niov == 1) {
                 fprintf(stderr, "\tYICHECK***: %s iov_count(%d) iovs[0].iov_base(%p) iovs[0].iov_len(%ld) rbuf->leng(%d)\n", __func__, rbuf->niov, iovs[0].iov_base, iovs[0].iov_len, rbuf->leng); fflush(stderr);
             } else {
                 fprintf(stderr, "\tYICHECK***: %s iov_count(%d) iovs[0].iov_base(%p) iovs[0].iov_len(%ld) iovs[1].iov_len(%ld) rbuf->leng(%d)\n", __func__, rbuf->niov, iovs[0].iov_base, iovs[0].iov_len, iovs[1].iov_len, rbuf->leng); fflush(stderr);
             }
+#endif
 	}
     }
 #ifdef	CONF_ULIB_PERF_SHEA
@@ -2475,14 +2479,14 @@ int ulib_shea_cbuf_fini(struct ulib_shea_cbuf *cbuf)
 
     if (cbuf->ctrl.stag != -1U) {
 	const unsigned long int flag =  0;
-        fprintf(stderr, "YI********* cbuf->ctrl.stad(%lx) %s\n", cbuf->ctrl.stad, __func__); fflush(stderr);
+        //fprintf(stderr, "YI********* cbuf->ctrl.stad(%lx) %s\n", cbuf->ctrl.stad, __func__); fflush(stderr);
 	uc = utofu_dereg_mem(cbuf->ctrl.vcqh, cbuf->ctrl.stad, flag);
 	if (uc != UTOFU_SUCCESS) { }
 	cbuf->ctrl.stag = -1U;
     }
     if (cbuf->data.stag != -1U) {
 	const unsigned long int flag =  0;
-        fprintf(stderr, "YI********* cbuf->ctrl.stad(%lx) %s\n", cbuf->ctrl.stad, __func__); fflush(stderr);
+        //fprintf(stderr, "YI********* cbuf->ctrl.stad(%lx) %s\n", cbuf->ctrl.stad, __func__); fflush(stderr);
 	uc = utofu_dereg_mem(cbuf->data.vcqh, cbuf->data.stad, flag);
 	if (uc != UTOFU_SUCCESS) { }
 	cbuf->data.stag = -1U;
@@ -2684,7 +2688,7 @@ int ulib_shea_cbuf_enab_buff(
 	    cbuf->cptr_esnd = (void *)
 		((uint8_t *)cbuf->cptr + (uintptr_t)cbuf->cptr_esnd);
 
-            fprintf(stderr, "YIPROTOCOL: cptr(%p) cptr_ercv(%p) cptr_hdrs(%p)  cptr_esnd(%p)\n", cbuf->cptr, cbuf->cptr_ercv, cbuf->cptr_hdrs, cbuf->cptr_esnd);
+            //fprintf(stderr, "YIPROTOCOL: cptr(%p) cptr_ercv(%p) cptr_hdrs(%p)  cptr_esnd(%p)\n", cbuf->cptr, cbuf->cptr_ercv, cbuf->cptr_hdrs, cbuf->cptr_esnd);
 
 	    memset(cbuf->cptr, 0, cbuf->csiz);
 	    /* hdrs init */

@@ -125,11 +125,11 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
             if (uc != 0 /* UTOFU_SUCCESS */ ) { }
             /* RMA operations */
             if (icep->nrma > 0) {
-                fprintf(stderr, "%d:YICQREAD***: (%d) nrma(%d)\n", mypid, __LINE__, icep->nrma);
+                //fprintf(stderr, "%d:YICQREAD***: (%d) nrma(%d)\n", mypid, __LINE__, icep->nrma);
                 uc = ulib_toqc_prog_ackd(icep->toqc);
-                fprintf(stderr, "\t%d:YICQREAD***: ulib_toqc_prog_ackd return %d\n", mypid, uc); fflush(stderr);
+                //fprintf(stderr, "\t%d:YICQREAD***: ulib_toqc_prog_ackd return %d\n", mypid, uc); fflush(stderr);
                 uc = ulib_toqc_prog_tcqd(icep->toqc);
-                fprintf(stderr, "\t%d:YICQREAD***: ulib_toqc_prog_tcqd return %d\n", mypid, uc); fflush(stderr);
+                //fprintf(stderr, "\t%d:YICQREAD***: ulib_toqc_prog_tcqd return %d\n", mypid, uc); fflush(stderr);
             }
         }
         head = &cq__priv->cq__hrx;
@@ -148,7 +148,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     if (ment > ofi_cirque_usedcnt( cq__priv->cq__ccq )) {
 	ment = ofi_cirque_usedcnt( cq__priv->cq__ccq );
     }
-    fprintf(stderr, "%d:YICQREAD: ment(%ld) in %s\n", mypid, ment, __func__);
+    //fprintf(stderr, "%d:YICQREAD: ment(%ld) in %s\n", mypid, ment, __func__);
 
     for (ient = 0; ient < ment; ient++) {
 	struct fi_cq_tagged_entry *comp;
@@ -159,7 +159,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 
 	/* copy */
 	((struct fi_cq_tagged_entry *)buf)[ient] = comp[0];
-        yi_debug(__func__, __LINE__, comp);
+        //yi_debug(__func__, __LINE__, comp);
 	/* advance r.p. by one  */
 	ofi_cirque_discard( cq__priv->cq__ccq );
     }

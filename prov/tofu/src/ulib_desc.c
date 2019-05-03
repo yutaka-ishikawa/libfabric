@@ -412,9 +412,9 @@ static inline int ulib_ackd_put1(
     /* flag */
     flag =  uflg
 	    | UTOFU_ONESIDED_FLAG_PATH(rcsh->paid)
-            | UTOFU_ONESIDED_FLAG_CACHE_INJECTION
+/*            | UTOFU_ONESIDED_FLAG_CACHE_INJECTION */
 	    ;
-    R_DBG0("cache injection added flag(0x%lx)", flag);
+/*    R_DBG0("cache injection added flag(0x%lx)", flag);*/
 
     /* desc */
     {

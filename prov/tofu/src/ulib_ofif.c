@@ -715,7 +715,7 @@ ulib_icqu_comp_trcv(void *vp_cq__priv,
     cq_e->data		= expd->idat; /* FI_REMOTE_CQ_DATA */
     cq_e->tag		= expd->rtag;
 
-    fprintf(stderr, "YICHECK!!****: %s expd(%p)->flgs(0x%lx) cq_e(%p)->flags(0x%lx) cq_e->buf(%p) expd->iovs[0].iov_base(%p)\n", __func__, expd, expd->flgs, cq_e, cq_e->flags, cq_e->buf,  expd->iovs[0].iov_base); fflush(stderr);
+    //fprintf(stderr, "YICHECK!!****: %s expd(%p)->flgs(0x%lx) cq_e(%p)->flags(0x%lx) cq_e->buf(%p) expd->iovs[0].iov_base(%p)\n", __func__, expd, expd->flgs, cq_e, cq_e->flags, cq_e->buf,  expd->iovs[0].iov_base); fflush(stderr);
     if (cq_e->buf) {
         R_DBG0("\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf[]=%d",
                cq_e->flags, cq_e->data, cq_e->len, *(int*)cq_e->buf);
@@ -773,7 +773,6 @@ ulib_icqu_comp_tsnd(void *vp_cq__priv, const struct ulib_shea_data *udat)
     cq_e->data		= 0;
     cq_e->tag		= ulib_shea_data_utag(udat);
 
-    fprintf(stderr, "YISENDCMPLT****: %s in %s flags(0x%lx)\n", __func__, __FILE__, flgs); fflush(stderr);
     R_DBG0("\tSend Completion: flags(0x%lx)", cq_e->flags);
 
     if (flgs & FI_COMPLETION) {
@@ -1075,7 +1074,7 @@ recheck:
         int     done;
 	/* update expd */
 	done = ulib_icep_recv_frag(expd, uexp);
-        fprintf(stderr, "YIMPICH***2: EXPD-BUF(%p)\n", expd->iovs[0].iov_base); fflush(stderr);
+        //fprintf(stderr, "YIMPICH***2: EXPD-BUF(%p)\n", expd->iovs[0].iov_base); fflush(stderr);
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
         /* free unexpected message */
@@ -1172,13 +1171,13 @@ int ulib_icep_shea_send_post(
 
     /* cash_tmpl */
     uc = ulib_icep_find_desc(icep, tmsg->addr, &cash_tmpl);
-    fprintf(stderr, "\t\t:YI 1 uc(%d)\n", uc);
+    //fprintf(stderr, "\t\t:YI 1 uc(%d)\n", uc);
     if (uc != UTOFU_SUCCESS) { goto bad; }
     assert(cash_tmpl != 0);
 
     /* udat */
     udat = ulib_icep_shea_data_qget(icep);
-    fprintf(stderr, "\t\t:YI 2 udat(%p)\n", udat);
+    //fprintf(stderr, "\t\t:YI 2 udat(%p)\n", udat);
     if (udat == 0) {
 	ulib_icep_free_cash(icep, cash_tmpl);
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
@@ -1259,8 +1258,7 @@ int ulib_icep_shea_send_post(
 
 	    uc = utofu_reg_mem(icep->vcqh, addr, size, flag, &lsta);
 	    if (uc != UTOFU_SUCCESS) {
-                fprintf(stderr, "\t\tYI %s(,%p,%ld,) = %d\n", "utofu_reg_mem", addr, size, uc);
-fflush(stdout);
+                //fprintf(stderr, "\t\tYI %s(,%p,%ld,) = %d\n", "utofu_reg_mem", addr, size, uc);fflush(stdout);
 		ulib_icep_free_cash(icep, cash_tmpl);
 		ulib_icep_shea_data_qput(icep, udat);
 		goto bad;

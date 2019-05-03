@@ -119,8 +119,8 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
              * how we can understand the tofu_av_lup_tank function
              */
             tofu_av_lup_tank(av__priv, fi_addr[index], &ui64);
-            fprintf(stderr, "\tYIYI: fi_addr[%ld]: tofa(%lx)=%s\n",
-                    index, ui64, tank2string(buf, 128, ui64));
+            /*fprintf(stderr, "\tYIYI: fi_addr[%ld]: tofa(%lx)=%s\n",
+              index, ui64, tank2string(buf, 128, ui64)); */
         }
     }
 

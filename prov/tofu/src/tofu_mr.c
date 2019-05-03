@@ -124,8 +124,8 @@ static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     }
     FI_DBG(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) registered key(0x%lx)\n",
            buf, len, mr__priv->mr__fid.key);
-    printf("%d:YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n",
-          mypid, buf, len, mr__priv->mr__fid.key); fflush(stdout);
+    /*printf("%d:YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n",
+      mypid, buf, len, mr__priv->mr__fid.key); fflush(stdout);*/
 
     /* return fid_dom */
     fid_mr_[0] = &mr__priv->mr__fid;

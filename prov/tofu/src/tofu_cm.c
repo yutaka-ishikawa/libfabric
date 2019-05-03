@@ -30,7 +30,7 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 	    sep_priv = container_of(fid, struct tofu_sep, sep_fid.fid);
 	    addr_format = sep_priv->sep_dom->dom_fmt;
 	    if (addr_format != FI_ADDR_STR) {
-                fprintf(stderr, "YI****** NOT FI_ADDR_STR(0x%x)\n", addr_format); fflush(stderr);
+                //fprintf(stderr, "YI****** NOT FI_ADDR_STR(0x%x)\n", addr_format); fflush(stderr);
 		fc = -FI_EOTHER; goto bad;
 	    }
 	    /* fill ceps[] */

@@ -103,7 +103,7 @@ tofu_cq_comp_tagged(void *vp_cq__priv /* struct tofu_cq *cq__priv */,
     FI_INFO( &tofu_prov, FI_LOG_CQ, "context %p\n", cq_e->op_context);
 
     comp[0] = cq_e[0]; /* structure copy */
-    fprintf(stderr, "YICHECK****: %s in %s cq_e(%p)->flags(0x%lx), buf(%p)\n", __func__, __FILE__, comp, comp->flags, comp->buf); fflush(stderr);
+    // fprintf(stderr, "YICHECK****: %s in %s cq_e(%p)->flags(0x%lx), buf(%p)\n", __func__, __FILE__, comp, comp->flags, comp->buf); fflush(stderr);
     
     /* advance w.p. by one  */
     ofi_cirque_commit( cq__priv->cq__ccq );

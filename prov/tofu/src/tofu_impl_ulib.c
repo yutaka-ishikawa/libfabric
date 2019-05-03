@@ -1246,7 +1246,7 @@ int tofu_imp_ulib_isep_open(
     isep = (struct ulib_isep*) (sep_priv + 1);
 
     uc = utofu_get_onesided_tnis( &tnis, &ntni );
-    fprintf(stderr, "YIRMACHECK***: uc(%d) ntni(%ld)\n", uc, ntni);
+    //fprintf(stderr, "YIRMACHECK***: uc(%d) ntni(%ld)\n", uc, ntni);
     if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
     if (ntni > mtni) {
         ntni = mtni;
@@ -1256,8 +1256,8 @@ int tofu_imp_ulib_isep_open(
         struct utofu_onesided_caps *cap;
         isep->tnis[ni] = tnis[ni];
         utofu_query_onesided_caps(tnis[ni], &cap);
-        fprintf(stderr, "YIRMA***: %s tnid(%d) num_stags(%d)\n",
-                __func__, tnis[ni], cap->num_reserved_stags);
+        /* fprintf(stderr, "YIRMA***: %s tnid(%d) num_stags(%d)\n",
+           __func__, tnis[ni], cap->num_reserved_stags); */
     }
     isep->ntni = ntni;
     /* free tnis[] */
@@ -1325,7 +1325,7 @@ int ulib_ioav_find_addr(
     utofu_path_id_t paid[1];
     uint32_t vpid;
 
-    fprintf(stderr, "YIUTOFU***: %s ioav(%p) fi_a(%lx)\n", __func__, vp_ioav, fi_a);
+    //fprintf(stderr, "YIUTOFU***: %s ioav(%p) fi_a(%lx)\n", __func__, vp_ioav, fi_a);
     if (av__priv == 0) {
 	uc = UTOFU_ERR_INVALID_ARG; goto bad;
     }
@@ -1399,7 +1399,7 @@ int ulib_icep_find_desc(
     utofu_stadd_t rsta_data, lsta_data;
 #endif	/* CONF_ULIB_SHEA_DAT1 */
 
-    fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
+    //fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
     /* ulib_icep_lock(icep); */
 
     /* find a cash by fi_addr */
@@ -1416,7 +1416,7 @@ int ulib_icep_find_desc(
 		DLST_INSH(head, cash_tmpl, list);
 		/* return */
 		pp_cash_tmpl[0] = cash_tmpl;
-                fprintf(stderr, "\t\t YI: %s 1 leave\n", __func__);
+                //fprintf(stderr, "\t\t YI: %s 1 leave\n", __func__);
 		goto bad; /* FOUND - is not an error */
 	    }
 	    cash_tmpl = DLST_NEXT(cash_tmpl, head, struct ulib_toqc_cash, list);
@@ -1427,14 +1427,14 @@ int ulib_icep_find_desc(
     {
 	uc = ulib_ioav_find_addr(icep->ioav, dfia, &rava);
 	if (uc != UTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
+            //fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
             goto bad;
         }
         rava.vcqi |= 0xF0000000000;
 
 	uc = utofu_query_vcq_id(icep->vcqh, &lava.vcqi);
 	if (uc != UTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 3 leave\n", __func__);
+            //fprintf(stderr, "\t\t YI: %s 3 leave\n", __func__);
             goto bad;
         }
         fprintf(stderr, "\t\t YIYI: REMOTE_VCQ(%lx,%x,%x) LOCAL_VCQ(%lx,%x,%x)\n in %s\n", rava.vcqi, rava.paid, rava.vpid,  lava.vcqi, lava.paid, lava.vpid, __func__); fflush(stderr);
@@ -1449,26 +1449,26 @@ int ulib_icep_find_desc(
 
 	uc = utofu_query_stadd(rava.vcqi, ctag, &rsta);
 	if (uc != UTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 4 leave\n", __func__);
+            //fprintf(stderr, "\t\t YI: %s 4 leave\n", __func__);
             goto bad;
         }
 
 	uc = utofu_query_stadd(lava.vcqi, ctag, &lsta);
 	if (uc != UTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 5 leave\n", __func__);
+            //fprintf(stderr, "\t\t YI: %s 5 leave\n", __func__);
             goto bad;
         }
 #ifdef	CONF_ULIB_SHEA_DAT1
 
 	uc = utofu_query_stadd(rava.vcqi, dtag, &rsta_data);
 	if (uc != UTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 6 leave\n", __func__);
+            //fprintf(stderr, "\t\t YI: %s 6 leave\n", __func__);
             goto bad;
         }
 
 	uc = utofu_query_stadd(lava.vcqi, dtag, &lsta_data);
 	if (uc != UTOFU_SUCCESS) {
-            fprintf(stderr, "\t\t YI: %s 7 leave\n", __func__);
+            //fprintf(stderr, "\t\t YI: %s 7 leave\n", __func__);
             goto bad;
         }
 #endif	/* CONF_ULIB_SHEA_DAT1 */
@@ -1492,7 +1492,7 @@ int ulib_icep_find_desc(
 	    if (ofi_atomic_get32(&cash_tmpl->refc) > 0) {
 		assert(ofi_atomic_get32(&cash_tmpl->refc) == 0); /* YYY */
 		uc = UTOFU_ERR_OUT_OF_RESOURCE;
-                fprintf(stderr, "\t\t YI: %s 8 leave\n", __func__);
+                //fprintf(stderr, "\t\t YI: %s 8 leave\n", __func__);
                 goto bad;
 	    }
 	    DLST_RMOV(head, cash_tmpl, list);

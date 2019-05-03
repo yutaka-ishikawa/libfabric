@@ -258,7 +258,7 @@ ulib_shea_expd_init(struct ulib_shea_expd *expd,
 	    expd->tims[it] = 0ULL;
 	}
     }
-    fprintf(stderr, "YICHECK****: %s expd(%p)->flgs(0x%lx)\n", __func__, expd, expd->flgs); fflush(stderr);
+    //fprintf(stderr, "YICHECK****: %s expd(%p)->flgs(0x%lx)\n", __func__, expd, expd->flgs); fflush(stderr);
     return ;
 }
 
@@ -586,7 +586,7 @@ ulib_icep_find_uexp(struct ulib_icep *icep,
     head = (expd->flgs & FI_TAGGED) ?
 	&icep->uexp_list_trcv : &icep->uexp_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_uexp, expd);
-    fprintf(stderr, "YI****** FIND in Unexpected FI_TAGGED(%lld) head(%p) match(%p)\n", expd->flgs & FI_TAGGED, head, match);
+    //fprintf(stderr, "YI****** FIND in Unexpected FI_TAGGED(%lld) head(%p) match(%p)\n", expd->flgs & FI_TAGGED, head, match);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }
