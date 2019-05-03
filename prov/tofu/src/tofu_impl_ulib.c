@@ -469,54 +469,6 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
     return FI_SUCCESS;
 }
 
-/*
- * This function will be discarded.
- * ulib_icep_shea_recv_post is now used. 2019/04/19
- * 
- * tofu_imp_ulib_recv_post() is a critical region
- *      guaded by the cep_lck variable in struct tofu_cep.
- */
-int
-tofu_imp_ulib_recv_post(void    *vptr,  size_t   offs,
-                        const struct fi_msg_tagged *tmsg,
-                        uint64_t flags)
-{
-    int fc = FI_SUCCESS;
-    struct ulib_icep *icep = (void *)((uint8_t *)vptr + offs);
-    struct ulib_shea_expd *req;
-    struct ulib_shea_uexp *uexp;
-
-    /* get an expected message */
-    if (freestack_isempty(icep->expd_fs)) {
-        fc = -FI_EAGAIN; goto bad;
-    }
-    req = freestack_pop(icep->expd_fs);
-    ulib_shea_expd_init(req, tmsg, flags);
-    /* check unexpected queue */
-    uexp = ulib_icep_find_uexp(icep, req);
-    if (uexp == NULL) {
-        /* Not found a corresponding message in unexepcted queue,
-         * thus insert this request to expected queue */
-        ulib_icep_link_expd(icep, req);
-    } else {
-        fprintf(stderr, "YI****** NEEDS TO IMPLEMENT %s\n", __func__);
-        if (tofu_imp_ulib_expd_cond_comp(req)) {
-            /* notify recv cq */
-            ulib_icep_recv_call_back(icep, 0,  req);
-            freestack_push(icep->expd_fs, req);
-        }
-        /* Found a corresponding message in unexpected queue,
-         * copy user buffer using requested expected queue */
-        tofu_imp_ulib_expd_recv(req, uexp);
-        /* free uexp->rbuf */
-        tofu_imp_ulib_uexp_rbuf_free(uexp);
-        /* free unexpected message */
-        freestack_push(icep->uexp_fs, uexp);
-        /* check if the packet carrys the last fragment */
-    }
-bad:
-    return fc;
-}
 
 int
 tofu_imp_ulib_send_post(void *vptr, size_t offs,
