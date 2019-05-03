@@ -498,6 +498,9 @@ static inline void ulib_icqu_cque_deq_push(struct ulib_icqu *icqu, void *cent)
 
 /*
  * ulib_match_expd
+ *      This function is called in order to find a message, just received,
+ *      whose source and tag are matched with one of posted messages.
+ *
  *      The argument "item" is an expected message posted by the user.
  *      The argument "farg" is an entry of unexpected message queue.
  *   Note: a similar function, ulib_match_unexp is defined in ulib_ofif.c
@@ -513,8 +516,11 @@ ulib_match_expd(struct dlist_entry *item, const void *farg)
     /* expd: posted entry, uexp: sender's data */
     expd = container_of(item, struct ulib_shea_expd, entry);
 
-    R_DBG0("expd->tag(0x%lx) expd->ignore(0x%lx) uexp->tag(0x%lx)",
-          expd->tmsg.tag, expd->tmsg.ignore, uexp->utag);
+    R_DBG0("MATCH with Expected: "
+           "expd->addr(%x) expd->tag(0x%lx) expd->ignore(0x%lx) "
+           "uexp->addr(%x) uexp->tag(0x%lx)",
+           (uint32_t) expd->tmsg.addr, expd->tmsg.tag, expd->tmsg.ignore,
+           uexp->srci, uexp->utag);
 
     ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
            == (uexp->utag & ~expd->tmsg.ignore));

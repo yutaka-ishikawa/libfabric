@@ -602,6 +602,9 @@ int ulib_foo(struct ulib_icep *icep)
 
 /*
  * ulib_match_unexp:
+ *      This function is called in order to find a message whose source and tag
+ *      are matched with the tag of taged receive operation posted by the user.
+ *
  *      The argument "item" is an unexpected message came from a sender.
  *      The argument "farg" is an entry of expected queue, receive requested.
  *      This function is called in order to find a message whose tag
@@ -618,8 +621,11 @@ ulib_match_unexp(struct dlist_entry *item, const void *farg)
     /* uexp: sender's data,  expd: posted entry */
     uexp = container_of(item, struct ulib_shea_uexp, entry);
 
-    R_DBG0("expd->tag(0x%lx) expd->ignore(0x%lx) uexp->tag(0x%lx)",
-          expd->tmsg.tag, expd->tmsg.ignore, uexp->utag);
+    R_DBG0("MATCH with Unexpected: "
+           "expd->addr(%x) expd->tag(0x%lx) expd->ignore(0x%lx) "
+           "uexp->addr(%x) uexp->tag(0x%lx)",
+           (uint32_t) expd->tmsg.addr, expd->tmsg.tag, expd->tmsg.ignore,
+           uexp->srci, uexp->utag);
 
     ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
            == (uexp->utag & ~expd->tmsg.ignore));
