@@ -518,12 +518,22 @@ ulib_match_expd(struct dlist_entry *item, const void *farg)
 
     R_DBG0("MATCH with Expected: "
            "expd->addr(%x) expd->tag(0x%lx) expd->ignore(0x%lx) "
-           "uexp->addr(%x) uexp->tag(0x%lx)",
+           "uexp->addr(%x) uexp->tag(0x%lx) uexp->data(0x%lx)",
            (uint32_t) expd->tmsg.addr, expd->tmsg.tag, expd->tmsg.ignore,
-           uexp->srci, uexp->utag);
+           uexp->srci, uexp->utag, uexp->idat);
 
+    if (expd->tmsg.addr == -1UL) {
+        ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
+               == (uexp->utag & ~expd->tmsg.ignore));
+    } else {
+        ret = ((uint32_t) expd->tmsg.addr == uexp->idat)
+            && ((expd->tmsg.tag & ~expd->tmsg.ignore)
+                == (uexp->utag & ~expd->tmsg.ignore));
+    }
+#if 0
     ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
            == (uexp->utag & ~expd->tmsg.ignore));
+#endif
     return ret;
 }
 
