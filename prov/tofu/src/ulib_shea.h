@@ -219,22 +219,16 @@ static inline void ulib_shea_chst(struct ulib_shea_esnd *esnd, uint8_t newst)
 	[SEND_DONE] = "send_done",
     };
 
-    if (
-	0 /* (esnd->l_st < 0) */
-	|| (esnd->l_st >= (sizeof (st_names) / sizeof (st_names[0])))
-    ) {
+    if (0 /* (esnd->l_st < 0) */
+	|| (esnd->l_st >= (sizeof (st_names) / sizeof (st_names[0])))) {
 	o_st = st_names[0]; /* unknown */
-    }
-    else {
+    } else {
 	o_st = st_names[esnd->l_st];
     }
-    if (
-	0 /* (newst < 0) */
-	|| (newst >= (sizeof (st_names) / sizeof (st_names[0])))
-    ) {
+    if (0 /* (newst < 0) */
+	|| (newst >= (sizeof (st_names) / sizeof (st_names[0])))) {
 	n_st = st_names[0]; /* unknown */
-    }
-    else {
+    } else {
 	n_st = st_names[newst];
     }
 #if 0

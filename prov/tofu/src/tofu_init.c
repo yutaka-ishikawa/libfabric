@@ -126,17 +126,18 @@ struct fi_provider *fi_prov_ini(void)
 /**************************************************************************/
 int mypid;
 int rdbgf;
+int rdbgl;
 
 void
-tofu_dflag_set(int f)
+tofu_dflag_set(int f, int l)
 {
-    rdbgf = f;
+    rdbgf = f; rdbgl = l;
 }
 
 TOFU_INI
 {
     FI_INFO(&tofu_prov, FI_LOG_DEBUG, "\n**** TOFU INIT ****\n");
     mypid = getpid();
-    rdbgf = 0;
+    rdbgf = 0; rdbgl = 0;
     return &tofu_prov;
 }

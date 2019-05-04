@@ -493,7 +493,10 @@ static inline void ulib_toqc_match_tcqd(
             /*
              * ccnt should not have the same value of pcnt, but not
              */
-	    fprintf(stderr, "%s:%d\t%s: ccnt %u pcnt %u cc %d pc %d\n",
+	    fprintf(stderr, "%s:%d\t%s: should be same: ccnt %u pcnt %u cc %d pc %d\n",
+		__FILE__, __LINE__, __func__,
+		ccnt, pcnt, toqc->ccnt, toqc->pcnt);
+	    fprintf(stdout, "%s:%d\t%s: should be same: ccnt %u pcnt %u cc %d pc %d\n",
 		__FILE__, __LINE__, __func__,
 		ccnt, pcnt, toqc->ccnt, toqc->pcnt);
 	    fflush(stdout);

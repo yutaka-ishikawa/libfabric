@@ -414,7 +414,9 @@ static inline int ulib_ackd_put1(
 	    | UTOFU_ONESIDED_FLAG_PATH(rcsh->paid)
 /*            | UTOFU_ONESIDED_FLAG_CACHE_INJECTION */
 	    ;
-/*    R_DBG0("cache injection added flag(0x%lx)", flag);*/
+/*    R_DBG0(RDBG_LEVEL1, "cache injection added flag(0x%lx)", flag);*/
+    /*R_DBG0(RDBG_LEVEL1, "PUT: vcqi(%lx) rsta(%lx) roff(%lx) leng(%lx) edat(%lx) flag(%lx)",
+      rcsh->vcqi, rsta, roff, leng, edat, flag);*/
 
     /* desc */
     {

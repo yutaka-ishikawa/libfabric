@@ -1385,11 +1385,13 @@ bad:
     return uc;
 }
 
-int ulib_icep_find_desc(
-    struct ulib_icep *icep,
-    fi_addr_t dfia, /* destination fi_addr */
-    struct ulib_toqc_cash **pp_cash_tmpl
-)
+/*
+ * Making tofu commands for specified remote
+ */
+int
+ulib_icep_find_desc(struct ulib_icep *icep,
+                    fi_addr_t dfia, /* destination fi_addr */
+                    struct ulib_toqc_cash **pp_cash_tmpl)
 {
     int uc = UTOFU_SUCCESS;
     struct ulib_toqc_cash *cash_tmpl;
@@ -1405,11 +1407,23 @@ int ulib_icep_find_desc(
     /* find a cash by fi_addr */
     {
 	DLST_DECH(ulib_head_desc) *head;
+        struct ulib_toqc_cash *prev_cash_tmpl = 0;
 
 	head = &icep->cash_list_desc;
 
 	cash_tmpl = DLST_PEEK(head, struct ulib_toqc_cash, list);
 	while (cash_tmpl != 0) {
+            /* Memory areas might be used by others ? */
+            if (prev_cash_tmpl != 0
+                && (cash_tmpl == prev_cash_tmpl)) {
+                R_DBG("**Needs to FIX!!! "
+                       "cash_tmpl->list.next should be head ?? "
+                       "cash_tmpl(%p) cash_tmpl->list.next(%p) "
+                       "head(%p) head->next(%p)", cash_tmpl,
+                       cash_tmpl->list.next,  head, head->next);
+                cash_tmpl = 0;
+                break;
+            }
 	    if (cash_tmpl->fi_a == dfia) {
 		DLST_RMOV(head, cash_tmpl, list);
 		ofi_atomic_inc32(&cash_tmpl->refc);
@@ -1419,9 +1433,12 @@ int ulib_icep_find_desc(
                 //fprintf(stderr, "\t\t YI: %s 1 leave\n", __func__);
 		goto bad; /* FOUND - is not an error */
 	    }
-	    cash_tmpl = DLST_NEXT(cash_tmpl, head, struct ulib_toqc_cash, list);
+            prev_cash_tmpl = cash_tmpl; /* for debugging purpose */
+            /* 
+             *  In some case, cash_tmpl->list.next == head->next 2019/05/04
+             */
+            cash_tmpl=DLST_NEXT(cash_tmpl, head, struct ulib_toqc_cash, list);
 	}
-	assert(cash_tmpl == 0);
     }
     /* rava and lava */
     {
@@ -1500,8 +1517,7 @@ int ulib_icep_find_desc(
 	    cash_tmpl->vpid = rava.vpid;
 	    ofi_atomic_set32(&cash_tmpl->refc, 1);
 	    DLST_INSH(head, cash_tmpl, list);
-	}
-	else {
+	} else {
 	    cash_tmpl = freestack_pop(cash_fs);
 	    assert(cash_tmpl != 0);
 	    ulib_toqc_cash_init(cash_tmpl, dfia);

@@ -103,7 +103,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     cq__priv = container_of(fid_cq, struct tofu_cq, cq__fid);
     if (cq__priv == 0) { }
 
-    //R_DBG0("fi_cq_read: CQ(%p)", cq__priv);
+    //R_DBG0(RDBG_LEVEL1, "fi_cq_read: CQ(%p)", cq__priv);
 
     fastlock_acquire( &cq__priv->cq__lck );
 
@@ -250,7 +250,7 @@ int tofu_cq_open(
         fc = -FI_ENOMEM; goto bad;
     }
 
-    R_DBG0("fi_cq_open: cq(%p)", cq__priv);
+    R_DBG0(RDBG_LEVEL1, "fi_cq_open: cq(%p)", cq__priv);
 
     /* return fid_dom */
     fid_cq_[0] = &cq__priv->cq__fid;

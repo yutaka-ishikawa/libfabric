@@ -516,7 +516,7 @@ ulib_match_expd(struct dlist_entry *item, const void *farg)
     /* expd: posted entry, uexp: sender's data */
     expd = container_of(item, struct ulib_shea_expd, entry);
 
-    R_DBG0("MATCH with Expected: "
+    R_DBG0(RDBG_LEVEL1, "MATCH with Expected: "
            "expd->addr(%x) expd->tag(0x%lx) expd->ignore(0x%lx) "
            "uexp->addr(%x) uexp->tag(0x%lx) uexp->data(0x%lx)",
            (uint32_t) expd->tmsg.addr, expd->tmsg.tag, expd->tmsg.ignore,
@@ -550,7 +550,7 @@ ulib_icep_find_expd(struct ulib_icep *icep,
 	&icep->expd_list_trcv : &icep->expd_list_mrcv;
 
     match = dlist_remove_first_match(head, ulib_match_expd, uexp);
-    R_DBG0("\ttagmached(%p)", match);
+    R_DBG0(RDBG_LEVEL1, "\ttagmached(%p)", match);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }

@@ -201,6 +201,13 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
+#if 0 /* 2019/05/04 */
+    {
+        static void *reserved;
+        reserved = ulib_desc_fs_create( 512, 0, 0 /* YYY */ );
+        R_DBG("For memory check! reserved(%p)", reserved);
+    }
+#endif
     /* desc_cash */
     if (icep->desc_fs == 0) {
 	icep->desc_fs = ulib_desc_fs_create( 512, 0, 0 /* YYY */ );
@@ -356,9 +363,9 @@ int ulib_icep_close(void *ptr, size_t off)
 
     ENTER_RC_C(uc);
 
-    R_DBG0("Finalizing but sleep 200msec now... icep(%p)", icep);
+    R_DBG0(RDBG_LEVEL1, "Finalizing but sleep 200msec now... icep(%p)", icep);
     usleep(200*1000);
-    R_DBG0("Wakeup and now going to shutdown the utofu provider(%p).", icep);
+    R_DBG0(RDBG_LEVEL1, "Wakeup and now going to shutdown the utofu provider(%p).", icep);
 
     if ((icep == 0) || (icep->isep == 0)) {
 	uc = UTOFU_ERR_INVALID_ARG; RETURN_BAD_C(uc);
@@ -621,7 +628,7 @@ ulib_match_unexp(struct dlist_entry *item, const void *farg)
     /* uexp: sender's data,  expd: posted entry */
     uexp = container_of(item, struct ulib_shea_uexp, entry);
 
-    R_DBG0("MATCH with Unexpected: "
+    R_DBG0(RDBG_LEVEL1, "MATCH with Unexpected: "
            "expd->addr(%x) expd->tag(0x%lx) expd->ignore(0x%lx) "
            "uexp->addr(%x) uexp->tag(0x%lx) uexp->data(0x%lx)",
            (uint32_t) expd->tmsg.addr, expd->tmsg.tag, expd->tmsg.ignore,
@@ -657,7 +664,7 @@ ulib_find_uexp_entry(struct ulib_icep *icep,
     head = (expd->flgs & FI_TAGGED) ?
         &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
     match = dlist_remove_first_match(head, ulib_match_unexp, expd);
-    R_DBG0("tagmached(%p)", match);
+    R_DBG0(RDBG_LEVEL1, "tagmached(%p)", match);
     if (match == 0) {
 	goto bad; /* XXX - is not an error */
     }
@@ -715,12 +722,13 @@ ulib_icqu_comp_trcv(void *vp_cq__priv,
     cq_e->data		= expd->idat; /* FI_REMOTE_CQ_DATA */
     cq_e->tag		= expd->rtag;
 
-    //fprintf(stderr, "YICHECK!!****: %s expd(%p)->flgs(0x%lx) cq_e(%p)->flags(0x%lx) cq_e->buf(%p) expd->iovs[0].iov_base(%p)\n", __func__, expd, expd->flgs, cq_e, cq_e->flags, cq_e->buf,  expd->iovs[0].iov_base); fflush(stderr);
     if (cq_e->buf) {
-        R_DBG0("\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf[]=%d",
+        R_DBG0(RDBG_LEVEL3,
+               "\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf[]=%d",
                cq_e->flags, cq_e->data, cq_e->len, *(int*)cq_e->buf);
     } else {
-        R_DBG0("\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf=nil",
+        R_DBG0(RDBG_LEVEL3,
+               "\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf=nil",
                cq_e->flags, cq_e->data, cq_e->len);
     }
 
@@ -773,7 +781,9 @@ ulib_icqu_comp_tsnd(void *vp_cq__priv, const struct ulib_shea_data *udat)
     cq_e->data		= 0;
     cq_e->tag		= ulib_shea_data_utag(udat);
 
-    R_DBG0("\tSend Completion: flags(0x%lx)", cq_e->flags);
+    R_DBG0(RDBG_LEVEL3,
+           "\tSend Completion: flags(0x%lx) rank(%d) tag(%ld) len(%ld)",
+           cq_e->flags, udat->rank, cq_e->tag, cq_e->len);
 
     if (flgs & FI_COMPLETION) {
         if (vp_cq__priv != 0) {
@@ -897,7 +907,7 @@ ulib_icep_recv_frag(struct ulib_shea_expd *expd,
     } else {
 	expd->nblk += uexp->nblk;
     }
-    R_DBG0("\tfragment message handling nblk(%d) mblk(%d)", expd->mblk, expd->nblk);
+    R_DBG0(RDBG_LEVEL1, "\tfragment message handling nblk(%d) mblk(%d)", expd->mblk, expd->nblk);
     assert(expd->mblk != 0);
     assert(expd->nblk <= expd->mblk);
     done = (expd->mblk == expd->nblk);
@@ -1278,33 +1288,19 @@ int ulib_icep_shea_send_post(
     }
 
     esnd = ulib_shea_cbuf_esnd_qget(cbuf, udat);
-    //fprintf(stderr, "YIUTOFU***: %s esnd(%p)\n", __func__, esnd);
     if (esnd == 0) {
 	ulib_icep_free_cash(icep, cash_tmpl);
 	ulib_icep_shea_data_qput(icep, udat);
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
-#if 0
-    printf("%s:%d\tbusy_esnd %p empt %d\n", __FILE__, __LINE__,
-           &icep->busy_esnd, dlist_empty(&icep->busy_esnd));
-    fflush(stdout);
-#endif /* 0 */
     DLST_INST(&icep->busy_esnd, esnd, list);
 
     /* post */
-    //fprintf(stderr, "YIUTOFU***: %s vpp_send_hdnl(%p)\n", __func__, esnd);
-#if 0 /* commented out by YI */
-    { /* added by YI */
-        fprintf(stderr, "\t\t: goint to ulib_shea_foo0\n");
-        uc = ulib_shea_foo0(esnd);
-    }
-#endif /* 0 */
     if (vpp_send_hndl) {
         vpp_send_hndl[0] = esnd; esnd = 0; /* ZZZ */
     }
 
 bad:
-    //fprintf(stderr, "YIUTOFU***: %s leave with uc(%d)\n", __func__, uc);
     return uc;
 }
 

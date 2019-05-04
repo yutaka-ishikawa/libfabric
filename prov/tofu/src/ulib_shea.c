@@ -202,6 +202,7 @@ static inline void ulib_shea_cash_incr_cntr( /* foo4 */
 	const uint64_t lval = ulib_shea_cntr_ui64(
 		ulib_shea_data_nblk(esnd->data) /* pcnt */, 0 /* ccnt */);
 
+        //R_DBG0(RDBG_LEVEL1, "INCR_CNTR lval: pcnt=%ld", ulib_shea_data_nblk(esnd->data));
 	/* desc[] */
 	{
 	    if (tmpl->size == 32) { /* likely() */
@@ -357,6 +358,11 @@ int ulib_shea_foo0(
     cash_real = ulib_shea_data_toqc_cash_real(esnd->data);
 
 next_state:
+    {
+        static unsigned cnt = 100001;
+        if (cnt % 100000) { R_DBG0(RDBG_LEVEL4, "STATE: %d", esnd->l_st); }
+        if (esnd->l_st == SEND_DONE) { cnt = 0; } else { cnt++; }
+    }
     switch (esnd->l_st) { /* local state */
 	struct ulib_toqd_cash *toqd;
 	uint64_t cdif, nblk, rblk;
@@ -544,12 +550,14 @@ printf("#%d\tsend_excl YYY schd_self()\n", __LINE__);
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
-/* ulib_shea_make_tmpl() */
-int ulib_shea_foo1(
-    struct ulib_toqc_cash *cash,
-    const struct ulib_utof_cash *rcsh,
-    const struct ulib_utof_cash *lcsh
-)
+/*
+ * ulib_shea_foo1()
+ *       Making Tofu commands
+ */
+int 
+ulib_shea_foo1(struct ulib_toqc_cash *cash,
+               const struct ulib_utof_cash *rcsh,
+               const struct ulib_utof_cash *lcsh)
 {
     int uc = UTOFU_SUCCESS;
 
@@ -601,7 +609,7 @@ printf("size %ld cmd %08x %08x\n", cash->cswp[0].size,
     {
 	const uint64_t roff = offsetof (struct ulib_shea_ercv, full);
 	const uint64_t leng = sizeof (((struct ulib_shea_ercv *)0)->full);
-	const uint64_t ldat[2] = { 0 };
+	static const uint64_t ldat[2] = { 0 };
 	const uint64_t edat = 0;
 	const unsigned long uflg =  0
 				    | UTOFU_ONESIDED_FLAG_CACHE_INJECTION
@@ -618,7 +626,7 @@ printf("size %ld cmd %08x %08x\n", cash->cswp[0].size,
     {
 	const uint64_t roff = 1024; /* 2019/04/24 */
 	const uint64_t leng = 32; /* YYY sizeof (union ulib_shea_ph_u); */
-	const uint64_t ldat[4] = { 0 };
+	static const uint64_t ldat[4] = { 0 };
 	const uint64_t edat = 0;
 	const unsigned long uflg =  0
 				    | UTOFU_ONESIDED_FLAG_STRONG_ORDER

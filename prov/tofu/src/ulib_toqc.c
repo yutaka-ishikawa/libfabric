@@ -131,7 +131,7 @@ int ulib_toqc_init(
 
 	msiz  = sizeof (toqc[0]);
 	msiz += (sizeof (toqc->toqe[0]) * ULIB_TOQC_SIZE);
-        msiz += (sizeof (toqc->rma_cmpl[0]) * ULIB_RMA_NUM);
+        msiz += (sizeof (toqc->rma_cmpl[0]) * ULIB_RMA_NUM); /* added for RMA */
 
 	toqc = calloc(1, msiz);
 	if (toqc == 0) {

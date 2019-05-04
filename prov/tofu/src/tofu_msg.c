@@ -76,7 +76,7 @@ tofu_cep_msg_recvmsg(struct fid_ep *fid_ep, const struct fi_msg *msg,
     tmsg.data	    = msg->data;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1("fi_recvmsg src(%s) len(%ld) buf(%p) flags(0x%lx)", 
+    R_DBG1(RDBG_LEVEL3, "fi_recvmsg src(%s) len(%ld) buf(%p) flags(0x%lx)", 
            fi_addr2string(buf1, 128, msg->addr, fid_ep),
            msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, flags);
 
@@ -111,7 +111,7 @@ tofu_cep_msg_recvv(struct fid_ep *fid_ep,
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1("fi_recvv src(%s) len(%ld) buf(%p) flags(0)",
+    R_DBG1(RDBG_LEVEL3, "fi_recvv src(%s) len(%ld) buf(%p) flags(0)",
           fi_addr2string(buf1, 128, src_addr, fid_ep),
            iov[0].iov_len, iov[0].iov_base);
 
@@ -149,7 +149,7 @@ tofu_cep_msg_recv(struct fid_ep *fid_ep, void *buf,  size_t len,
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1("fi_recvmsg src(%s) len(%ld) buf(%p) flags(0)",
+    R_DBG1(RDBG_LEVEL3, "fi_recvmsg src(%s) len(%ld) buf(%p) flags(0)",
           fi_addr2string(buf1, 128, src_addr, fid_ep),
            len, buf);
 
@@ -178,6 +178,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
+
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
@@ -195,9 +196,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     if (fc != FI_SUCCESS) { ret = fc; goto bad; }
     tank.tank.pid = 0; tank.tank.vld = 0;
     icep = (struct ulib_icep*) (cep_priv + 1);
-    //R_DBG2("\t**** dest_tank(%s) my_tank(%s)",
-    //tank2string(buf1, 128, tank.ui64),
-    //tank2string(buf2, 128, icep->tofa.ui64));
+
     if (icep->tofa.ui64 == tank.ui64) {
 	int fc;
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");
@@ -243,7 +242,7 @@ static ssize_t tofu_cep_msg_sendmsg(
     tmsg.data	    = msg->data;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1("fi_senddata dest(%s) len(%ld) buf(%p) data(%ld) flags(0x%lx)",
+    R_DBG1(RDBG_LEVEL3, "fi_senddata dest(%s) len(%ld) buf(%p) data(%ld) flags(0x%lx)",
           fi_addr2string(buf1, 128, msg->addr, fid_ep),
           msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, msg->data, flags);
 
@@ -279,7 +278,7 @@ static ssize_t tofu_cep_msg_sendv(
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1("fi_sendv dest(%s) len(%ld) buf(%p) FI_COMPLETION",
+    R_DBG1(RDBG_LEVEL3, "fi_sendv dest(%s) len(%ld) buf(%p) FI_COMPLETION",
           fi_addr2string(buf1, 128, dest_addr, fid_ep),
           iov[0].iov_len, iov[0].iov_base);
 
@@ -322,7 +321,7 @@ static ssize_t tofu_cep_msg_send(
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1("fi_send dest(%s) len(%ld) buf(%p) FI_COMPLETION",
+    R_DBG1(RDBG_LEVEL3, "fi_send dest(%s) len(%ld) buf(%p) FI_COMPLETION",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), len, buf);
 
     ret = tofu_cep_msg_send_common(fid_ep, &tmsg, FI_COMPLETION /* flags */ );
@@ -363,7 +362,7 @@ static ssize_t tofu_cep_msg_inject(
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "%s in %s  len(%ld)\n", __func__, __FILE__, len);
-    R_DBG1("fi_inject dest(%s) len(%ld) orgbuf(%p) copied(%p) FI_INJECT",
+    R_DBG1(RDBG_LEVEL3, "fi_inject dest(%s) len(%ld) orgbuf(%p) copied(%p) FI_INJECT",
           fi_addr2string(buf1, 128, dest_addr, fid_ep),
           len, buf, alocbuf);
 
@@ -402,7 +401,7 @@ tofu_cep_tag_recv(struct fid_ep *fid_ep,
     tmsg.data	    = 0;
     flags = FI_TAGGED;
 
-    R_DBG1("fi_trecv src(%s) len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(0x%lx)",
+    R_DBG1(RDBG_LEVEL3, "fi_trecv src(%s) len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(0x%lx)",
            fi_addr2string(buf1, 128, src_addr, fid_ep),
            len, buf, tag, ignore, flags);
     ret = tofu_cep_msg_recv_common(fid_ep, &tmsg, flags);
@@ -423,7 +422,7 @@ tofu_cep_tag_recvv(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     fprintf(stderr, "\tYIYI: NEEDS to implement\n");
-    R_DBG0("NEEDS TO IMPLEMENT: fi_recvv len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(0)",
+    R_DBG0(RDBG_LEVEL3, "NEEDS TO IMPLEMENT: fi_recvv len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(0)",
           iov[0].iov_len,iov[0].iov_base, tag, ignore);
     return ret;
 }
@@ -437,7 +436,7 @@ tofu_cep_tag_recvmsg(struct fid_ep *fid_ep,
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
 
     flags |= FI_TAGGED;
-    R_DBG1("fi_trecvmsg src(%s) len(%ld) buf(%p) flags(0x%lx)", 
+    R_DBG1(RDBG_LEVEL3, "fi_trecvmsg src(%s) len(%ld) buf(%p) flags(0x%lx)", 
            fi_addr2string(buf1, 128, msg->addr, fid_ep),
            msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, flags);
 
@@ -458,7 +457,7 @@ tofu_cep_tag_send(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     fprintf(stderr, "YI***** %s needs to implement\n", __func__);
-    R_DBG1("NEEDS to implement: fi_tsend dest(%s) len(%ld) buf(%p) desc(%p) tag(%lx)",
+    R_DBG1(RDBG_LEVEL3, "NEEDS to implement: fi_tsend dest(%s) len(%ld) buf(%p) desc(%p) tag(%lx)",
           fi_addr2string(buf1, 128, dest_addr, fid_ep),
           len, buf, desc, tag);
 
@@ -477,7 +476,7 @@ tofu_cep_tag_sendv(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     fprintf(stderr, "YI***** %s needs to implement\n", __func__);
-    R_DBG1("NEEDS to implement: fi_tsendv dest(%s) len(%ld) FI_COMPLETION",
+    R_DBG1(RDBG_LEVEL3, "NEEDS to implement: fi_tsendv dest(%s) len(%ld) FI_COMPLETION",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), iov[0].iov_len);
 
 
@@ -494,7 +493,7 @@ tofu_cep_tag_sendmsg(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     fprintf(stderr, "YI***** %s needs to implement\n", __func__);
-    R_DBG1("Needs to implement: fi_senddata dest(%s) len(%ld) data(%ld) flags(0x%lx)",
+    R_DBG1(RDBG_LEVEL3, "Needs to implement: fi_senddata dest(%s) len(%ld) data(%ld) flags(0x%lx)",
            fi_addr2string(buf1, 128, msg->addr, fid_ep),
            msg->msg_iov[0].iov_len, msg->data, flags);
 
@@ -512,7 +511,7 @@ tofu_cep_tag_inject(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     fprintf(stderr, "YI***** %s needs to implement\n", __func__);
-    R_DBG1("Needs to implement: fi_tinject dest(%s) len(%ld) FI_INJECT",
+    R_DBG1(RDBG_LEVEL3, "Needs to implement: fi_tinject dest(%s) len(%ld) FI_INJECT",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), len);
 
     return ret;
@@ -548,12 +547,12 @@ tofu_cep_tag_senddata(struct fid_ep *fid_ep,
     tmsg.data	    = data;
 
     if (buf) {
-        R_DBG1("fi_tsenddata dest(%s) len(%ld) data(%ld) "
+        R_DBG1(RDBG_LEVEL3, "fi_tsenddata dest(%s) len(%ld) data(%ld) "
                "buf(%d) tag(%lx) flags(%lx)",
                fi_addr2string(buf1, 128, dest_addr, fid_ep),
                len, data, *(int*)buf, tag, flags);
     } else {
-        R_DBG1("fi_tsenddata dest(%s) len(%ld) data(%ld) "
+        R_DBG1(RDBG_LEVEL3, "fi_tsenddata dest(%s) len(%ld) data(%ld) "
                "buf=nil tag(%lx) flags(%lx)",
                fi_addr2string(buf1, 128, dest_addr, fid_ep),
                len, data, tag, flags);
@@ -580,7 +579,7 @@ tofu_cep_tag_injectdata(struct fid_ep *fid_ep,
 		    ;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1("fi_tinjectdata dest(%s) len(%ld) data(%ld) flags(%lx)",
+    R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%s) len(%ld) data(%ld) flags(%lx)",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data,flags);
 
     iovs->iov_base  = (void *)buf;

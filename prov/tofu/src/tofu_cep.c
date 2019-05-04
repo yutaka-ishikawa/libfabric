@@ -112,7 +112,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
-            R_DBG0("fi_ep_bind: CQ(%p) TX_CTX(%p)", cq__priv, cep_priv);
+            R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) TX_CTX(%p)", cq__priv, cep_priv);
 	    if (flags & FI_SEND) {
 		/*
 		 * man fi_endpoint(3)
@@ -129,7 +129,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    }
 	    break;
 	case FI_CLASS_RX_CTX:
-            R_DBG0("fi_ep_bind: CQ(%p) RX_CTX(%p)", cq__priv, cep_priv);
+            R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) RX_CTX(%p)", cq__priv, cep_priv);
 	    if (flags & FI_RECV) {
 		if (cep_priv->cep_recv_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
