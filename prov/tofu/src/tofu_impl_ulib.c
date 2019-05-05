@@ -1413,7 +1413,8 @@ ulib_icep_find_desc(struct ulib_icep *icep,
 
 	cash_tmpl = DLST_PEEK(head, struct ulib_toqc_cash, list);
 	while (cash_tmpl != 0) {
-            /* Memory areas might be used by others ? */
+            /* DLST_NEXT maro defined in ulib_list.h has a bug.
+               Fixed it, but needs to confirm it. 2019/05/05 */
             if (prev_cash_tmpl != 0
                 && (cash_tmpl == prev_cash_tmpl)) {
                 R_DBG("**Needs to FIX!!! "

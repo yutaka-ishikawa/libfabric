@@ -59,10 +59,17 @@
     dlist_empty(HP_)? 0: \
 	DLIST_X_ENTRY( DLIST_X_LAST(HP_), EN_, FN_) \
     )
+#if 0 /* Must be checked by Hatanaka-san 2019/05/05 */
 #define DLST_NEXT(EP_,HP_,EN_,FN_) ( \
     ((EP_)->FN_.next == (HP_))? 0: \
 	DLIST_X_ENTRY( &(EP_)->FN_.next, EN_, FN_) \
     )
+#else
+#define DLST_NEXT(EP_,HP_,EN_,FN_) ( \
+    ((EP_)->FN_.next == (HP_))? 0: \
+	DLIST_X_ENTRY( (EP_)->FN_.next, EN_, FN_) \
+    )
+#endif
 
 #define DLST_ISCLR(EP_,FN_)	    ((EP_)->FN_.prev == 0)
 #define DLST_FLCLR(EP_,FN_)	    (EP_)->FN_.prev = 0
