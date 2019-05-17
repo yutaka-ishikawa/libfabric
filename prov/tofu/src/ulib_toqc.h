@@ -62,6 +62,7 @@ struct ulib_rma_cmpl {
     int                 magic;
     struct tofu_cep     *cep_priv;
     struct tofu_cq      *cq__priv;
+    utofu_stadd_t       stadd;
     /* members of struct fi_cq_tagged_entry  */
     void                *op_context;
     uint64_t		flags;

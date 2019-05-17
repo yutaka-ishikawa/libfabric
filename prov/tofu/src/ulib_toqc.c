@@ -270,8 +270,6 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
                     continue;
                 }
 		ulib_toqc_match(toqc, tmrq, uc);
-		uc = UTOFU_SUCCESS;
-		continue;
 	    }
 	    ulib_toqc_abort(toqc, uc);
 	    RETURN_BAD_C(uc);
@@ -281,7 +279,6 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
             /* fi_read is completed */
             extern void ulib_notify_rma_cmpl(struct ulib_toqc*, int);
             ulib_notify_rma_cmpl(toqc, tmrq[0].edata);
-            continue;
         }
 	ulib_toqc_match(toqc, tmrq, 0 /* uc */ );
     }

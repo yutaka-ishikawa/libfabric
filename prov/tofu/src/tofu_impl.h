@@ -95,8 +95,8 @@ struct tofu_cntr {
     ofi_atomic32_t	ctr_ref;
     fastlock_t		ctr_lck;
 /*  struct dlist_entry	ctr_ent; */
-    struct dlist_entry	ctr_htx;    /* haed for ep tx ctxs */
-    struct dlist_entry	ctr_hrx;    /* haed for ep tx ctxs */
+    struct dlist_entry	ctr_htx;    /* head for ep transmit ctxs */
+    struct dlist_entry	ctr_hrx;    /* head for ep read ctxs */
     ofi_atomic64_t	ctr_ctr;
     ofi_atomic64_t	ctr_err;
 };
