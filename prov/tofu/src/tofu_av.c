@@ -55,6 +55,9 @@ static struct fi_ops tofu_av__fi_ops = {
 
 static int  tofu_av_resize(struct tofu_av_tab *at, size_t count);
 
+/*
+ * fi_av_insert
+ */
 static int
 tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
                fi_addr_t *fi_addr,  uint64_t flags, void *context)
@@ -108,6 +111,7 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
 	    void *dst = (char *)av__priv->av__tab.tab + (index * 16); /* XXX */
 	    memcpy(dst, src, sizeof(struct ulib_sep_name));
 	}
+#if 0
         {/* debug print */
             /*
              * fi_addr : uint64_t
@@ -119,9 +123,10 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
              * how we can understand the tofu_av_lup_tank function
              */
             tofu_av_lup_tank(av__priv, fi_addr[index], &ui64);
-            /*fprintf(stderr, "\tYIYI: fi_addr[%ld]: tofa(%lx)=%s\n",
-              index, ui64, tank2string(buf, 128, ui64)); */
+            fprintf(stderr, "\tYIYI: fi_addr[%ld]: tofa(%lx)=%s\n",
+              index, ui64, tank2string(buf, 128, ui64));
         }
+#endif
     }
 
 bad:

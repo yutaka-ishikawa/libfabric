@@ -435,7 +435,7 @@ static inline void ulib_shea_data_init(
     struct ulib_shea_data *data,
     void *ctxt,
     size_t tlen,
-    uint32_t vpid,
+    uint32_t rank,
     uint64_t utag,
     uint64_t idat,
     uint64_t flag
@@ -445,7 +445,7 @@ static inline void ulib_shea_data_init(
     const uint32_t boff = 0;
 
     /* data->buff = buff; */
-    data->rank = vpid;
+    data->rank = rank;
     data->utag = utag;
     data->idat = idat;
     data->boff = boff;

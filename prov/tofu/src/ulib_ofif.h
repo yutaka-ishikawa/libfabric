@@ -162,6 +162,7 @@ struct ulib_icep {
     DLST_DECH(ulib_head_desc)   cash_list_desc; /* head of desc_cash */
     union ulib_tofa_u           tofa;           /* TOFu network Address */  
                                   /* xyzabc, tni, and tcq are effective */
+    uint32_t            rank; /* my rank */
     int                 nrma; /* # of rma operations on the fly */
 };
 
@@ -526,7 +527,7 @@ ulib_match_expd(struct dlist_entry *item, const void *farg)
         ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
                == (uexp->utag & ~expd->tmsg.ignore));
     } else {
-        ret = ((uint32_t) expd->tmsg.addr == uexp->idat)
+        ret = ((uint32_t) expd->tmsg.addr == uexp->srci)
             && ((expd->tmsg.tag & ~expd->tmsg.ignore)
                 == (uexp->utag & ~expd->tmsg.ignore));
     }

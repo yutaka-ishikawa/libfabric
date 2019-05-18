@@ -84,4 +84,58 @@ bad:
     return fc;
 }
 
+#include "ulib_conv.h"	    /* for union ulib_tofa_u XXX */
+
+static inline void
+tofu_av_lup_rank(struct tofu_av *av__priv,
+    utofu_vcq_hdl_t vcqh, int rx_idx, uint32_t *p_rank)
+{
+    uint32_t rank = -1U;
+    utofu_vcq_id_t vcqi = -1UL;
+    uint8_t xyz[8]; uint16_t tni[1], tcq[1], cid[1];
+    int uc, fc;
+    size_t av_idx, av_max;
+
+    uc = utofu_query_vcq_id(vcqh, &vcqi);
+    if (uc != UTOFU_SUCCESS) { goto bad; }
+
+    uc = utofu_query_vcq_id(vcqh, &vcqi);
+    if (uc != UTOFU_SUCCESS) { goto bad; }
+
+    uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
+    if (uc != UTOFU_SUCCESS) { goto bad; }
+
+    if ((rx_idx < 0) && (rx_idx >= (1 << av__priv->av__rxb))) {
+	goto bad;
+    }
+    /* YYY linear serch */
+    av_max = av__priv->av__tab.nct;
+    for (av_idx = 0; av_idx < av_max; av_idx++) {
+	fi_addr_t addr = av_idx, fi_a;
+	union ulib_tofa_u tank;
+
+	fi_a = fi_rx_addr(addr, rx_idx, av__priv->av__rxb);
+	fc = tofu_av_lup_tank(av__priv, fi_a, &tank.ui64);
+	if (fc != FI_SUCCESS) { /* fc = 0; */ continue ; }
+
+	if (
+	    (tank.tank.vld == 1)
+	    && (tank.tank.tux == xyz[0]) && (tank.tank.tuy == xyz[1])
+	    && (tank.tank.tuz == xyz[2])
+	    && (tank.tank.tua == xyz[3]) && (tank.tank.tub == xyz[4])
+	    && (tank.tank.tuc == xyz[5])
+	    && (tank.tank.tni == tni[0]) && (tank.tank.tcq == tcq[0])
+	    /* && (tank.tank.cid == (cid[0] & 0x7)) */
+	) {
+	    assert(tank.tank.pid == av_idx); /* XXX */
+	    rank = (uint64_t)tank.tank.pid;
+	    break;
+	}
+    }
+
+bad:
+    p_rank[0] = rank;
+    return ;
+}
+
 #endif	/* _TOFU_AV__H */

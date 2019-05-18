@@ -97,6 +97,10 @@ showCEP(struct ulib_icep *icep)
 }
 
 
+/*
+ * ulib_icep_ctrl_enab() is called from tofu_cep_ctrl() that is
+ * implementation of FI_ENABLE on fi_control
+ */
 int
 ulib_icep_ctrl_enab(void *ptr, size_t off)
 {
@@ -104,6 +108,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     struct tofu_cep *cep_priv  = (struct tofu_cep*) ptr;
     struct ulib_icep *icep = (struct ulib_icep*) ((char*)ptr + off);
     struct ulib_isep *isep;
+    struct tofu_sep *sep_priv = cep_priv->cep_sep;
 
     ENTER_RC_C(uc);
 
@@ -113,7 +118,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     /* shadow icep */
     if (icep->shadow == 0) {
         struct tofu_cep *cep_peer = 0;
-        struct tofu_sep *sep_priv = cep_priv->cep_sep;
         struct ulib_icep *icep_peer;
 
 	assert(icep->enabled == 0);
@@ -138,6 +142,7 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    icep_peer = (struct ulib_icep *)(cep_peer + 1);
 
 	    if (icep_peer->enabled != 0) {
+                /* sharing resources */
 		assert(icep_peer->index == cep_priv->cep_idx);
 		assert(icep_peer->isep == (struct ulib_isep *)(sep_priv + 1));
 		/* All ICEP's CQs point to Tofu CEP's one  */
@@ -147,6 +152,9 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 		if (icep_peer->vp_tofu_rcq == 0) {
 		    icep_peer->vp_tofu_rcq = cep_priv->cep_recv_cq;
 		}
+                icep->index = cep_priv->cep_idx;
+                icep->isep = (struct ulib_isep *)(cep_priv->cep_sep + 1);
+                icep->enabled = 1;
 		icep->shadow = icep_peer;
 		RETURN_OK_C(uc);
 	    }
@@ -201,13 +209,6 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
 	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
 	}
     }
-#if 0 /* 2019/05/04 */
-    {
-        static void *reserved;
-        reserved = ulib_desc_fs_create( 512, 0, 0 /* YYY */ );
-        R_DBG("For memory check! reserved(%p)", reserved);
-    }
-#endif
     /* desc_cash */
     if (icep->desc_fs == 0) {
 	icep->desc_fs = ulib_desc_fs_create( 512, 0, 0 /* YYY */ );
@@ -265,6 +266,21 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
         dom->dom_vcqh[dom->dom_nvcq] = icep->vcqh;
         dom->dom_nvcq++;
     }
+#if 0
+    /* In MPICH, fi_av_insert() has not been issued at the time.
+     * Thus, rank number cannot be resolved here */
+    {
+        struct tofu_av *av__priv = sep_priv->sep_av_;
+        tofu_av_lup_rank(av__priv, icep->vcqh, icep->index, &icep->rank);
+        /* for FI_CLASS_RX_CTX ? (icep->shadow) */
+        if (cep_priv->cep_trx != 0) {
+            struct ulib_icep *icep_peer = (void *)(cep_priv->cep_trx + 1);
+            if (icep_peer->rank == -1U) {
+                icep_peer->rank = icep->rank;
+            }
+        }
+    }
+#endif /**/
     if (icep->toqc == 0) {
         uc = ulib_toqc_init(icep->vcqh, &icep->toqc);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
@@ -353,6 +369,7 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     icep->desc_fs = 0;
     DLST_INIT(&icep->cash_list_desc);  /* desc_cash head */
     icep->tofa.ui64 = -1UL;
+    icep->rank = -1U;
     return ;
 }
 
@@ -368,6 +385,7 @@ int ulib_icep_close(void *ptr, size_t off)
     R_DBG0(RDBG_LEVEL1, "Wakeup and now going to shutdown the utofu provider(%p).", icep);
 
     if ((icep == 0) || (icep->isep == 0)) {
+        fprintf(stderr, "YI*** icep(%p) icep->isep(%p)\n", icep, icep->isep); fflush(stderr);
 	uc = UTOFU_ERR_INVALID_ARG; RETURN_BAD_C(uc);
     }
     if (icep != icep->shadow) { /* YYY -- check if icep_peer is active */
@@ -638,7 +656,7 @@ ulib_match_unexp(struct dlist_entry *item, const void *farg)
         ret = ((expd->tmsg.tag & ~expd->tmsg.ignore)
                == (uexp->utag & ~expd->tmsg.ignore));
     } else {
-        ret = ((uint32_t) expd->tmsg.addr == uexp->idat)
+        ret = ((uint32_t) expd->tmsg.addr == uexp->srci)
             && ((expd->tmsg.tag & ~expd->tmsg.ignore)
                 == (uexp->utag & ~expd->tmsg.ignore));
     }
@@ -1197,14 +1215,20 @@ int ulib_icep_shea_send_post(
     {
 	void *ctxt = tmsg->context;
 	size_t tlen;
-	uint32_t vpid; /* remote network address */
+	uint32_t rank; /* my rank */
 	const uint64_t utag = tmsg->tag;
 	uint64_t idat;
 	uint64_t flag = 0;
 
 	tlen = ofi_total_iov_len(tmsg->msg_iov, tmsg->iov_count);
 
-	vpid = cash_tmpl->vpid;
+	/*rank = cash_tmpl->vpid;*/
+        rank = icep->rank;      /* local rank for phlh.srci */
+#if 0
+        if (rank == -1U) {
+            printf("YI*********** ERROR\n"); fflush(stdout);
+        }
+#endif
 
         flag |= (flags & FI_TAGGED) ? ULIB_SHEA_DATA_TFLG : 0;
         flag |= (flags & FI_COMPLETION) ? ULIB_SHEA_DATA_CFLG : 0;
@@ -1215,7 +1239,7 @@ int ulib_icep_shea_send_post(
 	    idat = -2UL;
 	}
         //printf("tlen %5ld vpid %3d utag %016"PRIx64"\n", tlen, vpid, utag);
-	ulib_shea_data_init(udat, ctxt, tlen, vpid, utag, idat, flag);
+	ulib_shea_data_init(udat, ctxt, tlen, rank, utag, idat, flag);
     }
     /* data_init_cash */
     {

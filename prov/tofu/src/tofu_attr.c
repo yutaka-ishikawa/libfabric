@@ -13,7 +13,7 @@
                         | FI_ATOMIC             \
                          /* | FI_MULTICAST */   \
                         | FI_NAMED_RX_CTX       \
-                         /* | FI_DIRECTED_RECV */ \
+                        | FI_DIRECTED_RECV \
                         | FI_MULTI_RECV         \
                          /* | FI_SOURCE */      \
                         | FI_READ               \
@@ -41,7 +41,7 @@ static struct fi_tx_attr tofu_tx_attr = {
 	    | FI_ATOMIC
 		/* | FI_MULTICAST */
 	    | FI_NAMED_RX_CTX
-		/* | FI_DIRECTED_RECV */
+	    | FI_DIRECTED_RECV
 		/* | FI_MULTI_RECV */
 		/* | FI_SOURCE */
 	    | FI_READ
@@ -116,7 +116,7 @@ static struct fi_rx_attr tofu_rx_attr = {
 	    | FI_ATOMIC
 		/* | FI_MULTICAST */
 	    | FI_NAMED_RX_CTX
-		/* | FI_DIRECTED_RECV */
+            | FI_DIRECTED_RECV
 	    | FI_MULTI_RECV
 		/* | FI_SOURCE */
 	    | FI_READ

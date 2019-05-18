@@ -137,6 +137,9 @@ tofu_dflag_set(int f, int l)
 TOFU_INI
 {
     FI_INFO(&tofu_prov, FI_LOG_DEBUG, "\n**** TOFU INIT ****\n");
+#ifndef NDEBUG
+    fprintf(stderr, "**** Debug option is enable\n"); fflush(stderr);
+#endif /* ~NDEBUG */
     mypid = getpid();
     rdbgf = 0; rdbgl = 0;
     return &tofu_prov;

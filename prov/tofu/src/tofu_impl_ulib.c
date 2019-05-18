@@ -480,6 +480,21 @@ tofu_imp_ulib_send_post(void *vptr, size_t offs,
     int fc = FI_SUCCESS;
     struct ulib_icep *icep = (void *)((uint8_t *)vptr + offs);
 
+    if (icep->rank == -1U) {
+	struct tofu_cep *cep_priv = vptr;
+	struct tofu_sep *sep_priv = cep_priv->cep_sep;
+	struct tofu_av *av__priv = sep_priv->sep_av_;
+	assert(av__priv != 0);
+	tofu_av_lup_rank(av__priv, icep->vcqh, icep->index, &icep->rank);
+
+	/* for FI_CLASS_RX_CTX ? (icep->shadow) */
+	if (cep_priv->cep_trx != 0) {
+	    struct ulib_icep *icep_peer = (void *)(cep_priv->cep_trx + 1);
+	    if (icep_peer->rank == -1U) {
+		icep_peer->rank = icep->rank;
+	    }
+	}
+    }
     ulib_icep_shea_send_post(icep, tmsg, flags, NULL);
     return fc;
 }
