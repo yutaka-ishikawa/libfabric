@@ -610,11 +610,14 @@ ulib_icep_link_expd(struct ulib_icep *icep,
 }
 
 
-static inline struct ulib_shea_data 
-*ulib_icep_shea_data_qget(struct ulib_icep *icep)
+static inline struct ulib_shea_data *
+ulib_icep_shea_data_qget(struct ulib_icep *icep)
 {
     struct ulib_shea_data *data = 0;
 
+    /*
+     * shadow's (pcnt, ccnt) must be used. 2019/05/09
+     */
     assert(icep == icep->shadow);
     if (freestack_isempty(icep->udat_fs)) {
 	goto bad;

@@ -44,6 +44,9 @@ static inline void ulib_shea_perf_l_st(int l_st, struct ulib_shea_data *data)
     return ;
 }
 
+/*
+ * The "tail" field of struct ulib_shea_ercv is my tofu address.
+ */
 static inline void ulib_shea_cash_insq_tail( /* foo2 */
     struct ulib_toqd_cash *toqd,
     const struct ulib_toqd_cash *tmpl,
@@ -1289,8 +1292,8 @@ struct ulib_shea_phwl {
 };
 
 union ulib_shea_ph_u { /* protocol header */
-    struct ulib_shea_phlh   phlh;       /* PH_LARGE */
-    struct ulib_shea_phlc   phlc;       /* PH_LARGE_CONT */
+    struct ulib_shea_phlh   phlh;       /* PH_LARGE: top */
+    struct ulib_shea_phlc   phlc;       /* PH_LARGE_CONT: ... */
     struct ulib_shea_phwl   phwl;       /* PH_WAITS, PH_WAITA */
     uint64_t                ui64[4];
     uint32_t                ui32[8];

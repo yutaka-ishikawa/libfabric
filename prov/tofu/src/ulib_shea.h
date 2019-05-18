@@ -36,16 +36,16 @@ union ulib_shea_ct_u {
     }			    ct_s;
 };
 
-struct ulib_shea_data {
-    uint32_t nblk;
-    uint32_t boff;
-    uint32_t llen; /* last length */
-    uint32_t rank;
-    uint64_t utag;
-    uint64_t idat;
-    uint64_t flag;
-    void *ctxt;
-    void *toqc;
+struct ulib_shea_data { /* outside of stag memory area */
+    uint32_t nblk;      /* total block counts of send data */
+    uint32_t boff;      /* block counts sent already */
+    uint32_t llen;      /* additional length beyond block */
+    uint32_t rank;      /* is still needed ? */
+    uint64_t utag;      /* tag of fablic */
+    uint64_t idat;      /* data of fablic */
+    uint64_t flag;      /* flag of fablic */
+    void *ctxt;         /* ??? 2019/05/09 */
+    void *toqc;         /* pointer to toqc */
     void *toqc_cash_tmpl;
     void *toqc_cash_real;
     struct ulib_toqc_cash real;
