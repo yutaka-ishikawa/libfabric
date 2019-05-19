@@ -38,9 +38,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
-    if ((flags & ( FI_PEEK | FI_CLAIM )) != 0) {
-	ret = -FI_EBADFLAGS; goto bad;
-    } else if ((flags & FI_TRIGGER) != 0) {
+    if ((flags & FI_TRIGGER) != 0) {
 	ret = -FI_ENOSYS; goto bad;
     }
     if (msg->iov_count > TOFU_IOV_LIMIT) {
@@ -51,7 +49,7 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
 
     fastlock_acquire(&cep_priv->cep_lck);
     ret = ulib_icep_shea_recv_post(icep, msg, flags);
-    fastlock_release( &cep_priv->cep_lck );
+    fastlock_release(&cep_priv->cep_lck);
 bad:
     return ret;
 }

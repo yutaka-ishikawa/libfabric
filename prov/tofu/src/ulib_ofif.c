@@ -1066,8 +1066,25 @@ bad:
     return uc;
 }
 
+void
+ulib_icep_shea_recv_complete(struct ulib_icep *icep,
+                             struct ulib_shea_expd *expd,
+                             struct ulib_shea_uxp *uexp)
+{
+    int uc;
+    done = ulib_icep_recv_frag(expd, uexp);
+    if (done == 0) {
+        printf("YI************ OK ? in %s\n", __func__); fflush(stdout);
+    }
+    /* notify recv cq */
+    if (icep->vp_tofu_rcq != 0) {
+        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
+    }
+}
+
 /*
- * The is used 2019/04/19
+ * ulib_icep_shea_recv_post
+ *   Posting receive operation
  */
 int
 ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
@@ -1087,28 +1104,65 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
     if (expd == 0) {
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
-
     ulib_shea_expd_init(expd, tmsg, flags);
+    if ((flags & FI_TAGGED) && (flags & (FI_PEEK | FI_CLAIM)) == FI_CLAIM) {
+        /* claim for the previous FI_PEEK */
+        if (icep->peek_uxep == NULL) {
+            /* ERROR */
+            return -FI_ENOMSG;
+        }
+        /* copy and notify */
+        ulib_icep_shea_recv_complete(icep, expd, icep->peek_uexp);
+        /* free buffer */
+        tofu_imp_ulib_uexp_rbuf_free(uexp);
+        /* free unexpected and expected entries */
+        freestack_push(icep->uexp_fs, uexp);
+        freestack_push(icep->expd_fs, expd);
+        icep->peek_uexp = 0;
+        return uc;
+    }
+    if (flags & PEEK) {
+        /* progress first */
+        tofu_progress(cep_priv);
+    }
 recheck:
     /* check unexpected queue */
     uexp = ulib_find_uexp_entry(icep, expd);
+    if (flags & PEEK) {
+        if (uexp) { /* message arrives */
+            /* copy and notify */
+            ulib_icep_shea_recv_complete(icep, expd, uexp);
+            if (flags & FI_CLAIM) {
+                icep->peek_uexp = uexp;
+            } else { /* unexpected entry is renqueued */
+                dlist_insert_tail(uexp, &icep->uexp_list_trcv);
+                icep->peek_uexp = 0;
+            }
+        } else { /* no message arrives */
+            icep->peek_uexpp = 0;
+            uc = -FI_ENOMSG;
+        }
+        /* free expected entry */
+        freestack_push(icep->expd_fs, expd);
+        return uc;
+    }
+    /* now here is not FI_PEEK */
     if (uexp == NULL) {
         /* Not found a corresponding message in unexepcted queue,
          * thus insert this request to expected queue */
-        //fprintf(stderr, "YIUTOFU****: %s insert request(%p) into expected queue on icep(%p)\n", __func__, expd, icep);
-        //showCEP(icep);
         ulib_icep_link_expd(icep, expd);
+        *expdp = expd;
     } else {
         int     done;
 	/* update expd */
 	done = ulib_icep_recv_frag(expd, uexp);
-        //fprintf(stderr, "YIMPICH***2: EXPD-BUF(%p)\n", expd->iovs[0].iov_base); fflush(stderr);
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
         /* free unexpected message */
         freestack_push(icep->uexp_fs, uexp);
-
         if (done == 0) {
+            /* Ask Hatanaka-san, "goto recheck" is really work 
+             * without progress ? */
             /* not yet received all fragments */
 	    goto recheck;
         }
@@ -1122,7 +1176,6 @@ recheck:
         }
         freestack_push(icep->expd_fs, expd);
     }
-
 bad:
     return uc;
 }
