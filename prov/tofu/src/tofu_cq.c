@@ -72,6 +72,9 @@ tofu_cq_close(struct fid *fid)
     if (cq__priv->cq__ccq != 0) {
 	tofu_ccirq_free(cq__priv->cq__ccq); cq__priv->cq__ccq = 0;
     }
+    if (cq__priv->cq_cceq != 0) {
+	tofu_ccireq_free(cq__priv->cq_cceq); cq__priv->cq_cceq = 0;
+    }
     fastlock_destroy( &cq__priv->cq__lck );
 
     free(cq__priv);
@@ -96,9 +99,10 @@ static struct fi_ops tofu_cq__fi_ops = {
  *              fastlock_release(&cq__priv->cq__lck);
  */
 ssize_t
-tofu_progress(struct tofu_cep *cep_priv)
+tofu_progress(struct tofu_cq *cq__priv)
 {
     struct dlist_entry *head, *curr, *next;
+    struct tofu_cep *cep_priv;
     struct ulib_icep *icep;
     int ment;
     int uc;
@@ -129,7 +133,6 @@ tofu_progress(struct tofu_cep *cep_priv)
         }
     }
     ment = ofi_cirque_usedcnt(cq__priv->cq__ccq);
-empty:
     return ment;
 }
 
@@ -180,6 +183,7 @@ tofu_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf,
 
     fprintf(stderr, "fi_cq_readerr must be imeplemented"); fflush(stderr);
     fprintf(stdout, "fi_cq_readerr must be imeplemented"); fflush(stdout);
+    return -1;
 }
 
 static struct fi_ops_cq tofu_cq__ops = {
@@ -257,6 +261,11 @@ int tofu_cq_open(
     /* tofu_comp_cirq */
     cq__priv->cq__ccq = tofu_ccirq_create(CONF_TOFU_CQSIZE);
     if (cq__priv->cq__ccq == 0) {
+        fc = -FI_ENOMEM; goto bad;
+    }
+    /* for fi_cq_err_entry */
+    cq__priv->cq_cceq = tofu_ccireq_create(CONF_TOFU_CQSIZE);
+    if (cq__priv->cq_cceq == 0) {
         fc = -FI_ENOMEM; goto bad;
     }
 

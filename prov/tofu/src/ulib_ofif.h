@@ -162,7 +162,7 @@ struct ulib_icep {
     DLST_DECH(ulib_head_desc)   cash_list_desc; /* head of desc_cash */
     union ulib_tofa_u           tofa;           /* TOFu network Address */  
                                   /* xyzabc, tni, and tcq are effective */
-    uint32_t            rank; /* my rank */
+    uint32_t            myrank; /* my rank */
     int                 nrma; /* # of rma operations on the fly */
 };
 
@@ -672,6 +672,40 @@ static inline void ulib_icep_shea_data_qput(
     //fprintf(stderr, "YIUTOFU****: %s return\n", __func__);
 
     return ;
+}
+
+static inline void
+ulib_init_cqe(struct fi_cq_tagged_entry *cq_e, void *ctxt,
+              uint64_t flgs, size_t len, void *buf, uint64_t dat, uint64_t tag)
+{
+    cq_e->op_context	= ctxt;
+    cq_e->flags		= flgs;
+    cq_e->len		= len;
+    cq_e->buf		= buf;
+    cq_e->data		= dat;
+    cq_e->tag		= tag;
+}
+
+/* 
+ * Initialize fi_cq_err_entry
+ */
+static inline void
+ulib_init_comperr_entry(struct fi_cq_err_entry *cq_e, void *ctxt,
+                        uint64_t flgs, size_t len, void *buf, uint64_t dat,
+                        uint64_t tag, size_t olen, int err, int perrno,
+                        void *data, size_t size)
+{
+    cq_e->op_context	= ctxt;
+    cq_e->flags		= flgs;
+    cq_e->len		= len;
+    cq_e->buf		= buf;
+    cq_e->data		= dat;
+    cq_e->tag		= tag;
+    cq_e->olen          = olen;
+    cq_e->err           = err;
+    cq_e->prov_errno    = perrno;
+    cq_e->err_data      = data;
+    cq_e->err_data_size = size;
 }
 
 #endif	/* _ULIB_OFIF_H */

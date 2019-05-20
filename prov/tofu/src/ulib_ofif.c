@@ -369,7 +369,7 @@ ulib_ofif_icep_init(void *ptr, size_t off)
     icep->desc_fs = 0;
     DLST_INIT(&icep->cash_list_desc);  /* desc_cash head */
     icep->tofa.ui64 = -1UL;
-    icep->rank = -1U;
+    icep->myrank = -1U;
     return ;
 }
 
@@ -668,7 +668,92 @@ ulib_match_unexp(struct dlist_entry *item, const void *farg)
 }
 
 /*
- * Matching send message with a message enqueued in unexpected queue
+ * Checking if a message, enqueued in unexpected queue, matched with
+ * receive request has arrived with all fragments.
+ */
+static inline int
+ulib_check_uexp_entry(struct ulib_icep *icep,
+                     const struct ulib_shea_expd *expd)
+{
+    struct dlist_entry *head, *item;
+    int         done = 0;
+    uint32_t    mblk, nblk;
+    int         first = 1;
+
+    assert(icep == icep->shadow);
+    head = (expd->flgs & FI_TAGGED) ?
+        &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
+
+    dlist_foreach(head, item) {
+        if (ulib_match_unexp(item, expd)) {
+            struct ulib_shea_uexp  *uexp;
+            uexp = container_of(item, struct ulib_shea_uexp, entry);
+            if (first) {
+                if (uexp->flag != ULIB_SHEA_UEXP_FLAG_MBLK) {
+                    done = 1;
+                    goto ext;
+                }
+                first = 0;
+                mblk = uexp->mblk;
+            }
+            nblk +=  uexp->nblk;
+            if (mblk == nblk) {
+                done = 1;
+            }
+        }
+    }
+ext:
+    return done;
+}
+
+extern int ulib_icep_recv_frag(struct ulib_shea_expd *expd,
+                               const struct ulib_shea_uexp *uexp,
+                               void **sndctxt);
+
+/*
+ * Checking if a message, enqueued in unexpected queue, matched with
+ * receive request has arrived with all fragments.
+ */
+static inline int
+ulib_peek_claim_uexp_entry(struct ulib_icep *icep,
+                           struct ulib_shea_expd *expd,
+                           void *ctxt, int extract, void **sndctxt)
+{
+    struct dlist_entry *head, *item;
+    int done = 0;
+
+    assert(icep == icep->shadow);
+    head = (expd->flgs & FI_TAGGED) ?
+        &icep->uexp_list_trcv : &icep->uexp_list_mrcv;
+
+    if (sndctxt) { *sndctxt = 0; }
+    dlist_foreach(head, item) {
+        if (ulib_match_unexp(item, expd)) {
+            struct ulib_shea_uexp  *uexp;
+            uexp = container_of(item, struct ulib_shea_uexp, entry);
+            if ((ctxt == 0 && uexp->ctxt != 0)
+                || (ctxt && uexp->ctxt != ctxt)) {
+                continue;
+            }
+            if (uexp->flag & ULIB_SHEA_UEXP_FLAG_SFLG) {
+                if (sndctxt) { *sndctxt = uexp->sndctxt; }
+            }
+            done = ulib_icep_recv_frag(expd, uexp, 0);
+            uexp->ctxt = ctxt;
+            if (extract) {
+                dlist_remove(item);
+                tofu_imp_ulib_uexp_rbuf_free(uexp);
+                freestack_push(icep->uexp_fs, uexp);
+            }
+            if (done != 0) goto ext;
+        }
+    }
+ext:
+    return done;
+}
+
+/*
+ * Matching receive request with a message enqueued in unexpected queue
  */
 static inline struct ulib_shea_uexp *
 ulib_find_uexp_entry(struct ulib_icep *icep,
@@ -690,6 +775,33 @@ ulib_find_uexp_entry(struct ulib_icep *icep,
 
 bad:
     return rval;
+}
+
+static inline int
+ulib_icqu_comp_err(struct ulib_icep *icep, void *ctxt, uint64_t flgs,
+                   uint64_t data, uint64_t tag, int err)
+{
+    int uc = 0;
+    struct fi_cq_err_entry *comp, cq_e[1];
+    struct tofu_cq     *cq__priv;
+    struct tofu_ccireq *cceq;
+
+    ulib_init_comperr_entry(cq_e, ctxt,
+                            flgs /*flgs*/,
+                            0 /*len*/, 0 /*buf*/, data /*data*/,
+                            tag, 0 /*olen*/, err, err,
+                            0 /* err_data */, 0 /* err_data_size */);
+    cq__priv = (struct tofu_cq*) icep->vp_tofu_rcq;
+    cceq = cq__priv->cq_cceq;
+    if (ofi_cirque_isfull(cceq)) {
+        uc = -FI_EAGAIN; goto bad;
+    } else {
+        comp = ofi_cirque_tail(cceq);
+        comp[0] = cq_e[0];
+        ofi_cirque_commit(cceq);
+    }
+bad:
+    return uc;
 }
 
 
@@ -763,17 +875,22 @@ bad:
     return uc;
 }
 
+
 /*
  * Notify send completion
+ *      For self message completion, see tofu_impl_ulib_sendmsg_self
  */
 static inline int 
 ulib_icqu_comp_tsnd(void *vp_cq__priv, const struct ulib_shea_data *udat)
 {
     int uc = UTOFU_SUCCESS;
     struct fi_cq_tagged_entry cq_e[1];
-    uint64_t dflg;
-    uint64_t flgs;
-    size_t tlen;
+    uint64_t   dflg;
+    void      *ctxt;
+    uint64_t   flgs;
+    size_t     tlen;
+    uint64_t    tag;
+    
 
     dflg = ulib_shea_data_flag(udat);
     /* converted to fi_flags */
@@ -789,15 +906,9 @@ ulib_icqu_comp_tsnd(void *vp_cq__priv, const struct ulib_shea_data *udat)
 	assert(nblk > 0);
 	tlen = ((nblk - 1) * ULIB_SHEA_DBLK) + llen; /* YYY MACRO ? */
     }
-
-    cq_e->op_context	= ulib_shea_data_ctxt(udat);
-    cq_e->flags		=   FI_SEND
-			    | flgs
-			    ;
-    cq_e->len		= tlen;
-    cq_e->buf		= 0; /* YYY */
-    cq_e->data		= 0;
-    cq_e->tag		= ulib_shea_data_utag(udat);
+    ctxt = ulib_shea_data_ctxt(udat);
+    tag = ulib_shea_data_utag(udat);
+    ulib_init_cqe(cq_e, ctxt, FI_SEND|flgs, tlen, 0, 0, tag);
 
     R_DBG0(RDBG_LEVEL3,
            "\tSend Completion: flags(0x%lx) rank(%d) tag(%ld) len(%ld)",
@@ -901,10 +1012,18 @@ static inline void ulib_icep_recv_rbuf_base(
 
 int
 ulib_icep_recv_frag(struct ulib_shea_expd *expd,
-                    const struct ulib_shea_uexp *uexp)
+                    const struct ulib_shea_uexp *uexp, void **sndctxt)
 {
     size_t      wlen;
     int         done;
+
+    if (sndctxt) {
+        if (uexp->flag & ULIB_SHEA_UEXP_FLAG_SFLG) {
+            *sndctxt = uexp->sndctxt;
+        } else {
+            *sndctxt = 0;
+        }
+    }
     if ((uexp->flag & ULIB_SHEA_UEXP_FLAG_MBLK) != 0) {
 	expd->mblk  = uexp->mblk;
 	expd->rtag  = uexp->utag;
@@ -914,9 +1033,17 @@ ulib_icep_recv_frag(struct ulib_shea_expd *expd,
 			FI_REMOTE_CQ_DATA: 0;
 	expd->idat  = uexp->idat; /* FI_REMOTE_CQ_DATA */
     }
-    /* copy to the user buffer */
-    wlen = ulib_copy_iovs(expd->iovs, expd->niov,expd->wlen,
-                          uexp->rbuf.iovs, uexp->rbuf.niov);
+    if (expd->iovs[0].iov_len > 0) {
+        /* copy to the user buffer */
+        wlen = ulib_copy_iovs(expd->iovs, expd->niov, expd->wlen,
+                              uexp->rbuf.iovs, uexp->rbuf.niov);
+    } else { /* counting */
+        int idx;
+        wlen = 0;
+        for (idx = 0; idx < uexp->rbuf.niov; idx++) {
+            wlen += uexp->rbuf.iovs[idx].iov_len;
+        }
+    }
     expd->wlen += wlen;
     expd->olen += (uexp->rbuf.leng - wlen);
     /* update nblk */
@@ -925,7 +1052,7 @@ ulib_icep_recv_frag(struct ulib_shea_expd *expd,
     } else {
 	expd->nblk += uexp->nblk;
     }
-    R_DBG0(RDBG_LEVEL1, "\tfragment message handling nblk(%d) mblk(%d)", expd->mblk, expd->nblk);
+    R_DBG0(RDBG_LEVEL1, "\tfragment message handling uexp(%p) expd(%p) mblk(%d) nblk(%d)", uexp, expd, expd->mblk, expd->nblk);
     assert(expd->mblk != 0);
     assert(expd->nblk <= expd->mblk);
     done = (expd->mblk == expd->nblk);
@@ -944,17 +1071,16 @@ static inline int ulib_icep_recv_cbak_uexp( /* unexpected */
     assert(icep == icep->shadow);
     tick[0] = ulib_tick_time();
     if (freestack_isempty(icep->uexp_fs)) {
-/* printf("%s():%d\tuexp empty boff %u\n", __func__, __LINE__, rinf->boff); */
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
     uexp = freestack_pop(icep->uexp_fs);
     if (uexp == 0) {
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
-if (0) {
-printf("%s():%d\tuexp %3d\n", __func__, __LINE__,
-ulib_uexp_fs_index(icep->uexp_fs, uexp));
-}
+    if (0) {
+        printf("%s():%d\tuexp %3d\n", __func__, __LINE__,
+               ulib_uexp_fs_index(icep->uexp_fs, uexp));
+    }
 
     /* copy rinf */
     uexp[0] = rinf[0]; /* structure copy */
@@ -1046,7 +1172,7 @@ ulib_icep_recv_call_back(void *vptr,
      * iov_base : offs => base + offs
      */
     /* update trcv */
-    done = ulib_icep_recv_frag(trcv, uexp);
+    done = ulib_icep_recv_frag(trcv, uexp, 0);
     if (done == 0) {
         ulib_icep_link_expd_head(icep, trcv);
         goto bad; /* XXX - is not an error */
@@ -1066,22 +1192,6 @@ bad:
     return uc;
 }
 
-void
-ulib_icep_shea_recv_complete(struct ulib_icep *icep,
-                             struct ulib_shea_expd *expd,
-                             struct ulib_shea_uxp *uexp)
-{
-    int uc;
-    done = ulib_icep_recv_frag(expd, uexp);
-    if (done == 0) {
-        printf("YI************ OK ? in %s\n", __func__); fflush(stdout);
-    }
-    /* notify recv cq */
-    if (icep->vp_tofu_rcq != 0) {
-        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
-    }
-}
-
 /*
  * ulib_icep_shea_recv_post
  *   Posting receive operation
@@ -1092,6 +1202,7 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
                          uint64_t flags)
 {
     int uc = 0;
+    void *sndctxt = 0;
     struct ulib_icep *icep;
     struct ulib_shea_expd *expd;
     struct ulib_shea_uexp *uexp;
@@ -1106,77 +1217,80 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
     }
     ulib_shea_expd_init(expd, tmsg, flags);
     if ((flags & FI_TAGGED) && (flags & (FI_PEEK | FI_CLAIM)) == FI_CLAIM) {
-        /* claim for the previous FI_PEEK */
-        if (icep->peek_uxep == NULL) {
-            /* ERROR */
-            return -FI_ENOMSG;
+        ulib_peek_claim_uexp_entry(icep, expd, tmsg->context,
+                                   1/*extracted*/, &sndctxt);
+        /* notify */
+        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
+        if (sndctxt) {
+            /* send done notification is generated */
+            struct fi_cq_tagged_entry cq_e[1];
+            uint64_t    flgs;
+            flgs = FI_SEND | FI_TAGGED;
+            ulib_init_cqe(cq_e, sndctxt, flgs,
+                          expd->wlen, 0, tmsg->data, tmsg->tag);
+            tofu_cq_comp_tagged(icep->vp_tofu_scq, cq_e);
         }
-        /* copy and notify */
-        ulib_icep_shea_recv_complete(icep, expd, icep->peek_uexp);
-        /* free buffer */
-        tofu_imp_ulib_uexp_rbuf_free(uexp);
-        /* free unexpected and expected entries */
-        freestack_push(icep->uexp_fs, uexp);
+        /* free expected entries */
         freestack_push(icep->expd_fs, expd);
-        icep->peek_uexp = 0;
         return uc;
     }
-    if (flags & PEEK) {
+    if (flags & FI_PEEK) {
+        extern ssize_t tofu_progress(struct tofu_cq *);
         /* progress first */
-        tofu_progress(cep_priv);
+        tofu_progress((struct tofu_cq*) icep->vp_tofu_rcq);
     }
-recheck:
-    /* check unexpected queue */
-    uexp = ulib_find_uexp_entry(icep, expd);
-    if (flags & PEEK) {
-        if (uexp) { /* message arrives */
-            /* copy and notify */
-            ulib_icep_shea_recv_complete(icep, expd, uexp);
-            if (flags & FI_CLAIM) {
-                icep->peek_uexp = uexp;
-            } else { /* unexpected entry is renqueued */
-                dlist_insert_tail(uexp, &icep->uexp_list_trcv);
-                icep->peek_uexp = 0;
+    if (flags & FI_PEEK) {
+        /* check unexpected queue */
+        if (ulib_check_uexp_entry(icep, expd) == 0) {
+            /* notify completion */
+            /* fi_cq_err_entry is created and inserted */
+            uc = ulib_icqu_comp_err(icep, tmsg->context, flags,
+                                    tmsg->data, tmsg->tag, -FI_ENOMSG);
+        } else {
+            if ((flags & FI_CLAIM) == 0) {
+                ulib_peek_claim_uexp_entry(icep, expd, 0, 0, 0);
+            } else { /* marking context */
+                ulib_peek_claim_uexp_entry(icep, expd, tmsg->context, 0, 0);
             }
-        } else { /* no message arrives */
-            icep->peek_uexpp = 0;
-            uc = -FI_ENOMSG;
+            /* notify completion */
+            uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
         }
+    bad:
         /* free expected entry */
         freestack_push(icep->expd_fs, expd);
         return uc;
     }
-    /* now here is not FI_PEEK */
+    /* now not FI_PEEK */
+recheck:
+    /* check unexpected queue */
+    uexp = ulib_find_uexp_entry(icep, expd);
     if (uexp == NULL) {
         /* Not found a corresponding message in unexepcted queue,
          * thus insert this request to expected queue */
         ulib_icep_link_expd(icep, expd);
-        *expdp = expd;
     } else {
         int     done;
 	/* update expd */
-	done = ulib_icep_recv_frag(expd, uexp);
+	done = ulib_icep_recv_frag(expd, uexp, &sndctxt);
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
         /* free unexpected message */
         freestack_push(icep->uexp_fs, uexp);
-        if (done == 0) {
-            /* Ask Hatanaka-san, "goto recheck" is really work 
-             * without progress ? */
-            /* not yet received all fragments */
-	    goto recheck;
-        }
+        if (done == 0) { goto recheck; }
         /* notify recv cq */
-        if (icep->vp_tofu_rcq != 0) {
-            uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
-            if (uc != 0) {
-                assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
-                uc = 0; /* YYY severe error */
-            }
+        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
+        if (sndctxt) {
+            /* send done notification is generated */
+            struct fi_cq_tagged_entry cq_e[1];
+            uint64_t    flgs;
+            flgs = FI_SEND;
+            flgs |= flags & FI_TAGGED;
+            ulib_init_cqe(cq_e, sndctxt, flgs,
+                          expd->wlen, 0, tmsg->data, tmsg->tag);
+            tofu_cq_comp_tagged(icep->vp_tofu_scq, cq_e);
         }
         freestack_push(icep->expd_fs, expd);
     }
-bad:
     return uc;
 }
 
@@ -1276,13 +1390,7 @@ int ulib_icep_shea_send_post(
 	tlen = ofi_total_iov_len(tmsg->msg_iov, tmsg->iov_count);
 
 	/*rank = cash_tmpl->vpid;*/
-        rank = icep->rank;      /* local rank for phlh.srci */
-#if 0
-        if (rank == -1U) {
-            printf("YI*********** ERROR\n"); fflush(stdout);
-        }
-#endif
-
+        rank = icep->myrank;      /* local rank for phlh.srci */
         flag |= (flags & FI_TAGGED) ? ULIB_SHEA_DATA_TFLG : 0;
         flag |= (flags & FI_COMPLETION) ? ULIB_SHEA_DATA_CFLG : 0;
 	if ((flags & FI_REMOTE_CQ_DATA) != 0) {

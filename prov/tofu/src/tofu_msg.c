@@ -33,7 +33,11 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     struct tofu_cep     *cep_priv = 0;
     struct ulib_icep    *icep;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\tsrc(%ld) iovcount(%ld) buf(%p) size(%ld) flags(0x%lx) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_base, msg->msg_iov[0].iov_len, flags, __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL,
+            "\tsrc(%ld) iovcount(%ld) buf(%p) size(%ld) flags(0x%lx) in %s\n",
+            msg->addr, msg->iov_count, 
+            msg->msg_iov ? msg->msg_iov[0].iov_base : 0,
+            msg->msg_iov ? msg->msg_iov[0].iov_len : 0, flags, __FILE__);
 
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
 	ret = -FI_EINVAL; goto bad;
@@ -195,6 +199,23 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
     tank.tank.pid = 0; tank.tank.vld = 0;
     icep = (struct ulib_icep*) (cep_priv + 1);
 
+    /*
+     * My rank must be resolved here
+     */
+    if (icep->myrank == -1U) {
+	struct tofu_sep *sep_priv = cep_priv->cep_sep;
+	struct tofu_av *av__priv = sep_priv->sep_av_;
+	assert(av__priv != 0);
+	tofu_av_lup_rank(av__priv, icep->vcqh, icep->index, &icep->myrank);
+
+	/* for FI_CLASS_RX_CTX ? (icep->shadow) */
+	if (cep_priv->cep_trx != 0) {
+	    struct ulib_icep *icep_peer = (void *)(cep_priv->cep_trx + 1);
+	    if (icep_peer->myrank == -1U) {
+		icep_peer->myrank = icep->myrank;
+	    }
+	}
+    }
     if (icep->tofa.ui64 == tank.ui64) {
 	int fc;
         FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");
@@ -436,7 +457,8 @@ tofu_cep_tag_recvmsg(struct fid_ep *fid_ep,
     flags |= FI_TAGGED;
     R_DBG1(RDBG_LEVEL3, "fi_trecvmsg src(%s) len(%ld) buf(%p) flags(0x%lx)", 
            fi_addr2string(buf1, 128, msg->addr, fid_ep),
-           msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, flags);
+           msg->msg_iov ? msg->msg_iov[0].iov_len : 0,
+           msg->msg_iov ? msg->msg_iov[0].iov_base : 0, flags);
 
     ret = tofu_cep_msg_recv_common(fid_ep, msg, flags);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);

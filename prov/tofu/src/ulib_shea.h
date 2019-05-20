@@ -525,9 +525,11 @@ struct ulib_shea_uexp {
     uint32_t nblk;      /* current # of blocks received */
     uint32_t boff;      /* current last pointer */
     uint32_t flag;      /* ULIB_SHEA_UEXP_FLAG_+ (see below) */
-    uint32_t srci;      /* for debug perpose (source rank) */
+    uint32_t srci;      /* source rank */
     struct ulib_shea_rbuf rbuf; /* receive buffer */
     uint64_t idat;	/* immediate data */
+    void     *ctxt;     /* used for PEEK&CLAIM operation */
+    void     *sndctxt;  /* sender context, used for self send */
     uint64_t tims[1];   /* used for statistics (time) */
 };
 
@@ -535,6 +537,8 @@ struct ulib_shea_uexp {
 #define ULIB_SHEA_UEXP_FLAG_TFLG    0x02
 #define ULIB_SHEA_UEXP_FLAG_ZFLG    0x04
 #define ULIB_SHEA_UEXP_FLAG_IFLG    0x08
+#define ULIB_SHEA_UEXP_FLAG_CFLG    0x10 /* if self message & FI_COMPLETION */
+#define ULIB_SHEA_UEXP_FLAG_SFLG    0x20 /* self message */
 
 /* ======================================================================== */
 
