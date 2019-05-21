@@ -29,6 +29,7 @@ _tofu_files = prov/tofu/src/tofu_atm.h	\
 	prov/tofu/src/tofu_msg.c	\
 	prov/tofu/src/tofu_rma.c	\
 	prov/tofu/src/tofu_sep.c	\
+	prov/tofu/src/tofu_trigger.c	\
 	prov/tofu/src/utofu.h		\
 	prov/tofu/src/ulib.h		\
 	prov/tofu/src/ulib_conf.h	\

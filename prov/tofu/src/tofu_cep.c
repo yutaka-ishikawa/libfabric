@@ -110,6 +110,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	if (cep_priv->cep_sep->sep_dom != cq__priv->cq__dom) {
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
+        printf("YI******bind: cq__priv(%p) flags(%lx)\n", cq__priv, flags);
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
             R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) TX_CTX(%p)", cq__priv, cep_priv);
@@ -118,7 +119,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		 * man fi_endpoint(3)
 		 *   An endpoint may only be bound to a single CQ or
 		 *   counter for a given type of operation.
-		 *   For example, a EP may not bind to two counters both
+		 *   For example, an EP may not bind to two counters both
 		 *   using FI_WRITE.
 		 */
 		if (cep_priv->cep_send_cq != 0) {

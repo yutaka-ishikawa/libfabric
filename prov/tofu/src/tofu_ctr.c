@@ -6,7 +6,9 @@
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
-
+/*
+ * fi_close
+ */
 static int tofu_cntr_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
@@ -35,6 +37,9 @@ static struct fi_ops tofu_ctr_fi_ops = {
     .ops_open	    = fi_no_ops_open,
 };
 
+/*
+ * fi_cntr_read
+ */
 static uint64_t tofu_cntr_read(struct fid_cntr *cntr_fid)
 {
     uint64_t ret;
@@ -49,12 +54,18 @@ static uint64_t tofu_cntr_read(struct fid_cntr *cntr_fid)
     return ret;
 }
 
+/*
+ * fi_cntr_readerr
+ */
 static uint64_t tofu_cntr_readerr(struct fid_cntr *cntr_fid)
 {
     FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     return 0; /* YYY ofi_atomic_get64(&cntr->err) */
 }
 
+/*
+ * fi_cntr_add
+ */
 static int tofu_cntr_add(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -62,6 +73,9 @@ static int tofu_cntr_add(struct fid_cntr *cntr_fid, uint64_t value)
     return fc;
 }
 
+/*
+ * fi_cntr_adderr
+ */
 static int tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -69,6 +83,9 @@ static int tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
     return fc;
 }
 
+/*
+ * fi_cntr_set
+ */
 static int tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -76,6 +93,9 @@ static int tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
     return fc;
 }
 
+/*
+ * fi_cntr_seterr
+ */
 static int tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -83,6 +103,9 @@ static int tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
     return fc;
 }
 
+/*
+ * fi_cntr_wait
+ */
 static int tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
 {
     int fc = FI_SUCCESS;
@@ -116,6 +139,8 @@ static int tofu_cntr_verify_attr(
 	fc = -FI_ENOSYS; goto bad;
     }
 
+    printf("YI***** tofu_cntr_verify_attr: wait_obj(%x)\n",
+            user_attr->wait_obj); fflush(stdout);
     /* wait_obj: enum fi_wait_obj */
     switch (user_attr->wait_obj) {
     case FI_WAIT_NONE:

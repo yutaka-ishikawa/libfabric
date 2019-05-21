@@ -1426,6 +1426,12 @@ int ulib_icep_shea_send_post(
     if (tmsg->iov_count > 0) {
 	utofu_stadd_t lsta = -1ULL;
 
+        printf("YI***** tmsg->iov_count(%ld)\n", tmsg->iov_count); fflush(stdout);
+        {
+            /* ofi_copy_to_iov */  /* ofi_copy_from_iov */
+            /* ofi_total_iov_len */
+        }
+
 	assert(tmsg->iov_count == 1); /* XXX at most one */
 	if (tmsg->desc != 0) {
 	    struct ulib_imr_ *imr_ = tmsg->desc[0]; /* XXX iov_count == 1 */
@@ -1443,8 +1449,7 @@ int ulib_icep_shea_send_post(
 	    }
 	    assert(imr_->ceps[rx_index] == icep);
 	    lsta = imr_->stas[rx_index];
-	}
-	else if (tmsg->msg_iov[0].iov_len > 0) {
+	} else if (tmsg->msg_iov[0].iov_len > 0) {
 	    void *addr = tmsg->msg_iov[0].iov_base;
 	    size_t size = tmsg->msg_iov[0].iov_len;
 	    const unsigned long int flag = 0

@@ -6,6 +6,8 @@
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
+extern int
+tofu_queue_work(struct tofu_domain *domain, void *vp_dw);
 
 static int tofu_domain_close(struct fid *fid)
 {
@@ -36,37 +38,59 @@ bad:
     return fc;
 }
 
+/*
+ * for deffered work: FI_QUEUE_WORK, FI_CANCEL_WORK, and FI_FLUSH_WORK
+ */
+static int
+tofu_domain_ctrl(struct fid *fid, int command, void *arg)
+{
+    int rc = FI_SUCCESS;
+    struct tofu_domain *dom_priv;
+
+    if (fid == 0) { rc = -FI_EINVAL; goto bad; }
+    dom_priv = container_of(fid, struct tofu_domain, dom_fid.fid);
+
+    switch (command) {
+    case FI_QUEUE_WORK:
+	rc = tofu_queue_work(dom_priv, arg);
+	if (rc != 0) { goto bad; }
+	break;
+    case FI_CANCEL_WORK:
+    case FI_FLUSH_WORK:
+    default:
+	rc = -FI_ENOSYS;
+	goto bad;
+    }
+
+bad:
+    return rc;
+}
+
+
 static struct fi_ops tofu_dom_fi_ops = {
     .size	    = sizeof (struct fi_ops),
     .close	    = tofu_domain_close,
     .bind	    = fi_no_bind,
-    .control	    = fi_no_control,
+    .control	    = tofu_domain_ctrl,
     .ops_open	    = fi_no_ops_open,
 };
 
 static struct fi_ops_domain tofu_dom_ops = {
     .size	    = sizeof (struct fi_ops_domain),
-#ifdef	notdef
-    .av_open	    = fi_no_av_open,
-    .cq_open	    = fi_no_cq_open,
-#else	/* notdef */
     .av_open	    = tofu_av_open,
     .cq_open	    = tofu_cq_open,
-#endif	/* notdef */
     .endpoint	    = fi_no_endpoint,
-#ifdef	notdef
-    .scalable_ep    = fi_no_scalable_ep,
-    .cntr_open	    = fi_no_cntr_open,
-#else	/* notdef */
     .scalable_ep    = tofu_sep_open,
     .cntr_open	    = tofu_cntr_open,
-#endif	/* notdef */
     .poll_open	    = fi_no_poll_open,
     .stx_ctx	    = fi_no_stx_context,
     .srx_ctx	    = fi_no_srx_context,
     .query_atomic   = fi_no_query_atomic,
 };
 
+/*
+ * fi_domain
+ */
 int tofu_domain_open(
     struct fid_fabric *fid_fab,
     struct fi_info *info,

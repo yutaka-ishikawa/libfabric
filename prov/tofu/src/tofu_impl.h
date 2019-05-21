@@ -79,6 +79,13 @@ struct tofu_domain {
     int                 dom_nvcq;
 };
 
+/*
+ * cq__htx is set if fi_ep_bind(..., FI_TRANSMIT)
+ * cq_ssel is also set if fi_ep_bind(.., FI_TRANSMIT| FI_SELECTIVE_COMPLETION)
+ * cq__rtx is set in fi_ep_bind(..., ..., FI_RECV)
+ * cq_rsel is also set if fi_ep_bind(.., FI_RECV | FI_SELECTIVE_COMPLETION)
+ */
+#define TOFU_CQ_SELECTIVE       1
 struct tofu_cq {
     struct fid_cq	cq__fid;
     struct tofu_domain *cq__dom;
@@ -89,6 +96,8 @@ struct tofu_cq {
     struct dlist_entry	cq__hrx;    /* head for ep rx ctxs */
     struct tofu_ccirq * cq__ccq;    /* _cirq : circular queue for fi_cq_tagged_entry */
     struct tofu_ccireq *cq_cceq;    /* circular queue for fi_cq_err_entry */
+    int                 cq_ssel;    /* for FI_SELECTIVE_COMPLETION */
+    int                 cq_rsel;    /* for FI_SELECTIVE_COMPLETION */
 };
 
 struct tofu_cntr {
