@@ -148,6 +148,8 @@ struct ulib_icep {
     DLST_DECH(ulib_head_esnd)   busy_esnd;
     void                        *vp_tofu_scq; /* struct tofu_cq */
     void                        *vp_tofu_rcq; /* struct tofu_cq */
+    void                        *vp_tofu_scntr; /* struct tofu_cntr */
+    void                        *vp_tofu_rcntr; /* struct tofu_cntr */
     /* unexpected queue */
     struct ulib_uexp_fs         *uexp_fs;
     struct dlist_entry          uexp_list_trcv; /* fi_msg_tagged */
@@ -226,7 +228,7 @@ DECLARE_FREESTACK(struct ulib_shea_expd, ulib_expd_fs);
 /*
  * Expected entry has flags specified by fi_msg(3) operations.
  * This flags field is checked in CQ operations.
- *      See ulib_icqu_comp_trcv() in ulib_ofif.c
+ *      See ulib_notify_recvcmpl_cq() in ulib_ofif.c
  */
 static inline void 
 ulib_shea_expd_init(struct ulib_shea_expd *expd,

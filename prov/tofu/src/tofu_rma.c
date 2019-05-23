@@ -7,6 +7,7 @@
 #include "ulib_conv.h"
 #include "ulib_ofif.h"
 #include "ulib_toqc.h" 
+#include "ulib_notify.h"
 #include <assert.h>	    /* for assert() */
 
 static inline void tofu_ofif_liov_set(struct iovec *lma_iov,
@@ -297,26 +298,20 @@ ulib_conv_paid(utofu_vcq_id_t vcqid, utofu_path_id_t *p_paid)
  * MUST BE CRITIAL REGION 2019/04/29
  */
 void
-ulib_notify_rma_cmpl(struct ulib_toqc *toqc, int idx)
+ulib_notify_rmacmpl_cq(struct ulib_toqc *toqc, int idx)
 {
-    struct ulib_rma_cmpl *rma_cmpl;
-    struct fi_cq_tagged_entry *cmpl;
-    struct ulib_icep *icep_ctxt, *icep;
+    struct ulib_rma_cmpl      *rma_cmpl;
+    struct tofu_cq            *cq_priv;
+    struct fi_cq_tagged_entry cq_e[1];
+    struct tofu_cep           *cep_priv;
+    struct ulib_icep          *icep_ctxt, *icep;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "idx(%d)\n", idx);
     rma_cmpl = &toqc->rma_cmpl[idx - 1];
+    cq_priv = rma_cmpl->cq__priv;
+    cep_priv = rma_cmpl->cep_priv;
     icep_ctxt = (struct ulib_icep *)(rma_cmpl->cep_priv + 1);
     icep = icep_ctxt->shadow;
-    if ((rma_cmpl->flags & FI_READ) != 0) {
-	struct tofu_cep *cep_priv = rma_cmpl->cep_priv;
-        /* get operation */
-	if (cep_priv->cep_rop_ctr != 0) {
-	    struct tofu_cntr *ctr_priv = cep_priv->cep_rop_ctr;
-	    int64_t cv;
-	    assert(ctr_priv->ctr_fid.fid.fclass == FI_CLASS_CNTR);
-	    cv = ofi_atomic_inc64( &ctr_priv->ctr_ctr );
-	}
-    }
     if (rma_cmpl->stadd != -1UL) {
 	int uc;
 	uc = utofu_dereg_mem(icep->vcqh, rma_cmpl->stadd, 0 /* uflg */ );
@@ -327,25 +322,12 @@ ulib_notify_rma_cmpl(struct ulib_toqc *toqc, int idx)
     }
     assert(icep->nrma > 0);
     --icep->nrma;     /* decrement # of rma ops on the fly */
-    if (ofi_cirque_isfull(rma_cmpl->cq__priv->cq__ccq)) {
-        /* ERROR */
-        fprintf(stderr, "YIRMA: CQ is full\n");
-        return;
-    }
-    /* get an entry pointed by w.p. */
-    cmpl = ofi_cirque_tail(rma_cmpl->cq__priv->cq__ccq);
-    /* copy */
-    cmpl->op_context = rma_cmpl->op_context;
-    cmpl->flags = rma_cmpl->flags;
-    cmpl->len = rma_cmpl->len;
-    cmpl->buf = rma_cmpl->buf;
-    cmpl->data = rma_cmpl->data;
-    cmpl->tag = rma_cmpl->tag;
-    /* advance w.p. by one  */
-    ofi_cirque_commit(rma_cmpl->cq__priv->cq__ccq);
-    FI_DBG(&tofu_prov, FI_LOG_EP_DATA,
-           "%s Enter entry(%p) in to CQ nrma(%d)\n",
-           __func__, cmpl, icep->nrma);
+
+    /* completion notification */
+    ulib_notify_sndcmpl_cntr(cep_priv->cep_send_ctr, 0);
+    ulib_init_cqe(cq_e, rma_cmpl->op_context, rma_cmpl->flags, 
+                  rma_cmpl->len, rma_cmpl->buf, rma_cmpl->data, rma_cmpl->tag);
+    ulib_notify_sndcmpl_cq(cq_priv, NULL, cq_e);
 }
 
 
@@ -362,6 +344,199 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
     tofu_av_lup_tank(av__priv, fi_addr, &ui64);
     return tank2string(buf, sz, ui64);
 }
+
+static inline int tofu_cep_rma_rmsg_self(struct tofu_cep *cep_priv_tx,
+                                         const struct fi_msg_rma *msg_rma,
+                                         uint64_t flags)
+{
+    int fc = FI_SUCCESS;
+    /* struct tofu_sep *sep_priv; */
+    size_t rlen, wlen = 0;
+
+    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
+    assert(cep_priv_tx != 0);
+    assert(cep_priv_tx->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+    /* assert(cep_priv_tx->cep_sep != 0); */
+    /* sep_priv = cep_priv_tx->cep_sep; */
+
+    if ((msg_rma->iov_count != msg_rma->rma_iov_count)
+	|| (msg_rma->iov_count > 1)) {
+	fc = -FI_EINVAL; goto bad;
+    }
+
+    /* copy: rlen and wlen */
+    if (msg_rma->iov_count == 1) { /* likely() */
+	struct iovec *iov_dst, *iov_src, iovs[1];
+	size_t ioc_dst, ioc_src, iof_dst = 0;
+
+	iov_dst = (struct iovec *)msg_rma->msg_iov;
+	ioc_dst = msg_rma->iov_count;
+	assert(iov_dst != 0);
+
+	/* requested length */
+	rlen = ofi_total_iov_len( iov_dst, ioc_dst );
+
+	{
+	    const struct fi_rma_iov *rma_iov = msg_rma->rma_iov;
+	    struct fi_mr_attr *attr;
+	    const struct iovec *mr_iov;
+
+	    /* attr */
+	    {
+		struct tofu_mr *mr__priv;
+		assert(rma_iov != 0);
+		mr__priv = (void *)(uintptr_t)rma_iov->key; /* XXX */
+		assert(mr__priv->mr__fid.fid.fclass == FI_CLASS_MR);
+		attr = &mr__priv->mr__att;
+	    }
+	    /* mr_iov */
+	    if ((attr->iov_count < 1)
+		|| (attr->mr_iov == 0)
+		|| (attr->mr_iov->iov_len < rma_iov->len)
+		|| (attr->mr_iov->iov_base == 0)) {
+		fc = -FI_EINVAL; goto bad;
+	    }
+	    mr_iov = attr->mr_iov;
+
+	    /* FI_MR_BASIC */
+	    iovs->iov_len = rma_iov->len;
+	    iovs->iov_base = (void *)(uintptr_t)rma_iov->addr;
+	    if ((iovs->iov_base < mr_iov->iov_base)
+                || ((char*)iovs->iov_base >= (char*) ((char*)mr_iov->iov_base + mr_iov->iov_len))) {
+		/* FI_MR_SCALABLE */
+		assert(rma_iov->addr /* offset */ < mr_iov->iov_len);
+		iovs->iov_base = (void*) ((char*)mr_iov->iov_base + rma_iov->addr);  /* offset */
+		FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "woff %"PRIu64" o\n",
+		    rma_iov->addr);
+	    } else {
+		FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "woff %ld V\n",
+                         (char*) iovs->iov_base - (char*) mr_iov->iov_base);
+	    }
+	}
+
+	iov_src = iovs;
+	ioc_src = 1 /* msg_rma->rma_iov_count */;
+
+	wlen = tofu_copy_iovs(iov_dst, ioc_dst, iof_dst, iov_src, ioc_src);
+	FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "wlen %ld\n", wlen);
+        if (wlen <= rlen) {
+            FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "wlen <= rlenn");
+            assert(0);
+        }
+    }
+    {
+	struct fi_cq_tagged_entry cq_e[1];
+        /* The rma completion queue/counter is the sender side */
+        ulib_notify_sndcmpl_cntr(cep_priv_tx->cep_send_ctr, 0);
+        ulib_init_cqe(cq_e, msg_rma->context,
+                      FI_RMA | FI_READ | FI_DELIVERY_COMPLETE,
+                      wlen, 0, msg_rma->data, 0);
+        ulib_notify_sndcmpl_cq(cep_priv_tx->cep_send_cq, NULL, cq_e);
+    }
+bad:
+    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %d\n", fc);
+    return fc;
+}
+
+static inline int 
+tofu_cep_rma_wmsg_self(struct tofu_cep *cep_priv_tx,
+                       const struct fi_msg_rma *msg_rma,
+                       uint64_t flags)
+{
+    int fc = FI_SUCCESS;
+    /* struct tofu_sep *sep_priv; */ /* AV */
+    size_t rlen, wlen = 0;
+
+    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
+    assert(cep_priv_tx != 0);
+    assert(cep_priv_tx->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+    /* assert(cep_priv_tx->cep_sep != 0); */
+    /* sep_priv = cep_priv_tx->cep_sep; */
+
+    if ((msg_rma->iov_count != msg_rma->rma_iov_count)
+	|| (msg_rma->iov_count > 1)) {
+	fc = -FI_EINVAL; goto bad;
+    }
+
+    /* copy: rlen and wlen */
+    if (msg_rma->iov_count == 1) { /* likely() */
+	struct iovec *iov_dst, *iov_src, iovs[1];
+	size_t ioc_dst, ioc_src, iof_dst = 0;
+
+	iov_src = (struct iovec *)msg_rma->msg_iov;
+	ioc_src = msg_rma->iov_count;
+	assert(iov_src != 0);
+
+	/* requested length */
+	rlen = ofi_total_iov_len( iov_src, ioc_src );
+
+	{
+	    const struct fi_rma_iov *rma_iov = msg_rma->rma_iov;
+	    struct fi_mr_attr *attr;
+	    const struct iovec *mr_iov;
+
+	    /* attr */
+	    {
+		struct tofu_mr *mr__priv;
+		assert(rma_iov != 0);
+		mr__priv = (void *)(uintptr_t)rma_iov->key; /* XXX */
+		assert(mr__priv->mr__fid.fid.fclass == FI_CLASS_MR);
+		attr = &mr__priv->mr__att;
+	    }
+	    /* mr_iov */
+	    if ( 0
+		|| (attr->iov_count < 1)
+		|| (attr->mr_iov == 0)
+		|| (attr->mr_iov->iov_len < rma_iov->len)
+		|| (attr->mr_iov->iov_base == 0)
+	    ) {
+		fc = -FI_EINVAL; goto bad;
+	    }
+	    mr_iov = attr->mr_iov;
+
+	    /* FI_MR_BASIC */
+	    iovs->iov_len = rma_iov->len;
+	    iovs->iov_base = (void *)(uintptr_t)rma_iov->addr;
+	    if ( 0
+		|| (iovs->iov_base < mr_iov->iov_base)
+                 || (iovs->iov_base >= (void*) ((char*)mr_iov->iov_base + mr_iov->iov_len))
+	    ) {
+		/* FI_MR_SCALABLE */
+		assert(rma_iov->addr /* offset */ < mr_iov->iov_len);
+		iovs->iov_base = (void*)((char*)mr_iov->iov_base + rma_iov->addr); /* offset */;
+		FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "woff %"PRIu64" o\n",
+		    rma_iov->addr);
+	    }
+	    else {
+		FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "woff %ld V\n",
+                         (char*) iovs->iov_base - (char*) mr_iov->iov_base);
+	    }
+	}
+
+	iov_dst = iovs;
+	ioc_dst = 1 /* msg_rma->rma_iov_count */;
+
+	wlen = tofu_copy_iovs(iov_dst, ioc_dst, iof_dst, iov_src, ioc_src);
+	FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "wlen %ld\n", wlen);
+        if (wlen <= rlen) {
+            FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "wlen <= rlenn");
+            assert(0);
+        }
+    }
+    {
+	struct fi_cq_tagged_entry cq_e[1];
+        /* The rma completion queue is the sender side */
+        ulib_notify_sndcmpl_cntr(cep_priv_tx->cep_send_ctr, 0);
+        ulib_init_cqe(cq_e, msg_rma->context,
+                      FI_RMA | FI_WRITE | FI_DELIVERY_COMPLETE,
+                      wlen, 0, msg_rma->data, 0);
+        ulib_notify_sndcmpl_cq(cep_priv_tx->cep_send_cq, NULL, cq_e);
+    }
+bad:
+    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %d\n", fc);
+    return fc;
+}
+
 
 /*
  * fi_read:
@@ -414,16 +589,21 @@ bad:
     return ret;
 }
 
-static ssize_t tofu_cep_rma_readmsg(
-    struct fid_ep *fid_ep,
-    const struct fi_msg_rma *msg,
-    uint64_t flags
-)
+/*
+ * fi_readmsg
+ */
+static ssize_t
+tofu_cep_rma_readmsg(struct fid_ep *fid_ep,
+                     const struct fi_msg_rma *msg,
+                     uint64_t flags)
 {
     ssize_t ret = 0;
     struct tofu_cep *cep_priv = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
+    fprintf(stderr, "YI**** fi_readmsg is only implemented for self\n"); fflush(stderr);
+    printf("YI**** fi_readmsg is only implemented for self\n"); fflush(stdout);
+
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
     }
@@ -437,11 +617,9 @@ static ssize_t tofu_cep_rma_readmsg(
 	(flags & FI_TRANSMIT_COMPLETE)? 'T': '-',
 	(flags & FI_DELIVERY_COMPLETE)? 'D': '-');
 
-    if (
-	(msg == 0)
+    if ((msg == 0)
 	|| ((msg->iov_count > 0) && (msg->msg_iov == 0))
-	|| ((msg->rma_iov_count > 0) && (msg->rma_iov == 0))
-    ) {
+	|| ((msg->rma_iov_count > 0) && (msg->rma_iov == 0))) {
         ret = -FI_EINVAL; goto bad;
     }
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "ioc %ld %ld\n",
@@ -453,20 +631,13 @@ static ssize_t tofu_cep_rma_readmsg(
 	FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "totlen %ld %ld\n",
 	    msg_len, rma_len);
 
-	if ( 0
-	    || (msg_len != rma_len)
+	if ((msg_len != rma_len)
 	    /* || (msg_len > ep_attr->max_msg_size) */
 	    /* || (msg->iov_count > tx_attr->iov_limit) */
-	    /* || (msg->rma_iov_count > tx_attr->rma_iov_limit) */
-	) {
+	    /* || (msg->rma_iov_count > tx_attr->rma_iov_limit) */) {
 	    ret = -FI_EINVAL; goto bad;
 	}
 	if ((flags & FI_INJECT) != 0) {
-	    if ( 0
-		/* || (msg_len > ep_attr->inject_size) */
-	    ) {
-		ret = -FI_EINVAL; goto bad;
-	    }
 	}
 	if (msg->rma_iov_count > 0) {
 	    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "key %016"PRIx64" desc %p\n",
@@ -476,7 +647,7 @@ static ssize_t tofu_cep_rma_readmsg(
 
     {
 	int fc;
-	fc = tofu_cep_rma_rmsg_self( cep_priv, msg, flags );
+	fc = tofu_cep_rma_rmsg_self(cep_priv, msg, flags);
 	if (fc != 0) {
 	    ret = fc; goto bad;
 	}
@@ -507,15 +678,18 @@ static inline ssize_t tofu_total_rma_iov_len(
 }
 #endif	/* NOTDEF_UTIL */
 
-static ssize_t tofu_cep_rma_writemsg(
-    struct fid_ep *fid_ep,
-    const struct fi_msg_rma *msg,
-    uint64_t flags
-)
+/*
+ * fi_writemsg
+ */
+static ssize_t 
+tofu_cep_rma_writemsg(struct fid_ep *fid_ep,
+                      const struct fi_msg_rma *msg, uint64_t flags)
 {
     ssize_t ret = 0;
     struct tofu_cep *cep_priv = 0;
 
+    fprintf(stderr, "YI**** fi_writemsg is only implemented for self\n"); fflush(stderr);
+    printf("YI**** fi_writemsg is only implemented for self\n"); fflush(stdout);
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
@@ -592,4 +766,3 @@ struct fi_ops_rma tofu_cep_ops_rma = {
     .writedata	    = fi_no_rma_writedata,
     .injectdata	    = fi_no_rma_injectdata,
 };
-

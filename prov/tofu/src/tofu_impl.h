@@ -92,12 +92,12 @@ struct tofu_cq {
     ofi_atomic32_t	cq__ref;
     fastlock_t		cq__lck;
 /*  struct dlist_entry	cq__ent; */
-    struct dlist_entry	cq__htx;    /* head for ep tx ctxs */
-    struct dlist_entry	cq__hrx;    /* head for ep rx ctxs */
-    struct tofu_ccirq * cq__ccq;    /* _cirq : circular queue for fi_cq_tagged_entry */
-    struct tofu_ccireq *cq_cceq;    /* circular queue for fi_cq_err_entry */
-    int                 cq_ssel;    /* for FI_SELECTIVE_COMPLETION */
-    int                 cq_rsel;    /* for FI_SELECTIVE_COMPLETION */
+    struct dlist_entry	cq__htx;   /* head for ep tx ctxs */
+    struct dlist_entry	cq__hrx;   /* head for ep rx ctxs */
+    struct tofu_ccirq  *cq__ccq;   /* circular queue for fi_cq_tagged_entry */
+    struct tofu_ccireq *cq_cceq;   /* circular queue for fi_cq_err_entry */
+    int                 cq_ssel;   /* for FI_SELECTIVE_COMPLETION */
+    int                 cq_rsel;   /* for FI_SELECTIVE_COMPLETION */
 };
 
 struct tofu_cntr {
@@ -110,6 +110,8 @@ struct tofu_cntr {
     struct dlist_entry	ctr_hrx;    /* head for ep read ctxs */
     ofi_atomic64_t	ctr_ctr;
     ofi_atomic64_t	ctr_err;
+    int                 ctr_tsl;   /* for FI_SELECTIVE_COMPLETION */
+    int                 ctr_rsl;   /* for FI_SELECTIVE_COMPLETION */
 };
 
 struct tofu_av {
@@ -241,7 +243,5 @@ extern int	tofu_chck_ep_attr(
 #include "tofu_ctr.h"
 #include "tofu_sep.h"
 #include "tofu_msg.h"
-#include "tofu_rma.h"
-#include "tofu_atm.h"
 
 #endif	/* _TOFU_IMPL_H */

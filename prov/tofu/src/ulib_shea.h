@@ -511,8 +511,9 @@ static inline void ulib_shea_data_init_cbak(
 
 #include <sys/uio.h>	    /* for struct iovec */
 
+#define ULIB_MAX_IOV    5
 struct ulib_shea_rbuf {
-    struct iovec iovs[2];
+    struct iovec iovs[ULIB_MAX_IOV];
     uint16_t niov;
     uint16_t alloced;  /* if memory is allocated */
     uint32_t leng;

@@ -450,10 +450,6 @@ next_state:
 	    goto next_state;
 	}
 #endif	/* TEST_HAVE_ROOM */
-if (0) {
-printf("#%d\thave_room cdif %"PRIu64" <= nblk %"PRIu64"\n", __LINE__, cdif, nblk);
-fflush(stdout);
-}
 	/* HAVE_ROOM --> SEND_EXCL */
 	ulib_shea_chst(esnd, SEND_EXCL);
 	ulib_shea_perf_l_st(SEND_EXCL, esnd->data);
@@ -518,15 +514,9 @@ fflush(stdout);
 	    goto next_state;
 	}
 	/* YYY SCHEDULE_SELF() */
-printf("#%d\tsend_norm YYY schd_self()\n", __LINE__);
 	break;
     case SEND_EXCL:
 	rblk = ulib_shea_data_rblk(esnd->data);
-if (0) {
-printf("#%d\tsend_excl rblk %"PRIu64" > 0, d_st %d\n", __LINE__,
-rblk, esnd->d_st);
-fflush(stdout);
-}
 	if (rblk > 0) {
 	    /* uc = ulib_shea_data(toqc, cash_tmpl, cash_real, esnd); */
 	    uc = ulib_shea_foo9(toqc, cash_tmpl, cash_real, esnd);
@@ -541,7 +531,6 @@ fflush(stdout);
 	    goto next_state;
 	}
 	/* YYY SCHEDULE_SELF() */
-printf("#%d\tsend_excl YYY schd_self()\n", __LINE__);
 	break;
     case SEND_DONE:
 	ulib_shea_perf_l_st(SEND_DONE, esnd->data);
@@ -590,11 +579,6 @@ ulib_shea_foo1(struct ulib_toqc_cash *cash,
 		ULIB_DESC_UFLG_ARMW,
 		cash->cswp);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-if (0) {
-printf("size %ld cmd %08x %08x\n", cash->cswp[0].size,
-((uint8_t *)cash->cswp[0].desc)[1],
-((uint8_t *)cash->cswp[0].desc)[1+32]);
-}
     }
     /* fadd */
     {
@@ -841,12 +825,6 @@ int ulib_shea_foo5(
 	uc = ulib_desc_puti_le08_from_cash(rcsh, lcsh,
                 roff, lval, leng, edat, uflg, toqd);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-if (0) {
-printf("\t" "dsiz %ld\n", toqd->size);
-printf("\t" "%016" PRIx64 " %016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
-toqd->desc[0], toqd->desc[1], toqd->desc[2], toqd->desc[3]);
-}
-
 	uc = ulib_toqc_post(toqc, toqd->desc, toqd->size, retp, toqd->ackd,
 		&esnd->r_no);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
@@ -895,12 +873,6 @@ int ulib_shea_foo6(
 	uc = ulib_desc_puti_le08_from_cash(rcsh, lcsh,
                 roff, lval, leng, edat, uflg, toqd);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-if (0) {
-printf("\t" "dsiz %ld\n", toqd->size);
-printf("\t" "%016" PRIx64 " %016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
-toqd->desc[0], toqd->desc[1], toqd->desc[2], toqd->desc[3]);
-}
-
 	uc = ulib_toqc_post(toqc, toqd->desc, toqd->size, retp, toqd->ackd,
 		&esnd->r_no);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
@@ -936,9 +908,6 @@ int ulib_shea_foo7(
 	    assert(nsnd > 0);
 	    esnd->self.cntr.ct_s.pcnt = pcnt + nsnd;
 	    esnd->self.cntr.ct_s.ccnt = pcnt;
-if (0) {
-printf("%s(): ccnt %u\n", __func__, esnd->self.cntr.ct_s.ccnt);
-}
 	}
 	/* desc[] */
 	{
@@ -1008,15 +977,6 @@ int ulib_shea_foo8(
 	uc = ulib_desc_puti_le08_from_cash(rcsh, lcsh,
                 roff, lval, leng, edat, uflg, toqd);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
-if (0) {
-printf("\t" "dsiz %ld\n", toqd->size);
-printf("\t" "%016" PRIx64 " %016" PRIx64 " %016" PRIx64 " %016" PRIx64 "\n",
-toqd->desc[0], toqd->desc[1], toqd->desc[2], toqd->desc[3]);
-}
-if (0) {
-printf("\tW: R->S ccnt %"PRIu64"\n", lval);
-}
-
 	uc = ulib_toqc_post(toqc, toqd->desc, toqd->size, retp, toqd->ackd,
                             (uint64_t*) &ercv->r_no);
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
@@ -1077,13 +1037,6 @@ int ulib_shea_foo9(
     nava = ulib_shea_cntr_diff(&esnd->cntr[0]);
 
     if (esnd->d_st == DATA_FULL) {
-        if (0) {
-            if (esnd->l_st == SEND_EXCL) {
-                printf("#%d\tnava %"PRIu64" (pc %u cc %u)\n", __LINE__,
-                       nava, esnd->cntr[0].ct_s.pcnt, esnd->cntr[0].ct_s.ccnt);
-                fflush(stdout);
-            }
-        }
 	if (nava <= 1) {
 	    RETURN_OK_C(uc);
 	}
@@ -1104,18 +1057,7 @@ int ulib_shea_foo9(
 		nsnd = 0; go_wait = 2;
 	    }
 	}
-if (0) {
-if (esnd->l_st == SEND_EXCL) {
-printf("#%d\tnsnd %"PRIu64" nava %"PRIu64"\n", __LINE__, nsnd, nava);
-fflush(stdout);
-}
-}
 	if (nsnd > 0) {
-if (0) {
-printf("cash tmpl putd %2ld %2ld real %2ld %2ld\n",
-cash_tmpl->putd[0].size, cash_tmpl->putd[1].size,
-cash_real->putd[0].size, cash_real->putd[1].size);
-}
 	    if ( 1 /* cash_real->putd[0].size == 0 */ ) {
 		const struct ulib_utof_cash *rcsh = &cash_tmpl->addr[0];
 		const struct ulib_utof_cash *lcsh = &cash_real->addr[1];
@@ -1592,10 +1534,6 @@ static inline void ulib_shea_make_phdr_wait(
 	phdr->phwl.cntr = ulib_shea_cntr_ui64(pcnt + nsnd /*pc*/, pcnt /*cc*/);
 	phdr->phwl.idat = ULIB_SHEA_PH_MARKER_W;
 	phdr->phwl.seqn = pcnt; /* seqn */
-if (0) {
-printf("\tW: S->R pcnt %u ccnt %u rblk %u\n",
-pcnt + nsnd, pcnt, (uint32_t)ulib_shea_data_rblk(esnd->data));
-}
     }
 
     return /* uc */;
@@ -1829,10 +1767,6 @@ static inline void ulib_shea_cash_data_data( /* foo12 */
 	    uint64_t loff = boff * ULIB_SHEA_DBLK;
 	    uint64_t leng = fblk * ULIB_SHEA_DBLK;
 
-if (0) {
-printf("\t[0] roff %4u leng %4u [1] roff %4u leng %4"PRIu64"\n",
-hloc, fblk, 0, nsnd - fblk);
-}
 	    /* === toqd[0] === */
 	    /* desc */
 	    {
@@ -2242,19 +2176,11 @@ static inline void ulib_shea_recv_info(
 		}
 		rbuf->niov = 2;
 	    }
-#if 0
-            if (rbuf->niov == 1) {
-                fprintf(stderr, "\tYICHECK***: %s iov_count(%d) iovs[0].iov_base(%p) iovs[0].iov_len(%ld) rbuf->leng(%d)\n", __func__, rbuf->niov, iovs[0].iov_base, iovs[0].iov_len, rbuf->leng); fflush(stderr);
-            } else {
-                fprintf(stderr, "\tYICHECK***: %s iov_count(%d) iovs[0].iov_base(%p) iovs[0].iov_len(%ld) iovs[1].iov_len(%ld) rbuf->leng(%d)\n", __func__, rbuf->niov, iovs[0].iov_base, iovs[0].iov_len, iovs[1].iov_len, rbuf->leng); fflush(stderr);
-            }
-#endif
 	}
     }
 #ifdef	CONF_ULIB_PERF_SHEA
     memset(rinf->tims, 0, sizeof (rinf->tims));
 #endif	/* CONF_ULIB_PERF_SHEA */
-
     return ;
 }
 

@@ -37,8 +37,8 @@ yi_showcntrl(const char *func, int lno, void *ptr)
 
     head = (struct MPIDI_OFI_am_header*) ptr;
     ctrl = (struct mpich_cntl*) (head + 1);
-    fprintf(stderr, "YIMPICH***: %s:%d ctrl->type(%d) ctrl->tag(0x%x)\n",
-            func, lno, ctrl->type, ctrl->tag);
+    //fprintf(stderr, "YIMPICH***: %s:%d ctrl->type(%d) ctrl->tag(0x%x)\n",
+    //func, lno, ctrl->type, ctrl->tag);
     fflush(stderr);
 }
 
@@ -146,7 +146,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     struct tofu_cq *cq__priv;
     ssize_t        ment, ient;
 
-    FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_CQ, " count(%ld) in %s\n", count, __FILE__);
     assert(fid_cq != 0);
     cq__priv = container_of(fid_cq, struct tofu_cq, cq__fid);
 
@@ -164,6 +164,9 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 	/* copy */
 	((struct fi_cq_tagged_entry *)buf)[ient] = comp[0];
 	ofi_cirque_discard(cq__priv->cq__ccq);
+        //printf("%d: YI**** cq_read[%p] (%ld) context(%p) data(%ld)\n",
+        //getpid(), cq__priv, ient, comp[0].op_context, comp[0].data);
+        //fflush(stdout);
     }
     ret = ient;
 empty:

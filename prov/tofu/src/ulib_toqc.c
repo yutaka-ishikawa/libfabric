@@ -265,8 +265,8 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
                 fprintf(stderr, "%d: YIPOLL_MRQ: UTOFU_ERR_MRQ(%d) edata(0x%lx) %s\n", mypid, uc, tmrq[0].edata, __func__); fflush(stderr);
                 if (tmrq[0].edata > 0 && tmrq[0].edata <= ULIB_RMA_NUM) {
                     /* fi_read is completed */
-                    extern void ulib_notify_rma_cmpl(struct ulib_toqc*, int);
-                    ulib_notify_rma_cmpl(toqc, tmrq[0].edata);
+                    extern void ulib_notify_rmacmpl_cq(struct ulib_toqc*, int);
+                    ulib_notify_rmacmpl_cq(toqc, tmrq[0].edata);
                     continue;
                 }
 		ulib_toqc_match(toqc, tmrq, uc);
@@ -277,8 +277,8 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
         fprintf(stderr, "%d: YIPOLL_MRQ: edata(0x%lx) %s\n", mypid, tmrq[0].edata, __func__); fflush(stderr);
         if (tmrq[0].edata > 0 && tmrq[0].edata <= ULIB_RMA_NUM) {
             /* fi_read is completed */
-            extern void ulib_notify_rma_cmpl(struct ulib_toqc*, int);
-            ulib_notify_rma_cmpl(toqc, tmrq[0].edata);
+            extern void ulib_notify_rmacmpl_cq(struct ulib_toqc*, int);
+            ulib_notify_rmacmpl_cq(toqc, tmrq[0].edata);
         }
 	ulib_toqc_match(toqc, tmrq, 0 /* uc */ );
     }

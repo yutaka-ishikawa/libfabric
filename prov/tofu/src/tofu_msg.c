@@ -34,11 +34,11 @@ tofu_cep_msg_recv_common(struct fid_ep *fid_ep,
     struct ulib_icep    *icep;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL,
-            "\tsrc(%ld) iovcount(%ld) buf(%p) size(%ld) flags(0x%lx) in %s\n",
+            "\tsrc(%ld) iovcount(%ld) buf(%p) size(%ld) flags(0x%lx) cntxt(%p) in %s\n",
             msg->addr, msg->iov_count, 
             msg->msg_iov ? msg->msg_iov[0].iov_base : 0,
-            msg->msg_iov ? msg->msg_iov[0].iov_len : 0, flags, __FILE__);
-
+            msg->msg_iov ? msg->msg_iov[0].iov_len : 0, flags,
+            msg->context, __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
@@ -229,7 +229,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
 	/* post it */
 	fastlock_acquire(&cep_priv->cep_lck);
 	ret = tofu_imp_ulib_send_post(cep_priv, offs_ulib, msg, flags,
-		tofu_cq_comp_tagged, cep_priv->cep_send_cq);
+                                      cep_priv->cep_send_cq);
 	fastlock_release(&cep_priv->cep_lck);
 	if (ret != 0) { goto bad; }
     }

@@ -17,6 +17,7 @@
 
 #include "tofu_prv.h"	    /* for struct tofu_*() XXX */
 #include "tofu_cq.h"	    /* for tofu_cq_comp_tagged() XXX */
+#include "ulib_notify.h"
 
 #include <assert.h>	    /* for assert() */
 #include <stdlib.h>	    /* for free() */
@@ -97,6 +98,17 @@ showCEP(struct ulib_icep *icep)
 }
 
 
+static int
+ulib_conv_flg_ulib(uint64_t flags)
+{
+    uint64_t    dflg;
+
+    dflg = (flags & FI_TAGGED) ? ULIB_SHEA_DATA_TFLG : 0;
+    dflg |= (flags & FI_COMPLETION) ? ULIB_SHEA_DATA_CFLG : 0;
+    dflg |= (flags & FI_REMOTE_CQ_DATA) ? ULIB_SHEA_DATA_IFLG : 0;
+    return dflg;
+}
+
 /*
  * ulib_icep_ctrl_enab() is called from tofu_cep_ctrl() that is
  * implementation of FI_ENABLE on fi_control
@@ -166,11 +178,9 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     }
 
     if (icep->index < 0) { /* XXX III */
-	struct tofu_cep *cep_priv = ptr;
 	icep->index = cep_priv->cep_idx;
     }
     if (icep->isep == 0) { /* XXX III */
-	struct tofu_cep *cep_priv = ptr;
 	icep->isep = (struct ulib_isep *)(cep_priv->cep_sep + 1);
 	assert(icep->isep != 0);
     }
@@ -194,12 +204,17 @@ ulib_icep_ctrl_enab(void *ptr, size_t off)
     }
     /* All ICEP's CQs point to Tofu CEP's one  */
     if (icep->vp_tofu_scq == 0) {
-	struct tofu_cep *cep_priv = ptr;
 	icep->vp_tofu_scq = cep_priv->cep_send_cq;
     }
     if (icep->vp_tofu_rcq == 0) {
-	struct tofu_cep *cep_priv = ptr;
 	icep->vp_tofu_rcq = cep_priv->cep_recv_cq;
+    }
+    /* All ICEP's CNTRs point to Tofu CNTR's one  */
+    if (icep->vp_tofu_scntr == 0) {
+	icep->vp_tofu_scntr = cep_priv->cep_send_ctr;
+    }
+    if (icep->vp_tofu_rcntr == 0) {
+	icep->vp_tofu_rcntr = cep_priv->cep_recv_ctr;
     }
     /* transmit entries */
     if (icep->udat_fs == 0) {
@@ -717,7 +732,8 @@ extern int ulib_icep_recv_frag(struct ulib_shea_expd *expd,
 static inline int
 ulib_peek_claim_uexp_entry(struct ulib_icep *icep,
                            struct ulib_shea_expd *expd,
-                           void *ctxt, int extract, void **sndctxt)
+                           void *ctxt, int extract, void **sndctxt,
+                           uint64_t *flgs)
 {
     struct dlist_entry *head, *item;
     int done = 0;
@@ -737,6 +753,7 @@ ulib_peek_claim_uexp_entry(struct ulib_icep *icep,
             }
             if (uexp->flag & ULIB_SHEA_UEXP_FLAG_SFLG) {
                 if (sndctxt) { *sndctxt = uexp->sndctxt; }
+                if (flgs) { *flgs = uexp->flag; }
             }
             done = ulib_icep_recv_frag(expd, uexp, 0);
             uexp->ctxt = ctxt;
@@ -825,109 +842,6 @@ static inline void ulib_icep_link_expd_head(
     return ;
 }
 
-/*
- * Notify receive completion -- Creating completion entry
- *      Handling the FI_MULTI_RECV flag 2019/4/27
- *  called by
- *      ulib_icep_shea_send_prog()
- *      tofu_impl_ulib_sendmsg_self()
- *      ulib_icep_recv_call_back()
- *      ulib_icep_shea_recv_post()
- */
-int
-ulib_icqu_comp_trcv(void *vp_cq__priv,
-                    const struct ulib_shea_expd *expd)
-{
-    int uc = UTOFU_SUCCESS;
-    struct fi_cq_tagged_entry cq_e[1];
-
-    cq_e->op_context	= expd->tmsg.context;
-    cq_e->flags		=   FI_RECV
-                            | (expd->flgs & FI_MULTI_RECV)
-			    | (expd->flgs & FI_TAGGED)
-			    | (expd->rflg & FI_REMOTE_CQ_DATA)
-			    ;
-    cq_e->len		= expd->wlen;
-    cq_e->buf		= expd->iovs[0].iov_base;
-    cq_e->data		= expd->idat; /* FI_REMOTE_CQ_DATA */
-    cq_e->tag		= expd->rtag;
-
-    if (cq_e->buf) {
-        R_DBG0(RDBG_LEVEL3,
-               "\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf[]=%d",
-               cq_e->flags, cq_e->data, cq_e->len, *(int*)cq_e->buf);
-    } else {
-        R_DBG0(RDBG_LEVEL3,
-               "\tReceive Completion: flags(0x%lx) data(%ld) len(%ld) buf=nil",
-               cq_e->flags, cq_e->data, cq_e->len);
-    }
-
-    if (vp_cq__priv != 0) {
-	int fc;
-        /* enter the entry into CQ */
-	fc = tofu_cq_comp_tagged(vp_cq__priv, cq_e);
-	if (fc != 0) {
-	    uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
-	}
-    }
-
-bad:
-    return uc;
-}
-
-
-/*
- * Notify send completion
- *      For self message completion, see tofu_impl_ulib_sendmsg_self
- */
-static inline int 
-ulib_icqu_comp_tsnd(void *vp_cq__priv, const struct ulib_shea_data *udat)
-{
-    int uc = UTOFU_SUCCESS;
-    struct fi_cq_tagged_entry cq_e[1];
-    uint64_t   dflg;
-    void      *ctxt;
-    uint64_t   flgs;
-    size_t     tlen;
-    uint64_t    tag;
-    
-
-    dflg = ulib_shea_data_flag(udat);
-    /* converted to fi_flags */
-    flgs = ((dflg & ULIB_SHEA_DATA_TFLG) != 0)? FI_TAGGED: 0;
-    flgs |= ((dflg & ULIB_SHEA_DATA_CFLG) != 0)? FI_COMPLETION: 0;
-    /* tlen */
-    {
-	uint32_t nblk, llen;
-
-	nblk = ulib_shea_data_nblk(udat);
-	llen = ulib_shea_data_llen(udat);
-
-	assert(nblk > 0);
-	tlen = ((nblk - 1) * ULIB_SHEA_DBLK) + llen; /* YYY MACRO ? */
-    }
-    ctxt = ulib_shea_data_ctxt(udat);
-    tag = ulib_shea_data_utag(udat);
-    ulib_init_cqe(cq_e, ctxt, FI_SEND|flgs, tlen, 0, 0, tag);
-
-    R_DBG0(RDBG_LEVEL3,
-           "\tSend Completion: flags(0x%lx) rank(%d) tag(%ld) len(%ld)",
-           cq_e->flags, udat->rank, cq_e->tag, cq_e->len);
-
-    if (flgs & FI_COMPLETION) {
-        if (vp_cq__priv != 0) {
-            int fc;
-            fc = tofu_cq_comp_tagged(vp_cq__priv, cq_e);
-            if (fc != 0) {
-                uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
-            }
-        }
-    }
-
-bad:
-    return uc;
-}
-
 #ifdef	DEBUG
 static inline void ulib_icep_list_expd(
     struct ulib_icep *icep_ctxt,
@@ -961,13 +875,11 @@ static inline void ulib_icep_list_expd(
 }
 #endif	/* DEBUG */
 
-static inline size_t ulib_copy_iovs(
-    struct iovec *iov_dst,
-    size_t iov_dct,
-    size_t iov_dof,
-    const struct iovec *iov_src,
-    size_t iov_sct
-)
+static inline size_t ulib_copy_iovs(struct iovec *iov_dst,
+                                    size_t iov_dct,
+                                    size_t iov_dof,
+                                    const struct iovec *iov_src,
+                                    size_t iov_sct)
 {
     size_t idx, wlen, iov_off = iov_dof;
 
@@ -1077,10 +989,6 @@ static inline int ulib_icep_recv_cbak_uexp( /* unexpected */
     if (uexp == 0) {
 	uc = UTOFU_ERR_OUT_OF_RESOURCE; goto bad;
     }
-    if (0) {
-        printf("%s():%d\tuexp %3d\n", __func__, __LINE__,
-               ulib_uexp_fs_index(icep->uexp_fs, uexp));
-    }
 
     /* copy rinf */
     uexp[0] = rinf[0]; /* structure copy */
@@ -1135,7 +1043,7 @@ static inline int ulib_icep_recv_cbak_uexp( /* unexpected */
 	    uexp->tims[ 0 /* phdr */ ] += (tnow - tick[0]);
 	}
     }
-
+    //printf("%d: YI*****ulib_icep_recv_cbak_uexp new uexp(%p)->flag(0x%x)\n", getpid(), uexp, uexp->flag); fflush(stdout);
 bad:
     return uc;
 }
@@ -1179,12 +1087,10 @@ ulib_icep_recv_call_back(void *vptr,
     }
 
     /* notify recv cq */
-    if (icep->vp_tofu_rcq != 0) {
-        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, trcv); /* expd */
-        if (uc != 0) {
-            assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
-            uc = 0; /* YYY severe error */
-        }
+    uc = ulib_notify_recvcmpl_cq(icep->vp_tofu_rcq, trcv); /* expd */
+    if (uc != 0) {
+        assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
+        uc = 0; /* YYY severe error */
     }
     freestack_push(icep->expd_fs, trcv); /* expd */
 
@@ -1217,20 +1123,22 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
     }
     ulib_shea_expd_init(expd, tmsg, flags);
     if ((flags & FI_TAGGED) && (flags & (FI_PEEK | FI_CLAIM)) == FI_CLAIM) {
+        uint64_t    ulibflgs, flgs;
+        struct fi_cq_tagged_entry cq_e[1];
         ulib_peek_claim_uexp_entry(icep, expd, tmsg->context,
-                                   1/*extracted*/, &sndctxt);
-        /* notify */
-        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
-        if (sndctxt) {
-            /* send done notification is generated */
-            struct fi_cq_tagged_entry cq_e[1];
-            uint64_t    flgs;
-            flgs = FI_SEND | FI_TAGGED;
+                                   1/*extracted*/, &sndctxt, &ulibflgs);
+        /* notification to receiver side */
+        uc = ulib_notify_recvcmpl_cq(icep->vp_tofu_rcq, expd);
+        if (ulibflgs & ULIB_SHEA_DATA_CFLG) { /* this means sender is self */
+            /* notification to sender side */
+            flgs = ulib_conv_flg_fabric(ulibflgs);
+            flgs |= FI_SEND;
+            flgs |= flags & FI_TAGGED;
             ulib_init_cqe(cq_e, sndctxt, flgs,
                           expd->wlen, 0, tmsg->data, tmsg->tag);
-            tofu_cq_comp_tagged(icep->vp_tofu_scq, cq_e);
+            ulib_notify_sndcmpl_cq(icep->vp_tofu_scq, NULL, cq_e);
+            /* free expected entries */
         }
-        /* free expected entries */
         freestack_push(icep->expd_fs, expd);
         return uc;
     }
@@ -1248,12 +1156,12 @@ ulib_icep_shea_recv_post(struct ulib_icep *icep_ctxt,
                                     tmsg->data, tmsg->tag, -FI_ENOMSG);
         } else {
             if ((flags & FI_CLAIM) == 0) {
-                ulib_peek_claim_uexp_entry(icep, expd, 0, 0, 0);
+                ulib_peek_claim_uexp_entry(icep, expd, 0, 0, 0, 0);
             } else { /* marking context */
-                ulib_peek_claim_uexp_entry(icep, expd, tmsg->context, 0, 0);
+                ulib_peek_claim_uexp_entry(icep, expd, tmsg->context, 0, 0, 0);
             }
             /* notify completion */
-            uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
+            uc = ulib_notify_recvcmpl_cq(icep->vp_tofu_rcq, expd);
         }
     bad:
         /* free expected entry */
@@ -1269,21 +1177,25 @@ recheck:
          * thus insert this request to expected queue */
         ulib_icep_link_expd(icep, expd);
     } else {
+        uint64_t    ulibflgs;
         int     done;
 	/* update expd */
 	done = ulib_icep_recv_frag(expd, uexp, &sndctxt);
+        ulibflgs = uexp->flag;
         /* free uexp->rbuf */
         tofu_imp_ulib_uexp_rbuf_free(uexp);
         /* free unexpected message */
         freestack_push(icep->uexp_fs, uexp);
         if (done == 0) { goto recheck; }
-        /* notify recv cq */
-        uc = ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
-        if (sndctxt) {
-            /* send done notification is generated */
+        /* notification to receiver side */
+        uc = ulib_notify_recvcmpl_cq(icep->vp_tofu_rcq, expd);
+        if (ulibflgs & ULIB_SHEA_UEXP_FLAG_CFLG) {
+            /* this means sender is self.
+             * notification to sender side */
             struct fi_cq_tagged_entry cq_e[1];
             uint64_t    flgs;
-            flgs = FI_SEND;
+            flgs = ulib_conv_flg_fabric(ulibflgs);
+            flgs |= FI_SEND;
             flgs |= flags & FI_TAGGED;
             ulib_init_cqe(cq_e, sndctxt, flgs,
                           expd->wlen, 0, tmsg->data, tmsg->tag);
@@ -1345,12 +1257,11 @@ extern void ulib_icep_free_cash(
  * FI_FENCE               o         o
  * FI_MULTICAST           o       n/a
  */
-int ulib_icep_shea_send_post(
-    struct ulib_icep *icep_ctxt,
-    const struct fi_msg_tagged *tmsg,
-    uint64_t flags,
-    void **vpp_send_hndl
-)
+int
+ulib_icep_shea_send_post(struct ulib_icep *icep_ctxt,
+                         const struct fi_msg_tagged *tmsg,
+                         uint64_t flags,
+                         void **vpp_send_hndl)
 {
     int uc = 0;
     struct ulib_icep *icep;
@@ -1358,6 +1269,7 @@ int ulib_icep_shea_send_post(
     struct ulib_toqc_cash *cash_tmpl = 0;
     struct ulib_shea_data *udat = 0;
     struct ulib_shea_esnd *esnd = 0;
+    struct iovec        msg_iov[1];
 
     //fprintf(stderr, "YIUTOFU***: %s enter\n", __func__);
     assert(icep_ctxt != 0); icep = icep_ctxt->shadow; assert(icep != 0);
@@ -1385,22 +1297,20 @@ int ulib_icep_shea_send_post(
 	uint32_t rank; /* my rank */
 	const uint64_t utag = tmsg->tag;
 	uint64_t idat;
-	uint64_t flag = 0;
+	uint64_t flg; /* flg in udata */
 
 	tlen = ofi_total_iov_len(tmsg->msg_iov, tmsg->iov_count);
 
 	/*rank = cash_tmpl->vpid;*/
         rank = icep->myrank;      /* local rank for phlh.srci */
-        flag |= (flags & FI_TAGGED) ? ULIB_SHEA_DATA_TFLG : 0;
-        flag |= (flags & FI_COMPLETION) ? ULIB_SHEA_DATA_CFLG : 0;
+        flg = ulib_conv_flg_ulib(flags);
 	if ((flags & FI_REMOTE_CQ_DATA) != 0) {
-	    flag |= ULIB_SHEA_DATA_IFLG;
 	    idat = tmsg->data;
 	} else {
 	    idat = -2UL;
 	}
         //printf("tlen %5ld vpid %3d utag %016"PRIx64"\n", tlen, vpid, utag);
-	ulib_shea_data_init(udat, ctxt, tlen, rank, utag, idat, flag);
+	ulib_shea_data_init(udat, ctxt, tlen, rank, utag, idat, flg);
     }
     /* data_init_cash */
     {
@@ -1426,13 +1336,23 @@ int ulib_icep_shea_send_post(
     if (tmsg->iov_count > 0) {
 	utofu_stadd_t lsta = -1ULL;
 
-        printf("YI***** tmsg->iov_count(%ld)\n", tmsg->iov_count); fflush(stdout);
-        {
+        if (tmsg->iov_count > 1 || flags & FI_INJECT) {
+            size_t      tlen;
+            char        *bp;
             /* ofi_copy_to_iov */  /* ofi_copy_from_iov */
             /* ofi_total_iov_len */
+            tlen = ofi_total_iov_len(tmsg->msg_iov, tmsg->iov_count);
+            if (tlen > 0) {
+                msg_iov[0].iov_base = bp = malloc(tlen);
+                msg_iov[0].iov_len = tlen;
+                ofi_copy_from_iov(bp, tlen, tmsg->msg_iov, tmsg->iov_count, 0);
+            } else {
+                msg_iov[0].iov_base = 0; msg_iov[0].iov_len = 0;
+            }
+        } else {
+            msg_iov[0] = tmsg->msg_iov[0];
         }
-
-	assert(tmsg->iov_count == 1); /* XXX at most one */
+	// assert(tmsg->iov_count == 1); /* XXX at most one */
 	if (tmsg->desc != 0) {
 	    struct ulib_imr_ *imr_ = tmsg->desc[0]; /* XXX iov_count == 1 */
 	    uint64_t rx_index;
@@ -1449,9 +1369,9 @@ int ulib_icep_shea_send_post(
 	    }
 	    assert(imr_->ceps[rx_index] == icep);
 	    lsta = imr_->stas[rx_index];
-	} else if (tmsg->msg_iov[0].iov_len > 0) {
-	    void *addr = tmsg->msg_iov[0].iov_base;
-	    size_t size = tmsg->msg_iov[0].iov_len;
+	} else if (msg_iov[0].iov_len > 0) {
+	    void *addr = msg_iov[0].iov_base;
+	    size_t size = msg_iov[0].iov_len;
 	    const unsigned long int flag = 0
 					/* | UTOFU_REG_MEM_FLAG_READ_ONLY */
 					;
@@ -1601,7 +1521,7 @@ int ulib_icep_shea_send_prog(
 	    uc = ulib_icep_toqc_sync(icep, 1000);
 	    if (uc != UTOFU_SUCCESS) { goto bad; }
 	    if (icep->vp_tofu_scq != 0) {
-		uc = ulib_icqu_comp_tsnd(icep->vp_tofu_scq, esnd->data);
+		uc = ulib_notify_sndcmpl_cq(icep->vp_tofu_scq, esnd->data, 0);
 		if (uc != 0) {
 		    assert(uc == UTOFU_SUCCESS); /* YYY recover ? */
 		    uc = 0; /* YYY severe error */

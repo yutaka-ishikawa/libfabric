@@ -110,9 +110,9 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	if (cep_priv->cep_sep->sep_dom != cq__priv->cq__dom) {
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
-        printf("YI******bind: cq__priv(%p) flags(%lx)\n", cq__priv, flags);
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
+            //printf("YI******bind: TX cq__priv(%p) flags(%lx)\n", cq__priv, flags);
             R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) TX_CTX(%p)", cq__priv, cep_priv);
 	    if (flags & FI_SEND) {
 		/*
@@ -122,6 +122,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		 *   For example, an EP may not bind to two counters both
 		 *   using FI_WRITE.
 		 */
+                cq__priv->cq_ssel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
 		if (cep_priv->cep_send_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
 		}
@@ -130,6 +131,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    }
 	    break;
 	case FI_CLASS_RX_CTX:
+            //printf("YI******bind: RX cq__priv(%p) flags(%lx)\n", cq__priv, flags);
             R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) RX_CTX(%p)", cq__priv, cep_priv);
 	    if (flags & FI_RECV) {
 		if (cep_priv->cep_recv_cq != 0) {
@@ -137,6 +139,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		}
 		cep_priv->cep_recv_cq = cq__priv;
 		tofu_cq_ins_cep_rx(cq__priv, cep_priv);
+                cq__priv->cq_rsel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
 	    }
 	    break;
 	default:
@@ -145,33 +148,40 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
         break;
     case FI_CLASS_CNTR:
 	ctr_priv = container_of(bfid, struct tofu_cntr, ctr_fid.fid);
+        //printf("YI*****bind: CNTR cq__priv(%p) flags(%lx)\n", ctr_priv, flags);
 	if (cep_priv->cep_sep->sep_dom != ctr_priv->ctr_dom) {
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
-	    if (flags & FI_SEND) {
-	    }
-	    if (flags & FI_WRITE) {
-		if (cep_priv->cep_wop_ctr != 0) {
+            //printf("YI***** TRANSMIT CONTEXT\n");
+	    if (flags & (FI_SEND | FI_WRITE | FI_TRANSMIT)) {
+		if (cep_priv->cep_send_ctr != 0) {
 		    fc = -FI_EBUSY; goto bad;
 		}
-		cep_priv->cep_wop_ctr = ctr_priv;
-	    }
-	    if (flags & FI_READ) {
-		if (cep_priv->cep_rop_ctr != 0) {
-		    fc = -FI_EBUSY; goto bad;
-		}
-		cep_priv->cep_rop_ctr = ctr_priv;
-	    }
+		cep_priv->cep_send_ctr = ctr_priv;
+		ctr_priv->ctr_tsl = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
+	    } else if (flags) {
+                FI_INFO(&tofu_prov, FI_LOG_EP_CTRL,
+                        "fi_ep_bind: Unsupported flags(%lx) in %s\n",
+                        flags, __FILE__);
+                fc = -FI_EBUSY; goto bad;
+            }
 	    break;
 	case FI_CLASS_RX_CTX:
+            //printf("YI***** RECEIVE CONTEXT\n");
 	    if (flags & FI_RECV) {
-	    }
-	    if (flags & FI_REMOTE_WRITE) {
-	    }
-	    if (flags & FI_REMOTE_READ) {
-	    }
+		if (cep_priv->cep_recv_ctr != 0) {
+		    fc = -FI_EBUSY; goto bad;
+		}
+		cep_priv->cep_recv_ctr = ctr_priv;
+		ctr_priv->ctr_rsl = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
+	    } else if (flags) {
+                FI_INFO(&tofu_prov, FI_LOG_EP_CTRL,
+                        "fi_ep_bind: Unsupported flags(%lx) in %s\n",
+                        flags, __FILE__);
+                fc = -FI_EBUSY; goto bad;
+            }
 	    break;
 	default:
 	    fc = -FI_EINVAL; goto bad;

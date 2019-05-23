@@ -69,8 +69,8 @@ struct tofu_cep {
     struct dlist_entry	cep_ent_ctr;
     struct tofu_cq *	cep_send_cq; /* send completion queue */
     struct tofu_cq *	cep_recv_cq; /* receive completion queue */
-    struct tofu_cntr *	cep_wop_ctr; /* write rma operation */
-    struct tofu_cntr *	cep_rop_ctr; /* read  rma operation */
+    struct tofu_cntr *	cep_send_ctr; /* fi_write/fi_read and send operation */
+    struct tofu_cntr *	cep_recv_ctr; /* recv operation */
     /*
      * see struct ulib_icep for more internal structures in ulib_ofif.h
      */

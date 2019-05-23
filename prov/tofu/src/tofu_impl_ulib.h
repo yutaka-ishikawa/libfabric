@@ -85,7 +85,6 @@ extern int	tofu_imp_ulib_send_post(
 		    size_t offs,
 		    const struct fi_msg_tagged *tmsg,
 		    uint64_t flags,
-		    tofu_imp_ulib_comp_f func,
 		    void *farg
 		);
 extern int	tofu_imp_ulib_send_post_fast(

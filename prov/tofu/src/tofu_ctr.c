@@ -140,7 +140,7 @@ static int tofu_cntr_verify_attr(
     }
 
     printf("YI***** tofu_cntr_verify_attr: wait_obj(%x)\n",
-            user_attr->wait_obj); fflush(stdout);
+           user_attr->wait_obj); fflush(stdout);
     /* wait_obj: enum fi_wait_obj */
     switch (user_attr->wait_obj) {
     case FI_WAIT_NONE:

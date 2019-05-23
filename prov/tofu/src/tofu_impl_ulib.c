@@ -12,13 +12,12 @@ extern struct fi_provider		tofu_prov;
 #include "tofu_impl.h"
 #include "tofu_impl_ulib.h"
 #include "ulib_ofif.h"
+#include "ulib_notify.h"
 
 /* the following function was originally static inline function in ulib_ofif.c */
 extern int
 ulib_icep_recv_frag(struct ulib_shea_expd *trcv,
-                    const struct ulib_shea_uexp *rinf);
-extern int ulib_icqu_comp_trcv(void *vp_cq__priv,
-                               const struct ulib_shea_expd *expd);
+                    const struct ulib_shea_uexp *rinf, void **sndctxt);
 
 /* The following functions are defined and used in this file */
 extern int tofu_imp_ulib_cash_find(struct ulib_icep *icep,
@@ -410,46 +409,58 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
     }
     sndreq->srci = icep->myrank;
     sndreq->sndctxt = tmsg->context;
-
-    match = ulib_icep_find_expd(icep, sndreq);
-    if (match == NULL) {
+    sndreq->mblk = 1;
+    sndreq->nblk = 1;
+    sndreq->boff = 0;
+    len = ofi_total_iov_len(tmsg->msg_iov, tmsg->iov_count);
+    if (flags & FI_INJECT
+        || tmsg->iov_count > ULIB_MAX_IOV) {
         /*
-         * A receive request has not been issued. Enqueu the unexpected queue
+         * In FI_INJECT, message must be copied.
+         * Though we do not support FI_INJECT feature, MPICH issue
+         * an injected send with zero length message.
+         * If the vector length is more than ULIB_MAX_IOV,
+         * the message is copied because unexpected queue entry only handles
+         * ULIB_MAX_IOV size.
          */
-        struct dlist_entry      *dlist, *head;
-        sndreq->mblk = 1;
-        sndreq->nblk = 1;
-        sndreq->boff = 0;
-        if (flags & FI_INJECT) { /* message must be copied */
-            int         i;
-            char        *mem;
-            for (i = 0; i < tmsg->iov_count; i++) {
-                len += tmsg->msg_iov[i].iov_len;
-            }
+        int         i;
+        char        *mem;
+
+        if (len > 0) {
             mem = malloc(len);
             if (mem == NULL) {
                 fc = -FI_EAGAIN; return fc;
             }
-            sndreq->rbuf.iovs[0].iov_base = mem;
-            sndreq->rbuf.iovs[0].iov_len = len;
-            sndreq->rbuf.niov = 1;
-            sndreq->rbuf.leng = len;
-            sndreq->rbuf.alloced = 1;
-            len = 0;
-            for (i = 0; i < tmsg->iov_count; i++) {
-                memcpy((void*) &mem[len], tmsg->msg_iov[i].iov_base,
-                       tmsg->msg_iov[i].iov_len);
-                len += tmsg->msg_iov[i].iov_len;
-            }
-            snddone = 1;
         } else {
-            /* copy iov. NEEDS to handle more than 1 entry !!! 2019/04/18 */
-            sndreq->rbuf.iovs[0] = tmsg->msg_iov[0];
-            sndreq->rbuf.niov = 1;
-            sndreq->rbuf.leng = tmsg->msg_iov[0].iov_len;
-            len = tmsg->msg_iov[0].iov_len;
-            snddone = 0;
+            mem = 0;
         }
+        sndreq->rbuf.iovs[0].iov_base = mem;
+        sndreq->rbuf.iovs[0].iov_len = len;
+        sndreq->rbuf.niov = 1;
+        sndreq->rbuf.leng = len;
+        sndreq->rbuf.alloced = 1;
+        len = 0;
+        for (i = 0; i < tmsg->iov_count; i++) {
+            memcpy((void*) &mem[len], tmsg->msg_iov[i].iov_base,
+                   tmsg->msg_iov[i].iov_len);
+            len += tmsg->msg_iov[i].iov_len;
+        }
+        snddone = 1;
+    } else {
+        int     i;
+        for (i = 0; i < tmsg->iov_count; i++) {
+            sndreq->rbuf.iovs[i] = tmsg->msg_iov[i];
+        }
+        sndreq->rbuf.niov = tmsg->iov_count;
+        sndreq->rbuf.leng = len;
+        snddone = 0;
+    }
+    match = ulib_icep_find_expd(icep, sndreq);
+    if (match == NULL) {
+        struct dlist_entry      *dlist, *head;
+        /*
+         * A receive request has not been issued. Enqueu the unexpected queue
+         */
         dlist = &sndreq->entry;
         dlist_init(dlist);
         head = (flags & FI_TAGGED) ?
@@ -458,7 +469,7 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
     } else {
         /* corresponding posted receive request has been registered */
         expd = container_of(match, struct ulib_shea_expd, entry);
-        snddone = ulib_icep_recv_frag(expd, sndreq /* uexp */);
+        snddone = ulib_icep_recv_frag(expd, sndreq /* uexp */, 0);
         assert(snddone == 1);
         len = expd->wlen; /* Needs Hatanaka-san' check */
         /* free uexp->rbuf */
@@ -466,13 +477,12 @@ tofu_impl_ulib_sendmsg_self(void *vptr, size_t offs,
         /* free unexpected message */
         freestack_push(icep->uexp_fs, sndreq);
         /* notify receive completion, this is for receive operation */
-        if (icep->vp_tofu_rcq != 0) {
-            ulib_icqu_comp_trcv(icep->vp_tofu_rcq, expd);
-        }
+        ulib_notify_recvcmpl_cq(icep->vp_tofu_rcq, expd);
         /* free expected message */
         freestack_push(icep->expd_fs, expd);
     }
-    if (snddone && (flags & FI_COMPLETION)) {
+    if (~(flags & FI_INJECT) /*FI_INJECT does not generate cmpl notification*/
+        && snddone && (flags & FI_COMPLETION)) {
         /* send completion is notified immediately, not receive operation  */
         struct fi_cq_tagged_entry cq_e[1];
         ulib_init_cqe(cq_e, tmsg->context, flags|FI_SEND,
@@ -487,7 +497,6 @@ int
 tofu_imp_ulib_send_post(void *vptr, size_t offs,
                         const struct fi_msg_tagged *tmsg,
                         uint64_t flags,
-                        tofu_imp_ulib_comp_f func,
                         void *farg)
 {
     int fc = FI_SUCCESS;
