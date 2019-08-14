@@ -45,7 +45,8 @@ static inline void ulib_shea_perf_l_st(int l_st, struct ulib_shea_data *data)
 }
 
 /*
- * The "tail" field of struct ulib_shea_ercv is my tofu address.
+ * The "tail" field of struct ulib_shea_ercv, my(sender) tofu address, is
+ * constructed.
  */
 static inline void ulib_shea_cash_insq_tail( /* foo2 */
     struct ulib_toqd_cash *toqd,
@@ -373,6 +374,7 @@ next_state:
     case INSQ_TAIL:
 	ulib_shea_perf_l_st(INSQ_TAIL, esnd->data);
 	if (cash_real->swap[0].size == 0) {
+            /* construct tail field of ulib_shea_ercv structure */
 	    ulib_shea_cash_insq_tail(cash_real->swap, cash_tmpl->swap, esnd);
 	}
 	toqd = cash_real->swap;
@@ -380,6 +382,7 @@ next_state:
 	if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 	/* INSQ_TAIL --> INSQ_CHCK */
 	ulib_shea_chst(esnd, INSQ_CHCK);
+        /* construct commands in advance */
 	if (cash_real->fadd[0].size == 0) {
 	    ulib_shea_cash_incr_cntr(cash_real->fadd, cash_tmpl->fadd, esnd);
 	}
@@ -1048,6 +1051,8 @@ int ulib_shea_foo9(
 	nsnd = ulib_shea_data_rblk(esnd->data);
 	assert(nsnd > 0);
 
+        /* nsnd: amount of message sent...
+         * nava: amount of available blocks */
 	if (nsnd > nava) {
 	    /* if nava == 1 then nsnd = 0 */
 	    if (nava > 0) {
@@ -1078,6 +1083,7 @@ int ulib_shea_foo9(
 		ulib_shea_cash_data_data(cash_real->putd,
 		    putd_tmpl, esnd, nsnd);
 	    }
+            /* sending user data (2019/07/24) */
 	    uc =  ulib_shea_post_data_data(toqc, cash_real->putd, esnd);
 	    if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 
@@ -1085,6 +1091,7 @@ int ulib_shea_foo9(
 		ulib_shea_cash_data_phdr(cash_real->phdr,
 		    cash_tmpl->phdr, esnd, nsnd);
 	    }
+            /* sending header (2019/07/24) */
 	    uc = ulib_shea_post_data_phdr(toqc, cash_real->phdr, esnd);
 	    if (uc != UTOFU_SUCCESS) {
 		/* cash_real->phdr[0].size = 0; */

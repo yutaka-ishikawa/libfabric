@@ -1253,9 +1253,7 @@ size_t tofu_imp_ulib_isep_size(void)
     return isiz;
 }
 
-int tofu_imp_ulib_isep_open(
-    struct tofu_sep *sep_priv
-)
+int tofu_imp_ulib_isep_open(struct tofu_sep *sep_priv)
 {
     int fc = FI_SUCCESS;
     int uc;
@@ -1267,6 +1265,7 @@ int tofu_imp_ulib_isep_open(
 
     isep = (struct ulib_isep*) (sep_priv + 1);
 
+    /* Initialization of Tofu NIC */
     uc = utofu_get_onesided_tnis( &tnis, &ntni );
     //fprintf(stderr, "YIRMACHECK***: uc(%d) ntni(%ld)\n", uc, ntni);
     if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
