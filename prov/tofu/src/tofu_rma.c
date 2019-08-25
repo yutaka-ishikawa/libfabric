@@ -150,7 +150,7 @@ tofu_ofif_todq_make_read(struct ulib_utof_cash utof_cashes[2],
     uint64_t loff = 0;
     uint64_t roff = 0 /* YYY rma->rma_iov[0].addr */;
     uint64_t leng = rma->msg_iov[0].iov_len;
-    uint64_t edat = rma->data; /* XXX hack */
+    uint64_t edat = rma->data; /* XXX hack: NEEDS FIXED 2019/08/15 */
     unsigned long uflg = 0
 			| UTOFU_ONESIDED_FLAG_TCQ_NOTICE
 			| UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
@@ -247,9 +247,10 @@ tofu_icep_rma_read_common(struct fid_ep *fid_ep,
     rma_cmpl->cep_priv = cep_priv;
     /* YYY to use cep_read_cq for FI_READ instead of cep_send_cq (FI_SEND) */
     rma_cmpl->cq__priv = cep_priv->cep_send_cq;
+    printf("%d: %s cq__priv = %p (cep_send_cq)\n", mypid, __func__, rma_cmpl->cq__priv); fflush(stderr);
     rma_cmpl->stadd = lsta;
     rma_cmpl->op_context = rma->context;
-    rma_cmpl->flags = FI_READ | FI_RMA;
+    rma_cmpl->flags = FI_READ | FI_RMA | flags;
     rma_cmpl->len = rma->msg_iov[0].iov_len;
     rma_cmpl->buf = rma->msg_iov[0].iov_base;
     rma_cmpl->data = 0;
@@ -547,6 +548,7 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
                   void *context)
 {
     ssize_t             ret = FI_SUCCESS;
+    uint64_t            flags = FI_COMPLETION; /* must be set 2019/08/15 */
     struct tofu_cep     *cep_priv;
     struct ulib_icep    *icep_ctxt, *icep;
     struct fi_msg_rma   rma;
@@ -559,6 +561,7 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
 
     icep_ctxt = (struct ulib_icep*) (cep_priv + 1);
     icep = icep_ctxt->shadow;
+    fprintf(stderr, "\ticep_ctxt(%p) icep_ctxt->shadow(%p)\n", icep_ctxt, icep); fflush(stderr);
 
     /* rma.msg_iov[] */
     tofu_ofif_liov_set(&lma_iov, buf, len);
@@ -574,9 +577,9 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
     tofu_ofif_mrma_set_rma(&rma, src_addr, &rma_iov, 1);
     rma.context = context;
     /* XXX flags &= ~FI_REMOTE_CQ_DATA */
-    rma.data    = icep->nrma + 1; /* YYY XXX edat */
+    rma.data    = icep->nrma + 1; /* YYY XXX edat MUST BE CHANGED 2019/08/15 */
 
-    ret = tofu_icep_rma_read_common(fid_ep, &rma, 0 /* flags */ );
+    ret = tofu_icep_rma_read_common(fid_ep, &rma, flags);
     if (ret != FI_SUCCESS) {
 	assert(ret == FI_SUCCESS);
 	goto bad;

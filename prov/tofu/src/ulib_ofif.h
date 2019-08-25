@@ -145,9 +145,9 @@ struct ulib_icep {
     fastlock_t                  icep_lck;
     struct ulib_toqc            *toqc;
     struct ulib_shea_cbuf       *cbufp;     /* eager buffer controlling tofu */
-    DLST_DECH(ulib_head_esnd)   busy_esnd;
-    void                        *vp_tofu_scq; /* struct tofu_cq */
-    void                        *vp_tofu_rcq; /* struct tofu_cq */
+    DLST_DECH(ulib_head_esnd)   busy_esnd;      /* eager send progress */
+    void                        *vp_tofu_scq;   /* struct tofu_cq */
+    void                        *vp_tofu_rcq;   /* struct tofu_cq */
     void                        *vp_tofu_scntr; /* struct tofu_cntr */
     void                        *vp_tofu_rcntr; /* struct tofu_cntr */
     /* unexpected queue */
@@ -166,6 +166,7 @@ struct ulib_icep {
                                   /* xyzabc, tni, and tcq are effective */
     uint32_t            myrank; /* my rank */
     int                 nrma; /* # of rma operations on the fly */
+    int                 rmaidx; /* index in */
 };
 
 extern int  ulib_icep_ctrl_enab(void *ptr, size_t off);

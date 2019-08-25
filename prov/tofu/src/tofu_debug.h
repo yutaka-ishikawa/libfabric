@@ -10,6 +10,12 @@ extern int rdbgf, rdbgl;
 
 #define RDEBUG 1
 #ifdef RDEBUG
+/*
+ * rdbgf is set in the fi_tofu_setdopt function, exported symbol for Tofu
+ * The user call this function instead of using setenv() 2019/07/11
+ */
+static inline void get_doption() {}
+#if 0
 static inline void get_doption() {
     char	*cp = getenv("TOFU_DEBUG");
     if (cp) {
@@ -20,6 +26,7 @@ static inline void get_doption() {
         rdbgl = atoi(cp);
     }
 }
+#endif /* 0 */
 
 /* setenv("TOFU_DEBUG", value, 1); */
 #define RDBG_STDOUT     0x1     /* output to stdout */

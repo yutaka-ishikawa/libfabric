@@ -48,7 +48,7 @@ static struct fi_tx_attr tofu_tx_attr = {
 	    | FI_WRITE
 	    | FI_SEND
 		/* | FI_RECV */
-		/* | FI_REMOTE_READ */
+            | FI_REMOTE_READ
 		/* | FI_REMOTE_WRITE */
 	    | FI_RMA_EVENT
 		/* | FI_SHARED_AV */

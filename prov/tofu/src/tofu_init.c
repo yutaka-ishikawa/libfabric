@@ -144,3 +144,12 @@ TOFU_INI
     rdbgf = 0; rdbgl = 0;
     return &tofu_prov;
 }
+
+__attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
+void fi_tofu_setdopt(int flg, int lvl)
+{
+    rdbgf = flg;
+    rdbgl = lvl;
+    printf("fi_tofu_setdopt is called with %x %x\n", flg, lvl); fflush(stdout);
+}
+
