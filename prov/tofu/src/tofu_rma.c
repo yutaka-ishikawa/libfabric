@@ -247,7 +247,7 @@ tofu_icep_rma_read_common(struct fid_ep *fid_ep,
     rma_cmpl->cep_priv = cep_priv;
     /* YYY to use cep_read_cq for FI_READ instead of cep_send_cq (FI_SEND) */
     rma_cmpl->cq__priv = cep_priv->cep_send_cq;
-    printf("%d: %s cq__priv = %p (cep_send_cq)\n", mypid, __func__, rma_cmpl->cq__priv); fflush(stderr);
+    // printf("%d: %s cq__priv = %p (cep_send_cq)\n", mypid, __func__, rma_cmpl->cq__priv); fflush(stderr);
     rma_cmpl->stadd = lsta;
     rma_cmpl->op_context = rma->context;
     rma_cmpl->flags = FI_READ | FI_RMA | flags;
