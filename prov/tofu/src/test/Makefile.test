@@ -1,0 +1,13 @@
+INCLUDE=-I../../../include -I../../../
+.c.o:
+	cc -c $< $(INCLUDE)
+
+all: rbtest iovtest
+rbtest: rbtree.o rbtest.o
+	cc $(INCLUDE) rbtree.o rbtest.o -o rbtest
+iovtest: iovtest.o rbtree.o
+	cc $(INCLUDE) rbtree.o iovtest.o -o iovtest
+#	cc $(INCLUDE) test.c -E >test.txt
+#	cc $(INCLUDE) test.c
+rbtest.o: ulib_mem.c rbtest.c
+rbtree.o: ../../../src/rbtree.c
