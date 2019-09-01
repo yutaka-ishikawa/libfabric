@@ -1,6 +1,7 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
+#include "tofu_conf.h"
 #include "tofu_debug.h"
 #include "ulib_conf.h"
 #include "ulib_dlog.h"
@@ -28,18 +29,11 @@
 			    | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE \
 			    )
 
-int ulib_toqc_post(
-    struct ulib_toqc *toqc,
-    void *desc,
-    size_t desc_size,
-#ifdef	notdef_retp
-    void *retp, /* fetch value */
-#else	/* notdef_retp */
-    uint64_t retp[3], /* [0] fetch value [1] uc [2] edata */
-#endif	/* notdef_retp */
-    const struct utofu_mrq_notice *ackd,
-    uint64_t *r_no /* recipient number */
-)
+int ulib_toqc_post(struct ulib_toqc *toqc,
+                   void *desc,  size_t desc_size,
+                   uint64_t retp[3], /* [0] fetch value [1] uc [2] edata */
+                   const struct utofu_mrq_notice *ackd,
+                   uint64_t *r_no /* recipient number */)
 {
     int uc = UTOFU_SUCCESS;
     struct ulib_toqe *toqe = 0;
@@ -58,15 +52,17 @@ int ulib_toqc_post(
 	}
     }
 
-    if (
-	(ackd != 0)
-	&& (((flags = ackd->reserved[1]) & ULIB_TOQC_NOTICES) != 0)
-    ) {
+    if ((ackd != 0)
+	&& (((flags = ackd->reserved[1]) & ULIB_TOQC_NOTICES) != 0)) {
 	toqe = ulib_toqc_toqe_pcnt(toqc);
         fprintf(stderr, "%d:YIPOLL_TCQ: magic(%d)\n", mypid, toqe->magic); fflush(stderr);
     }
 
+#ifdef TOFU_SIM_BUG
+    uc = wa_utofu_post_toq(toqc->vcqh, desc, desc_size, toqe);
+#else
     uc = utofu_post_toq(toqc->vcqh, desc, desc_size, toqe);
+#endif
     if (uc != UTOFU_SUCCESS) {
 	ulib_toqc_unlock(toqc);
 	RETURN_BAD_C(uc);
@@ -96,63 +92,50 @@ int ulib_toqc_post(
 	}
 
 	toqe->dsiz = desc_size;
-	toqe->csiz = 0; /* completed */
 	toqe->retp = retp;
 	assert(sizeof (toqe->ackd) >= sizeof (ackd[0]));
 	memcpy(toqe->ackd, ackd, sizeof (ackd[0]));
-// printf("post [%ld] flag %x\n", toqe - &toqc->toqe[0], toqe->flag);
-// fflush(stdout);
-    }
-#ifndef	notdef_toqc_fix1
-    else if (r_no != 0) {
+    } else if (r_no != 0) {
+        /*
+         * In case of ulib_icep_shea_send_prog() -> ... -> ulib_shea_foo5(), and toqe == 0
+         */
 	r_no[0] = toqc->pcnt - 1; /* XXX recipient number */
+        // printf("ulib_toqc_post: ABORT r_no[0] = %ld\n", r_no[0]); fflush(stdout);
     }
-#endif	/* notdef_toqc_fix1 */
+    // printf("ulib_toqc_post: toqe->flag(%x)\n", toqe->flag); fflush(stdout);
 
     ulib_toqc_unlock(toqc);
 
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
-int ulib_toqc_init(
-    utofu_vcq_hdl_t vcqh,
-    struct ulib_toqc **pp_toqc
-)
+int ulib_toqc_init(utofu_vcq_hdl_t vcqh, struct ulib_toqc **pp_toqc)
 {
     int uc = UTOFU_SUCCESS;
+    struct ulib_toqc *toqc;
+    size_t msiz;
 
     ENTER_RC_C(uc);
 
-    {
-	struct ulib_toqc *toqc;
-	size_t msiz;
-
-	msiz  = sizeof (toqc[0]);
-	msiz += (sizeof (toqc->toqe[0]) * ULIB_TOQC_SIZE);
-        msiz += (sizeof (toqc->rma_cmpl[0]) * ULIB_RMA_NUM); /* added for RMA */
-
-	toqc = calloc(1, msiz);
-	if (toqc == 0) {
-	    uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
-	}
-	toqc->vcqh = vcqh;
-	toqc->toqe = (struct ulib_toqe *)&toqc[1];;
-        toqc->rma_cmpl = (struct ulib_rma_cmpl*) ((char*) toqc->toqe + (sizeof (toqc->toqe[0]) * ULIB_TOQC_SIZE));
-
-	/* return */
-	pp_toqc[0] = toqc;
+    msiz  = sizeof (toqc[0]);
+    msiz += (sizeof (toqc->toqe[0]) * ULIB_TOQC_SIZE);
+    msiz += (sizeof (toqc->rma_cmpl[0]) * ULIB_RMA_NUM); /* added for RMA */
+    toqc = calloc(1, msiz);
+    if (toqc == 0) {
+        uc = UTOFU_ERR_OUT_OF_MEMORY; RETURN_BAD_C(uc);
     }
+    toqc->vcqh = vcqh;
+    toqc->toqe = (struct ulib_toqe *)&toqc[1];;
+    toqc->rma_cmpl = (struct ulib_rma_cmpl*) ((char*) toqc->toqe + (sizeof (toqc->toqe[0]) * ULIB_TOQC_SIZE));
+    /* return */
+    pp_toqc[0] = toqc;
 
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
-int ulib_toqc_fini(
-    struct ulib_toqc *toqc
-)
+int ulib_toqc_fini(struct ulib_toqc *toqc)
 {
     int uc = UTOFU_SUCCESS;
 
@@ -163,7 +146,6 @@ int ulib_toqc_fini(
     }
 
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
@@ -178,41 +160,32 @@ int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc)
 	const unsigned long flags = 0UL; /* UTOFU_POLL_FLAG+ */
 	void *cbdata = 0;
 
-	uc = utofu_poll_tcq( toqc->vcqh, flags, &cbdata );
+#ifdef TOFU_SIM_BUG
+	uc = wa_utofu_poll_tcq(toqc->vcqh, flags, &cbdata);
+#else
+	uc = utofu_poll_tcq(toqc->vcqh, flags, &cbdata);
+#endif
 	if (uc == UTOFU_ERR_NOT_FOUND) {
 	    uc = UTOFU_SUCCESS;
 	    break;
-	}
-	else if (uc != UTOFU_SUCCESS) {
-	    if ( ! UTOFU_ISA_ERR_TCQ(uc) ) { /* UTOFU_ERR_TCQ_+ */
+	} else if (uc != UTOFU_SUCCESS) {
+	    if (!UTOFU_ISA_ERR_TCQ(uc)) { /* UTOFU_ERR_TCQ_+ */
 		ulib_toqc_abort(toqc, uc);
 		RETURN_BAD_C(uc);
 	    }
 	    /* fall thru */
 	}
-#ifndef	CONF_ULIB_UTOF_FIX2
-	/* toqe */
-	{
+        // printf("ulib_toqc_prog_tcqd: cbdata(%p)\n", cbdata); fflush(stdout);
+        if (cbdata) { /* toqe */
 	    struct ulib_toqe *toqe = cbdata;
 
 	    assert(toqe != 0);
 	    assert(toqe >= &toqc->toqe[0]);
 	    assert(toqe <  &toqc->toqe[ULIB_TOQC_SIZE]);
-
-// printf("tcqd [%ld] flag %x\n", toqe - &toqc->toqe[0], toqe->flag);
-// fflush(stdout);
 	    assert((toqe->flag & ULIB_TOQE_FLAG_USED) != 0);
 	    assert((toqe->flag & ULIB_TOQE_FLAG_TCQD) == 0);
-#ifdef	notdef_fix3
+
 	    toqe->flag |= ULIB_TOQE_FLAG_TCQD;
-#else	/* notdef_fix3 */
-	    assert(toqe->csiz < toqe->dsiz);
-	    toqe->csiz += 32 /* XXX */;
-	    if (toqe->csiz >= toqe->dsiz) {
-		assert(toqe->csiz == toqe->dsiz);
-		toqe->flag |= ULIB_TOQE_FLAG_TCQD;
-	    }
-#endif	/* notdef_fix3 */
 	    if (uc != 0) { /* UTOFU_ISA_ERR_TCQ(uc) */
 		toqe->flag |= ULIB_TOQE_FLAG_ACKD;
 	    }
@@ -222,25 +195,12 @@ int ulib_toqc_prog_tcqd(struct ulib_toqc *toqc)
 		ulib_toqc_toqe_ccnt_update(toqc);
 		ulib_toqc_unlock(toqc);
 	    }
-	    uc = UTOFU_SUCCESS;
-	}
-#else	/* CONF_ULIB_UTOF_FIX2 */
-        {
-            struct ulib_toqe *toqe = cbdata;
-            fprintf(stderr, "%d:YIPOLL_TCQ: cbdata(%p), toqe->magic(%d)\n", mypid, cbdata, toqe->magic); fflush(stderr);
-            if (toqe->magic != 0) {
-                printf("\t%d:YIPOLL_TCQ: ??? if no rma cbdata(%p), toqe->magic(%d)\n", mypid, cbdata, toqe->magic); fflush(stdout);
-                /* currently no notification */
-                RETURN_OK_C(uc);
-            }
+	} else {
+            /* no need to handle this completion event. */
         }
-	ulib_toqc_match_tcqd(toqc, cbdata, uc);
-	uc = UTOFU_SUCCESS;
-#endif	/* CONF_ULIB_UTOF_FIX2 */
+        uc = UTOFU_SUCCESS;
     }
-
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
@@ -284,7 +244,6 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
     }
 
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
@@ -303,7 +262,6 @@ int ulib_toqc_prog(struct ulib_toqc *toqc)
     if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
@@ -316,7 +274,6 @@ int ulib_toqc_read(struct ulib_toqc *toqc, uint64_t *r_no)
     r_no[0] = toqc->ccnt; /* XXX */
 
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }
 
@@ -331,6 +288,5 @@ int ulib_toqc_chck_tcqd(struct ulib_toqc *toqc, size_t *pend_tcqd)
     if (uc != UTOFU_SUCCESS) { RETURN_BAD_C(uc); }
 
     RETURN_OK_C(uc);
-
     RETURN_RC_C(uc, /* do nothing */ );
 }

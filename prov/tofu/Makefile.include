@@ -45,7 +45,8 @@ _tofu_files = prov/tofu/src/tofu_atm.h	\
 	prov/tofu/src/ulib_ofif.c	\
 	prov/tofu/src/ulib_shea.c	\
 	prov/tofu/src/ulib_tick.c	\
-	prov/tofu/src/ulib_toqc.c
+	prov/tofu/src/ulib_toqc.c	\
+	prov/tofu/src/tofu_workaround.c
 
 if HAVE_TOFU_DL
 pkglib_LTLIBRARIES += libtofu-fi.la

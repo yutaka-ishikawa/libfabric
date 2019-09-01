@@ -4,6 +4,8 @@
 #ifndef	_TOFU_CONF_H
 #define _TOFU_CONF_H
 
+#define TOFU_SIM_BUG
+
 #define FI_TOFU_FABRIC_NAME "tofu"
 #define FI_TOFU_VERSION_MINOR 0
 #define FI_TOFU_VERSION_MAJOR 1

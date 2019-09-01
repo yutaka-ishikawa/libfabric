@@ -142,6 +142,16 @@ TOFU_INI
 #endif /* ~NDEBUG */
     mypid = getpid();
     rdbgf = 0; rdbgl = 0;
+#ifdef TOFU_SIM_BUG
+    {
+        extern void wa_init();
+        fprintf(stderr, "[%d]\t*** utofu on tlib debug workaround is enable\n", mypid);
+        fflush(stderr);
+        printf("[%d] *** utofu on tlib debug workaround is enable\n", mypid);
+        fflush(stdout);
+        wa_init();
+    }
+#endif
     return &tofu_prov;
 }
 

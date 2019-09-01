@@ -31,15 +31,8 @@ typedef uint32_t	    ulib_toqc_cnt_t;
 struct ulib_toqe {
     int      magic;     /* 0: original 1: rma */
     uint32_t dsiz;
-#ifndef	notdef_fix3
-    uint32_t csiz;
-#endif	/* notdef_fix3 */
     uint32_t flag;
-#ifdef	notdef_retp
-    void *retp;
-#else	/* notdef_retp */
     uint64_t *retp;
-#endif	/* notdef_retp */
     struct utofu_mrq_notice ackd[1];
 };
 
@@ -93,11 +86,7 @@ extern int	ulib_toqc_post(
 		    struct ulib_toqc *toqc,
 		    void *desc,
 		    size_t desc_size,
-#ifdef	notdef_retp
-		    void *retp,
-#else	/* notdef_retp */
 		    uint64_t retp[3],
-#endif	/* notdef_retp */
 		    const struct utofu_mrq_notice *ackd,
 		    uint64_t *r_no
 		);
@@ -352,13 +341,9 @@ static inline void ulib_toqc_match_ackd(
 	    (ackd->notice_type == UTOFU_MRQ_TYPE_LCL_ARMW)
 	    && (toqe->retp != 0)
 	) {
-#ifdef	notdef_retp
-	    ((uint64_t *)toqe->retp)[0] = ackd->rmt_value;
-#else	/* notdef_retp */
 	    toqe->retp[0] = ackd->rmt_value;
 	    /* toqe->retp[1] = uc; */ /* YYY */
 	    /* toqe->retp[2] = ackd->edata; */ /* YYY */
-#endif	/* notdef_retp */
 	}
 // printf("ackd [%ld] flag %x\n", toqe - &toqc->toqe[0], toqe->flag);
 // fflush(stdout);
@@ -385,25 +370,19 @@ static inline void ulib_toqc_match_ackd(
     return ;
 }
 
-static inline void ulib_toqc_match(
-    struct ulib_toqc *toqc, 
-    const struct utofu_mrq_notice *tmrq,
-    int uc
-)
+static inline void
+ulib_toqc_match(struct ulib_toqc *toqc, const struct utofu_mrq_notice *tmrq,
+                int uc)
 {
     if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_PUT) { /* Put local MRQ */
 	ulib_toqc_match_ackd(toqc, ulib_toqd_dcmp_put, tmrq, uc);
-    }
-    else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_GET) { /* Get local MRQ */
+    } else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_GET) {
+        /* Get local MRQ */
 	ulib_toqc_match_ackd(toqc, ulib_toqd_dcmp_get, tmrq, uc);
-    }
-    else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_ARMW) { /* ARMW local MRQ */
+    } else if (tmrq->notice_type == UTOFU_MRQ_TYPE_LCL_ARMW) {
+        /* ARMW local MRQ */
 	ulib_toqc_match_ackd(toqc, ulib_toqd_dcmp_armw, tmrq, uc);
-if (0) {
-printf("%s():%d rmt_value %"PRIu64"\n", __func__, __LINE__, tmrq->rmt_value);
-}
-    }
-    else {
+    } else {
 	/* UTOFU_MRQ_TYPE_RMT_{PUT,GET,ARMW} */
 	/* #ifdef CONF_ULIB_UTOF_FIX6 */
 	/* should be notice_type *_LCL_ARMW with error */
@@ -457,19 +436,7 @@ static inline void ulib_toqc_match_tcqd(
         //printf("tcqd [%ld] flag %x\n", toqe - &toqc->toqe[0], toqe->flag);
         //fflush(stdout);
 	assert((toqe->flag & ULIB_TOQE_FLAG_USED) != 0);
-	/* assert((toqe->flag & ULIB_TOQE_FLAG_TCQD) == 0); */
-	assert(toqe->csiz < toqe->dsiz);
-	toqe->csiz += 32 /* XXX */;
-	if (toqe->csiz >= toqe->dsiz) {
-            /*
-             * Each toqe manages one request consisting of one or more
-             * utofu_post_toq() calls
-             * dsiz represents the number of calls
-             * csiz represents the number of completions
-             */
-	    assert(toqe->csiz == toqe->dsiz);
-	    toqe->flag |= ULIB_TOQE_FLAG_TCQD;
-	}
+        toqe->flag |= ULIB_TOQE_FLAG_TCQD;
 	if (r_uc != 0) { /* UTOFU_ISA_ERR_TCQ(uc) */
             /*
              * r_uc represents the return value of utofu_poll_tcq()
@@ -516,5 +483,14 @@ static inline void ulib_toqc_match_tcqd(
     return ;
 }
 #endif	/* CONF_ULIB_UTOF_FIX2 */
+
+#ifdef TOFU_SIM_BUG
+extern int
+wa_utofu_post_toq(utofu_vcq_hdl_t  vcqh, void *desc,
+                  size_t desc_size, void *cbdata);
+extern int
+wa_utofu_poll_tcq(utofu_vcq_hdl_t vcqh, unsigned long int   flags,
+		  void **cbdata);
+#endif /* TOFU_SIM_BUG */
 
 #endif	/* _ULIB_TOQC_H */
