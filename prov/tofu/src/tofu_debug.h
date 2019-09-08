@@ -4,8 +4,9 @@
 #ifndef _TOFU_DEBUG_H
 #define _TOFU_DEBUG_H
 
+#include <stdio.h>
 #include <stdlib.h>
-extern int mypid;
+extern int mypid, myrank;
 extern int rdbgf, rdbgl;
 
 #define RDEBUG 1
@@ -98,5 +99,16 @@ static inline void get_doption() {
 #define R_DBG2(format, ...)
 static inline void get_doption() { return; }
 #endif
+
+static inline void desc_dump(void *desc, size_t sz)
+{
+    int		i;
+    unsigned long	*ui = desc;
+    printf("[%d] desc(%2ld) ", mypid, sz);
+    for (i = 0; i < sz; i += 8) {
+	printf(":%016lx", *ui++);
+    }
+    printf("\n");
+}
 
 #endif	/* _TOFU_DEBUG_H */

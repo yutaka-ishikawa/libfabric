@@ -207,6 +207,7 @@ tofu_cep_msg_send_common(struct fid_ep *fid_ep,
 	struct tofu_av *av__priv = sep_priv->sep_av_;
 	assert(av__priv != 0);
 	tofu_av_lup_rank(av__priv, icep->vcqh, icep->index, &icep->myrank);
+        myrank = icep->myrank;
 
 	/* for FI_CLASS_RX_CTX ? (icep->shadow) */
 	if (cep_priv->cep_trx != 0) {

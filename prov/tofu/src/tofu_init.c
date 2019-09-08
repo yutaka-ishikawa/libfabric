@@ -124,7 +124,7 @@ struct fi_provider *fi_prov_ini(void)
 }
 
 /**************************************************************************/
-int mypid;
+int mypid, myrank;
 int rdbgf;
 int rdbgl;
 
@@ -141,6 +141,7 @@ TOFU_INI
     fprintf(stderr, "**** Debug option is enable\n"); fflush(stderr);
 #endif /* ~NDEBUG */
     mypid = getpid();
+    myrank = -1; /* will be initialized later */
     rdbgf = 0; rdbgl = 0;
 #ifdef TOFU_SIM_BUG
     {
