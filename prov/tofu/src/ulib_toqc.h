@@ -196,14 +196,13 @@ static inline int ulib_toqd_dcmp_get(
         | (((ackd->vcq_id << 32) >> (32+16)) << 32)
         | (ackd->vcq_id << (64-6))
         ;
-#endif  TOFU_SIM_BUG
+#endif  /*TOFU_SIM_BUG*/
 
     if (ackd->notice_type != expected->notice_type) {
 	ret = __LINE__;
 #ifdef TOFU_SIM_BUG
     } else if (ackd_vcq_id != expected->vcq_id) {
         ret = __LINE__;
-    }
 #else /* TOFU_SIM_BUG */
     } else if (ackd->vcq_id != expected->vcq_id) {
 	ret = __LINE__;
