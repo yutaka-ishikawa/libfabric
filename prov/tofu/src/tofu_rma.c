@@ -561,7 +561,7 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
 
     icep_ctxt = (struct ulib_icep*) (cep_priv + 1);
     icep = icep_ctxt->shadow;
-    fprintf(stderr, "\ticep_ctxt(%p) icep_ctxt->shadow(%p)\n", icep_ctxt, icep); fflush(stderr);
+    // fprintf(stderr, "\ticep_ctxt(%p) icep_ctxt->shadow(%p)\n", icep_ctxt, icep); fflush(stderr);
 
     /* rma.msg_iov[] */
     tofu_ofif_liov_set(&lma_iov, buf, len);

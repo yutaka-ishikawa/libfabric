@@ -55,8 +55,9 @@ int ulib_toqc_post(struct ulib_toqc *toqc,
     if ((ackd != 0)
 	&& (((flags = ackd->reserved[1]) & ULIB_TOQC_NOTICES) != 0)) {
 	toqe = ulib_toqc_toqe_pcnt(toqc);
-        fprintf(stderr, "%d:YIPOLL_TCQ: magic(%d)\n", mypid, toqe->magic); fflush(stderr);
     }
+    //fprintf(stderr, "[%d] %s: toqe(%p) toqe->magic(%d)\n",
+    // mypid, __func__, toqe, toqe == 0 ? 0 : toqe->magic); fflush(stderr);
 
 #ifdef TOFU_SIM_BUG
     uc = wa_utofu_post_toq(toqc->vcqh, desc, desc_size, toqe);
@@ -234,7 +235,7 @@ int ulib_toqc_prog_ackd(struct ulib_toqc *toqc)
 	    ulib_toqc_abort(toqc, uc);
 	    RETURN_BAD_C(uc);
 	}
-        fprintf(stderr, "%d: YIPOLL_MRQ: edata(0x%lx) %s\n", mypid, tmrq[0].edata, __func__); fflush(stderr);
+        //fprintf(stderr, "%d: YIPOLL_MRQ: edata(0x%lx) %s\n", mypid, tmrq[0].edata, __func__); fflush(stderr);
         if (tmrq[0].edata > 0 && tmrq[0].edata <= ULIB_RMA_NUM) {
             /* fi_read is completed */
             extern void ulib_notify_rmacmpl_cq(struct ulib_toqc*, int);

@@ -261,7 +261,6 @@ static inline int ulib_ackd_get1(
 #endif	/* NDEBUG */
 	ackd->reserved[1] = flag; /* XXX */
     }
-
     RETURN_OK_C(uc);
 
     RETURN_RC_C(uc, /* do nothing */ );

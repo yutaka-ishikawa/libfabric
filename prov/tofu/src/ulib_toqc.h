@@ -186,36 +186,36 @@ static inline int ulib_toqd_dcmp_get(
 )
 {
     int ret = 0;
-#ifdef	CONF_ULIB_UTOF_FIX1
+#ifdef  TOFU_SIM_BUG
     utofu_vcq_id_t ackd_vcq_id;
-#endif	/* CONF_ULIB_UTOF_FIX1 */
+#endif  /* TOFU_SIM_BUG */
 
     assert(ackd->notice_type == UTOFU_MRQ_TYPE_LCL_GET);
-#ifdef	CONF_ULIB_UTOF_FIX1
-    ackd_vcq_id =   0
-		    | (ackd->vcq_id >> 32)
-		    | (((ackd->vcq_id << 32) >> (32+16)) << 32)
-		    | (ackd->vcq_id << (64-6))
-		    ;
-#endif	/* CONF_ULIB_UTOF_FIX1 */
+#ifdef  TOFU_SIM_BUG
+    ackd_vcq_id = (ackd->vcq_id >> 32)
+        | (((ackd->vcq_id << 32) >> (32+16)) << 32)
+        | (ackd->vcq_id << (64-6))
+        ;
+#endif  TOFU_SIM_BUG
 
     if (ackd->notice_type != expected->notice_type) {
 	ret = __LINE__;
+#ifdef TOFU_SIM_BUG
+    } else if (ackd_vcq_id != expected->vcq_id) {
+        ret = __LINE__;
     }
-#ifndef	CONF_ULIB_UTOF_FIX1
-    else if (ackd->vcq_id != expected->vcq_id) {
+#else /* TOFU_SIM_BUG */
+    } else if (ackd->vcq_id != expected->vcq_id) {
 	ret = __LINE__;
-    }
-#else	/* CONF_ULIB_UTOF_FIX1 */
-    else if (ackd_vcq_id != expected->vcq_id) {
+#endif /* TOFU_SIM_BUG */
+    } else if (ackd->edata != expected->edata) {
 	ret = __LINE__;
-    }
-#endif	/* CONF_ULIB_UTOF_FIX1 */
-    else if (ackd->edata != expected->edata) {
+#ifdef TOFU_NEWSIM_BUG
+        /* just omitting lcl_stadd value check */
+#else
+    } else if (ackd->lcl_stadd != expected->lcl_stadd) {
 	ret = __LINE__;
-    }
-    else if (ackd->lcl_stadd != expected->lcl_stadd) {
-	ret = __LINE__;
+#endif /* TOFU_NEWSIM_BUG */
     }
 
     return ret;
@@ -227,28 +227,27 @@ static inline int ulib_toqd_dcmp_put(
 )
 {
     int ret = 0;
-#ifdef	CONF_ULIB_UTOF_FIX1
+#ifdef	TOFU_SIM_BUG
     utofu_vcq_id_t ackd_vcq_id;
-#endif	/* CONF_ULIB_UTOF_FIX1 */
+#endif	/*  */
 
     assert(ackd->notice_type == UTOFU_MRQ_TYPE_LCL_PUT);
-#ifdef	CONF_ULIB_UTOF_FIX1
-    ackd_vcq_id =   0
-		    | (ackd->vcq_id >> 32)
-		    | (((ackd->vcq_id << 32) >> (32+16)) << 32)
-		    | (ackd->vcq_id << (64-6))
-		    ;
-#endif	/* CONF_ULIB_UTOF_FIX1 */
+#ifdef	TOFU_SIM_BUG
+    ackd_vcq_id = (ackd->vcq_id >> 32)
+        | (((ackd->vcq_id << 32) >> (32+16)) << 32)
+        | (ackd->vcq_id << (64-6))
+        ;
+#endif	/* TOFU_SIM_BUG */
 
     if (ackd->notice_type != expected->notice_type) {
 	ret = __LINE__;
     }
-#ifndef	CONF_ULIB_UTOF_FIX1
-    else if (ackd->vcq_id != expected->vcq_id) {
+#ifdef	TOFU_SIM_BUG
+    else if (ackd_vcq_id != expected->vcq_id) {
 	ret = __LINE__;
     }
-#else	/* CONF_ULIB_UTOF_FIX1 */
-    else if (ackd_vcq_id != expected->vcq_id) {
+#else	/* TOFU_SIM_BUG */
+    else if (ackd->vcq_id != expected->vcq_id) {
 	ret = __LINE__;
     }
 #endif	/* CONF_ULIB_UTOF_FIX1 */
@@ -268,31 +267,30 @@ static inline int ulib_toqd_dcmp_armw(
 )
 {
     int ret = 0;
-#ifdef	CONF_ULIB_UTOF_FIX1
+#ifdef	TOFU_SIM_BUG
     utofu_vcq_id_t ackd_vcq_id;
-#endif	/* CONF_ULIB_UTOF_FIX1 */
+#endif	/* TOFU_SIM_BUG */
 
     assert(ackd->notice_type == UTOFU_MRQ_TYPE_LCL_ARMW);
-#ifdef	CONF_ULIB_UTOF_FIX1
-    ackd_vcq_id =   0
-		    | (ackd->vcq_id >> 32)
-		    | (((ackd->vcq_id << 32) >> (32+16)) << 32)
-		    | (ackd->vcq_id << (64-6))
-		    ;
-#endif	/* CONF_ULIB_UTOF_FIX1 */
+#ifdef	TOFU_SIM_BUG
+    ackd_vcq_id = (ackd->vcq_id >> 32)
+        | (((ackd->vcq_id << 32) >> (32+16)) << 32)
+        | (ackd->vcq_id << (64-6))
+        ;
+#endif	/* TOFU_SIM_BUG */
 
     if (ackd->notice_type != expected->notice_type) {
 	ret = __LINE__;
     }
-#ifndef	CONF_ULIB_UTOF_FIX1
-    else if (ackd->vcq_id != expected->vcq_id) {
-	ret = __LINE__;
-    }
-#else	/* CONF_ULIB_UTOF_FIX1 */
+#ifdef	TOFU_SIM_BUG
     else if (ackd_vcq_id != expected->vcq_id) {
 	ret = __LINE__;
     }
-#endif	/* CONF_ULIB_UTOF_FIX1 */
+#else	/* TOFU_SIM_BUG */
+    else if (ackd->vcq_id != expected->vcq_id) {
+	ret = __LINE__;
+    }
+#endif	/* TOFU_SIM_BUG */
     else if (ackd->edata != expected->edata) {
 	ret = __LINE__;
     }
@@ -397,92 +395,6 @@ ulib_toqc_match(struct ulib_toqc *toqc, const struct utofu_mrq_notice *tmrq,
 
     return ;
 }
-#ifdef	CONF_ULIB_UTOF_FIX2
-
-static inline void ulib_toqc_match_tcqd(
-    struct ulib_toqc *toqc,
-    void *cbdata,
-    int r_uc
-)
-{
-    ulib_toqc_cnt_t ccnt, pcnt;
-    void *toqe_done = 0; /* XXX hack */
-
-    ulib_toqc_lock(toqc);
-
-// YI 2019/04/30   assert(toqc->ccnt != toqc->pcnt);
-    if (toqc->ccnt == toqc->pcnt) {
-        fprintf(stderr, "YIPOLL_TCQ: spurious notification ?\n"); fflush(stderr);
-        printf("\t%d: YIPOLL_TCQ: spurious notification ?\n", mypid); fflush(stdout);
-        ulib_toqc_unlock(toqc);
-        return;
-    }
-    ccnt = toqc->ccnt;  /* the number of completed requests */
-    pcnt = toqc->pcnt;  /* the number of requests posted */
-    while (ccnt != pcnt) {
-	struct ulib_toqe *toqe;
-
-	toqe = ulib_toqc_toqe_ccnt_wloc(toqc, ccnt);
-	if ((toqe->flag == 0 /* all done */ )
-	    || ((toqe->flag & ULIB_TOQE_FLAG_TCQD) != 0)) {
-            /* 
-             * all done(toq and mrq completed) or
-             * utofu_post_toq() fails
-             */
-            if (toqe == cbdata) { toqe_done = toqe; } /* XXX hack */
-            ccnt++; continue;
-        }
-
-        //printf("tcqd [%ld] flag %x\n", toqe - &toqc->toqe[0], toqe->flag);
-        //fflush(stdout);
-	assert((toqe->flag & ULIB_TOQE_FLAG_USED) != 0);
-        toqe->flag |= ULIB_TOQE_FLAG_TCQD;
-	if (r_uc != 0) { /* UTOFU_ISA_ERR_TCQ(uc) */
-            /*
-             * r_uc represents the return value of utofu_poll_tcq()
-             * Here this call fails, and in that case, we assume
-             * the Ack has been received.
-             */
-	    toqe->flag |= ULIB_TOQE_FLAG_ACKD; /* never ack */
-	}
-	if (ULIB_TOQE_COMPLETED(toqe->flag)) {
-	    toqe->flag = 0;
-	    ulib_toqc_toqe_ccnt_update(toqc);
-	    /* ccnt = toqc->ccnt; */
-	}
-	break;
-    }
-
-    if (toqe_done == 0) { /* XXX hack */
-        /*
-         *  toque_done should filled, but not
-         */
-	if (ccnt == pcnt) {
-            /*
-             * ccnt should not have the same value of pcnt, but not
-             */
-	    fprintf(stderr, "%s:%d\t%s: should be same: ccnt %u pcnt %u cc %d pc %d\n",
-		__FILE__, __LINE__, __func__,
-		ccnt, pcnt, toqc->ccnt, toqc->pcnt);
-	    fprintf(stdout, "%s:%d\t%s: should be same: ccnt %u pcnt %u cc %d pc %d\n",
-		__FILE__, __LINE__, __func__,
-		ccnt, pcnt, toqc->ccnt, toqc->pcnt);
-	    fflush(stdout);
-	    fflush(stderr);
-	} else {
-            /*
-             * Unexepected behavior
-             *   utofu_poll_toq informs some completion event, but
-             *   the event was already informed.
-             */
-            assert(ccnt != pcnt);
-        }
-    }
-
-    ulib_toqc_unlock(toqc);
-    return ;
-}
-#endif	/* CONF_ULIB_UTOF_FIX2 */
 
 #ifdef TOFU_SIM_BUG
 extern int

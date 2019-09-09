@@ -860,6 +860,7 @@ int tofu_imp_namS_to_ut_a(
 	    /* assert(c_id == CONF_ULIB_CMP_ID); */
 
 	    uc = utofu_construct_vcq_id(txyz, tnid, cqid, c_id, vcqi);
+            // printf("[%d] %s tni_id[%d] cq_id[%d], cmp_id[%d]\n", mypid, __func__, tnid, cqid, c_id); fflush(stdout);
 	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
 
 	    ut_a->vcqi = vcqi[0];
@@ -922,6 +923,7 @@ int tofu_imp_conv_tank_to_cash(
 	    utofu_cq_id_t  cqid = au.tank.tcq;
 
 	    uc = utofu_construct_vcq_id(txyz, tnid, cqid, c_id, vcqi);
+            // printf("[%d] %s tni_id[%d] cq_id[%d], cmp_id[%d]\n", mypid, __func__, tnid, cqid, c_id); fflush(stdout);
 	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
 
 	    cash->vcqi = vcqi[0];
@@ -1388,6 +1390,7 @@ int ulib_ioav_find_addr(
     /* rcqi (vcqi) from einf */
     uc = utofu_construct_vcq_id(einf->xyz,
 	    einf->tni[0], einf->tcq[0], einf->cid[0], vcqi);
+    //printf("[%d] %s tni_id[%d] cq_id[%d], cmp_id[%d] => vcqid(0x%lx)\n", mypid, __func__, einf->tni[0], einf->tcq[0],einf->cid[0], vcqi[0]); fflush(stdout);
     if (uc != UTOFU_SUCCESS) { goto bad; }
 
     /* paid */
@@ -1469,8 +1472,10 @@ ulib_icep_find_desc(struct ulib_icep *icep,
             //fprintf(stderr, "\t\t YI: %s 2 leave\n", __func__);
             goto bad;
         }
+#ifdef FX100 /* 2019/09/05 */
+        printf("FX100 configured. Are you sure ?\n"); fflush(stdout);
         rava.vcqi |= 0xF0000000000;
-
+#endif
 	uc = utofu_query_vcq_id(icep->vcqh, &lava.vcqi);
 	if (uc != UTOFU_SUCCESS) {
             //fprintf(stderr, "\t\t YI: %s 3 leave\n", __func__);

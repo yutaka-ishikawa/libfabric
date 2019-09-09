@@ -6,13 +6,14 @@
 
 #include <stdio.h>
 #include <inttypes.h>
+#include "tofu_conf.h"
 
 /* #define CONF_ULIB_LOG_VERBOSE */
 #define CONF_ULIB_LOG_FAIL
 
 #define CONF_ULIB_CMP_ID    0x07
 
-#define CONF_ULIB_UTOF_FIX1 /* vcq_id in utofu_mrq_notice */
+// #define CONF_ULIB_UTOF_FIX1 /* vcq_id in utofu_mrq_notice */
 #define CONF_ULIB_UTOF_FIX2 /* cbdata in utofu_poll_tcq() */
 #define CONF_ULIB_UTOF_FIX3 /* utofu_prepare_nop() */
 //#define CONF_ULIB_UTOF_FIX5 /* completion with same edata */

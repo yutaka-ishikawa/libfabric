@@ -1464,7 +1464,12 @@ static inline int ulib_icep_toqc_sync(struct ulib_icep *icep, int ntry)
 	uc = ulib_toqc_prog(icep->toqc);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
     }
+    /* 2019/09/08
+     *  This timeout happens in the new utofu simulator.
+     */
+#if 0
     if (ii >= ni) { printf("%s:%d timed-out %d\n", __func__, __LINE__, ii); }
+#endif
 
 bad:
     return uc;
