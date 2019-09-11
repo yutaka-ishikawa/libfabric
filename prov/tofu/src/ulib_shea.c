@@ -1755,11 +1755,11 @@ static inline void ulib_shea_cash_data_data( /* foo12 */
 		uc = utofu_modify_put_rmt_stadd_add(desc, roff);
 		uc = utofu_modify_put_lcl_stadd_add(desc, loff);
 #else	/* CONF_ULIB_UTOF_FIX4 */
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__i386__) || defined (__x86_64__)
 		desc[1+0] += (leng<<32); /* XXX initial leng = 0 */
 #else
 		desc[1+0] += leng; /* XXX initial leng = 0 */
-#endif /* __aarch64__ */
+#endif /* __aarch64__ || __i386__ || __x86_64__ */
 		desc[2+0] += roff;
 		desc[3+0] += loff;
 #endif	/* CONF_ULIB_UTOF_FIX4 */
@@ -1789,11 +1789,11 @@ static inline void ulib_shea_cash_data_data( /* foo12 */
 		uc = utofu_modify_put_rmt_stadd_add(desc, roff);
 		uc = utofu_modify_put_lcl_stadd_add(desc, loff);
 #else	/* CONF_ULIB_UTOF_FIX4 */
-#if defined(__aarch64__)
+#if defined(__aarch64__) || defined(__i386__) || defined (__x86_64__)
 		desc[1+0] += (leng<<32); /* XXX initial leng = 0 */
 #else
 		desc[1+0] += leng; /* XXX initial leng = 0 */
-#endif /* __aarch64__ */
+#endif /* __aarch64__ || __i386__ || __x86_64__ */
 		desc[2+0] += roff;
 		desc[3+0] += loff;
 #endif	/* CONF_ULIB_UTOF_FIX4 */
