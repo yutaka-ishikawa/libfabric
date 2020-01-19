@@ -13,21 +13,8 @@ extern int rdbgf, rdbgl;
 #ifdef RDEBUG
 /*
  * rdbgf is set in the fi_tofu_setdopt function, exported symbol for Tofu
- * The user call this function instead of using setenv() 2019/07/11
+ * The user calls this function or setenv
  */
-static inline void get_doption() {}
-#if 0
-static inline void get_doption() {
-    char	*cp = getenv("TOFU_DEBUG");
-    if (cp) {
-        rdbgf = atoi(cp);
-    }
-    cp = getenv("TOFU_DLEVEL");
-    if (cp) {
-        rdbgl = atoi(cp);
-    }
-}
-#endif /* 0 */
 
 /* setenv("TOFU_DEBUG", value, 1); */
 #define RDBG_STDOUT     0x1     /* output to stdout */
@@ -41,23 +28,22 @@ static inline void get_doption() {
 
 #define R_DBG(format, ...)                                              \
    do {									\
-       printf("\t%d:" format " in %s:%d\n",                             \
+       printf("\t%d: " format " in %s:%d\n",                             \
               mypid, __VA_ARGS__, __func__, __LINE__);                  \
        fflush(stdout);                                                  \
-       fprintf(stderr, "%d:" format " in %s:%d\n",                      \
+       fprintf(stderr, "%d: " format " in %s:%d\n",                      \
                mypid, __VA_ARGS__, __func__, __LINE__);                 \
        fflush(stderr);                                                  \
    } while (0)
 
 #define R_DBG0(level, format, ...)                                      \
    do {									\
-	   get_doption();						\
 	   if (rdbgf & 0x01 && level & rdbgl) {                         \
-		   printf("\t%d:" format " in %s:%d\n",			\
+		   printf("\t%d: " format " in %s:%d\n",		\
 			  mypid, __VA_ARGS__, __func__, __LINE__);	\
 		   fflush(stdout);					\
 	   } else if (rdbgf & 0x02 && level & rdbgl) {                  \
-		   fprintf(stderr, "%d:" format " in %s:%d\n",		\
+		   fprintf(stderr, "%d: " format " in %s:%d\n",		\
 			   mypid, __VA_ARGS__, __func__, __LINE__);	\
 		   fflush(stderr);					\
 	   }								\
@@ -66,13 +52,12 @@ static inline void get_doption() {
 #define R_DBG1(level, format, ...)                                      \
     do {								\
 	    char buf1[128];						\
-	    get_doption();						\
             if (rdbgf & 0x01 && level & rdbgl) {                        \
-		    printf("\t%d:" format " in %s:%d\n",		\
+		    printf("\t%d: " format " in %s:%d\n",		\
 			   mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stdout);					\
             } else if (rdbgf & 0x02 && level & rdbgl) {                 \
-		    fprintf(stderr, "%d:" format " in %s:%d\n",		\
+		    fprintf(stderr, "%d: " format " in %s:%d\n",		\
 			    mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stderr);					\
 	    }								\
@@ -81,7 +66,6 @@ static inline void get_doption() {
 #define R_DBG2(level, format, ...)                                      \
    do {									\
 	   char buf1[128], buf2[128];					\
-	   get_doption();						\
            if (rdbgf & 0x01 && level & rdbgl) {                         \
 		   printf("\t%d:" format " in %s:%d\n",			\
 			  mypid, __VA_ARGS__, __func__, __LINE__);	\

@@ -8,7 +8,8 @@
 #include <assert.h>	    /* for assert() */
 
 
-static int tofu_mr_close(struct fid *fid)
+static int
+tofu_mr_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
     struct tofu_mr *mr__priv;
@@ -45,7 +46,8 @@ static struct fi_ops tofu_mr__fi_ops = {
  *  Unknown: what are puposes of a descriptor obtained by fi_mr_desc() ?
  *  2019/04/29
  */
-static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
+static int
+tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
                        uint64_t access, uint64_t offset,
                        uint64_t requested_key,  uint64_t flags,
                        struct fid_mr **fid_mr_, void *context)
@@ -77,6 +79,10 @@ static int tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
      */
     uc = utofu_reg_mem((utofu_vcq_hdl_t )dom_priv->dom_vcqh[0],
                        (void*) buf, len, utofu_flg, &stadd);
+    if (uc != UTOFU_SUCCESS) {
+        fprintf(stderr, "%s: utofu_reg_mem error uc(%d)\n", __func__, uc);
+        fc = -FI_ENOMEM; goto bad;
+    }
 #if 0
     for (i = 0; i < dom_priv->dom_nvcq; i++) {
         unsigned int    stag = 20; /* temporal hack */

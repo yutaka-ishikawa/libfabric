@@ -1,16 +1,101 @@
+/*
+ * Connection Manager
+ */
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "tofu_macro.h"
 
 #include <assert.h>	    /* for assert() */
 #include <string.h>	    /* for strlen() */
+
+/*
+ * gname --> getname YI
+ *      For VNI support, the following function is for utof on tlib.
+ *      For PostK machine, we must rewrite this one.
+ */
+static int
+tofu_imp_ulib_gnam(void *ceps[CONF_TOFU_CTXC],  size_t offs,
+                   char nam_str[128])
+{
+    int fc = FI_SUCCESS;
+    int ix, nx = CONF_TOFU_CTXC;
+    /* struct ulib_sep_name name[1]; */
+    uint8_t xyzabc[8];
+    uint16_t /* utofu_cmp_id_t */ cid[1];
+    uint16_t /* utofu_tni_id_t */ tnis[ CONF_TOFU_CTXC ];
+    uint16_t /* utofu_cq_id_t */  tcqs[ CONF_TOFU_CTXC ];
+
+    xyzabc[0] = 255;
+
+    for (ix = 0; ix < nx; ix++) {
+        struct tofu_cep        *icep = (struct tofu_cep *) ceps[ix];
+	utofu_vcq_id_t vcqi = -1UL;
+	int uc;
+
+	if (icep == 0) {
+	    tnis[ix] = 255; tcqs[ix] = 255; continue;
+	}
+	if (icep->vcqh == 0) {
+	    fc = -FI_ENODEV; goto bad;
+	}
+	uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
+	if (uc != UTOFU_SUCCESS) {
+	    tnis[ix] = 255; tcqs[ix] = 255; continue;
+	}
+	uc = utofu_query_vcq_info(vcqi, xyzabc, &tnis[ix], &tcqs[ix], cid);
+	if (uc != UTOFU_SUCCESS) {
+	    tnis[ix] = 255; tcqs[ix] = 255; continue;
+	}
+    }
+    if (xyzabc[0] == 255) {
+	fc = -FI_ENODEV; goto bad;
+    }
+    {
+	int wlen, nx2;
+	size_t cz = 128;
+	char *cp = nam_str;
+	char *del = "";
+        cid[0] &= 0x7;
+	wlen = snprintf(cp, cz, "t://%u.%u.%u.%u.%u.%u.%x/;q=",
+		xyzabc[0], xyzabc[1], xyzabc[2],
+                        xyzabc[3], xyzabc[4], xyzabc[5], cid[0]);
+	if ((wlen <= 0) || (wlen >= cz)) {
+	    fc = -FI_EPERM; goto bad;
+	}
+	cp += wlen;
+	cz -= wlen;
+
+	nx2 = -1;
+	for (ix = nx - 1; ix >= 0; ix--) {
+	    if (tnis[ix] != 255) { nx2 = ix + 1; break; }
+	}
+	assert(nx2 >= 0);
+	for (ix = 0; ix < nx2; ix++) {
+	    if (tnis[ix] == 255) {
+		wlen = snprintf(cp, cz, "%s", del);
+	    }
+	    else {
+		wlen = snprintf(cp, cz, "%s%u.%u", del, tnis[ix], tcqs[ix]);
+	    }
+	    if ((wlen <= 0) || (wlen >= cz)) {
+		fc = -FI_EPERM; goto bad;
+	    }
+	    del = ",";
+	    cp += wlen;
+	    cz -= wlen;
+	}
+    }
+bad:
+    return fc;
+}
 
 
 static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     {
 	struct tofu_sep *sep_priv;
 	size_t blen;
@@ -64,7 +149,6 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 		fc = tofu_imp_ulib_gnam(ceps, offs_ulib, nam);
                 //fprintf(stderr, "YI********* fc(%d)\n", fc);
 		if (fc != FI_SUCCESS) { goto bad; }
-
 		/*
 		 * man fi_cm(3)
 		 *   fi_getname
@@ -92,7 +176,7 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 	    break;
 	case FI_CLASS_EP:
             fprintf(stderr, "YI****** FI_CLASS_EP\n"); fflush(stderr);
-	    /* break; */
+	    fc = -FI_EINVAL; goto bad;
 	default:
             fprintf(stderr, "YI****** FI_CLASS_?? (0x%lx)\n", fid->fclass); fflush(stderr);
 	    fc = -FI_EINVAL; goto bad;
@@ -114,7 +198,7 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 	    fc = -FI_ETOOSMALL; goto bad;
 	}
 
-	FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "addr %p alen %ld\n",
+	FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "addr %p alen %ld\n",
 	    addr, blen);
     }
 bad:

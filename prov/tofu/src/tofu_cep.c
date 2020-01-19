@@ -5,10 +5,227 @@
 #include <assert.h>	    /* for assert() */
 #include "tofu_debug.h"
 #include "tofu_impl.h"
-/* The following ulib interface should be defined in some file 2019/04/18 */
-extern int  ulib_icep_ctrl_enab(void *ptr, size_t off);
-extern void ulib_ofif_icep_init(void *ptr, size_t off);
-extern int  ulib_icep_close(void *ptr, size_t off);
+#include "tofu_macro.h"
+
+static int tofu_cep_close(struct fid *fid);
+static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags);
+static struct fi_ops tofu_cep_fi_ops = {
+    .size	    = sizeof (struct fi_ops),
+    .close	    = tofu_cep_close,
+    .bind	    = tofu_cep_bind,
+    .control	    = tofu_cep_ctrl,
+    .ops_open	    = fi_no_ops_open,
+};
+
+static int tofu_cep_getopt(fid_t fid, int level, int optname,
+                           void *optval, size_t *optlen);
+static int tofu_cep_setopt(fid_t fid, int level,  int optname,
+                           const void *optval, size_t optlen);
+
+static struct fi_ops_ep tofu_cep_ops = {
+    .size           = sizeof (struct fi_ops_ep),
+    .cancel         = fi_no_cancel,
+    .getopt         = tofu_cep_getopt,
+    .setopt         = tofu_cep_setopt,
+    .tx_ctx         = fi_no_tx_ctx,
+    .rx_ctx         = fi_no_rx_ctx,
+    .rx_size_left   = fi_no_rx_size_left, /* deprecated */
+    .tx_size_left   = fi_no_tx_size_left, /* deprecated */
+};
+
+static inline int
+tofu_icep_init(int index, struct tofu_cep *cep_priv, struct tofu_sep *sep_priv,
+               void *context, void *attr, int class)
+{
+    int fc = FI_SUCCESS;
+    /* initialize internal members */
+    cep_priv->enabled = 0;
+    cep_priv->vcqh = 0;
+    cep_priv->index = 0;
+    /* initialize fabric members */
+    cep_priv->cep_fid.fid.fclass  = class;
+    cep_priv->cep_fid.fid.context = context;
+    cep_priv->cep_fid.fid.ops   = &tofu_cep_fi_ops;
+    cep_priv->cep_fid.ops	= &tofu_cep_ops;
+    cep_priv->cep_fid.cm	= &tofu_cep_ops_cm;
+    cep_priv->cep_fid.msg       = &tofu_cep_ops_msg;
+    cep_priv->cep_fid.rma   	= &tofu_cep_ops_rma;
+    cep_priv->cep_fid.tagged	= &tofu_cep_ops_tag;
+    cep_priv->cep_fid.atomic	= &tofu_cep_ops_atomic;
+    cep_priv->cep_sep = sep_priv;
+    ofi_atomic_initialize32(&cep_priv->cep_ref, 0);
+    cep_priv->cep_idx = index;
+
+    fastlock_init(&cep_priv->cep_lck);
+    cep_priv->cep_xop_flg = (attr == 0)? 0UL :
+        ((class == FI_CLASS_TX_CTX) ? ((struct fi_tx_attr*)attr)->op_flags:
+         ((struct fi_rx_attr*)attr)->op_flags);
+    dlist_init( &cep_priv->cep_ent_sep );
+    dlist_init( &cep_priv->cep_ent_cq );
+    dlist_init( &cep_priv->cep_ent_ctr );
+    /* check if CEP of corresponding index has been registered */
+    {
+	struct tofu_cep *cep_dup;
+	fastlock_acquire(&sep_priv->sep_lck);
+	cep_dup = tofu_sep_lup_cep_byi_unsafe(sep_priv,
+                                              class, index);
+	fastlock_release(&sep_priv->sep_lck);
+	if (cep_dup != 0) {
+            /* index's CEP has been already registered */
+	    fc = -FI_EBUSY;
+	}
+    }
+    return fc;
+}
+
+static inline void
+tofu_cq_ins_cep_tx(struct tofu_cq *cq_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
+    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+    assert( dlist_empty(&cep_priv->cep_ent_cq) != 0 );
+
+    fastlock_acquire(&cq_priv->cq_lck);
+    {
+	dlist_insert_tail(&cep_priv->cep_ent_cq, &cq_priv->cq_htx );
+	ofi_atomic_inc32(&cq_priv->cq_ref );
+    }
+    fastlock_release(&cq_priv->cq_lck);
+    return ;
+}
+
+static inline void
+tofu_cq_rem_cep_tx(struct tofu_cq *cq_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO(&tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
+    assert( dlist_empty(&cep_priv->cep_ent_cq) == 0 );
+
+    fastlock_acquire(&cq_priv->cq_lck);
+    {
+	dlist_remove(&cep_priv->cep_ent_cq);
+	ofi_atomic_dec32(&cq_priv->cq_ref);
+    }
+    fastlock_release(&cq_priv->cq_lck);
+    return ;
+}
+
+static inline void
+tofu_cq_ins_cep_rx(struct tofu_cq *cq_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO(&tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
+    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
+    assert( dlist_empty(&cep_priv->cep_ent_cq) != 0 );
+
+    fastlock_acquire(&cq_priv->cq_lck);
+    {
+	dlist_insert_tail(&cep_priv->cep_ent_cq, &cq_priv->cq_hrx);
+	ofi_atomic_inc32(&cq_priv->cq_ref);
+    }
+    fastlock_release(&cq_priv->cq_lck);
+    return;
+}
+
+static inline void
+tofu_cq_rem_cep_rx(struct tofu_cq *cq_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO(&tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
+    assert( dlist_empty(&cep_priv->cep_ent_cq) == 0 );
+
+    fastlock_acquire(&cq_priv->cq_lck);
+    {
+	dlist_remove(&cep_priv->cep_ent_cq);
+	ofi_atomic_dec32(&cq_priv->cq_ref);
+    }
+    fastlock_release(&cq_priv->cq_lck);
+    return;
+}
+
+static inline void
+tofu_sep_ins_cep_tx(struct tofu_sep *sep_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+    assert( dlist_empty(&cep_priv->cep_ent_sep) != 0 );
+
+    fastlock_acquire(&sep_priv->sep_lck);
+    {
+	dlist_insert_tail( &cep_priv->cep_ent_sep, &sep_priv->sep_htx );
+	ofi_atomic_inc32( &sep_priv->sep_ref );
+    }
+    fastlock_release( &sep_priv->sep_lck );
+    return ;
+}
+
+static inline void
+tofu_sep_rem_cep_tx(struct tofu_sep *sep_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    assert( dlist_empty(&cep_priv->cep_ent_sep) == 0 );
+
+    fastlock_acquire(&sep_priv->sep_lck);
+    {
+	dlist_remove(&cep_priv->cep_ent_sep);
+	ofi_atomic_dec32(&sep_priv->sep_ref);
+    }
+    fastlock_release(&sep_priv->sep_lck);
+    return ;
+}
+
+static inline void
+tofu_sep_ins_cep_rx(struct tofu_sep *sep_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
+    assert( dlist_empty(&cep_priv->cep_ent_sep) != 0 );
+
+    fastlock_acquire(&sep_priv->sep_lck);
+    {
+	dlist_insert_tail(&cep_priv->cep_ent_sep, &sep_priv->sep_hrx);
+	ofi_atomic_inc32(&sep_priv->sep_ref);
+    }
+    fastlock_release(&sep_priv->sep_lck);
+    return ;
+}
+
+static inline void
+tofu_sep_rem_cep_rx(struct tofu_sep *sep_priv, struct tofu_cep *cep_priv)
+{
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    assert( dlist_empty(&cep_priv->cep_ent_sep) == 0 );
+
+    fastlock_acquire(&sep_priv->sep_lck);
+    {
+	dlist_remove(&cep_priv->cep_ent_sep);
+	ofi_atomic_dec32(&sep_priv->sep_ref);
+    }
+    fastlock_release(&sep_priv->sep_lck);
+    return;
+}
+
+static int
+tofu_icep_close(struct tofu_cep *cep)
+{
+    int uc = UTOFU_SUCCESS;
+
+    if ((cep == 0) || (cep->cep_sep == 0)) {
+        fprintf(stderr, "YI*** icep(%p) cep->cep_sep(%p)\n",
+                cep, cep->cep_sep); fflush(stderr);
+	uc = UTOFU_ERR_INVALID_ARG; goto bad;
+    }
+    if (cep->enabled != 0) {
+	assert(cep->vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
+	uc = utofu_free_vcq(cep->vcqh);
+	if (uc != UTOFU_SUCCESS) { goto bad; }
+	cep->vcqh = 0; /* XXX */
+	cep->enabled = 0;
+    }
+    /* unexpected entries */
+    /* expected entries */
+    /* transmit entries */
+    /* desc_cash */
+bad:
+    return uc;
+}
 
 /*
  * fi_ep_close
@@ -18,28 +235,23 @@ static int tofu_cep_close(struct fid *fid)
     int fc = FI_SUCCESS;
     struct tofu_cep *cep_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
     cep_priv = container_of(fid, struct tofu_cep, cep_fid.fid);
 
-#ifndef	NOTDEF
-    if (ofi_atomic_get32( &cep_priv->cep_ref ) != 0) {
+    if (ofi_atomic_get32(&cep_priv->cep_ref) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
-#endif	/* NOTDEF */
-    if (cep_priv->cep_send_cq != 0) {
+    if (cep_priv->cep_send_cq != 0) { /* remove ceq_send_cq */
 	tofu_cq_rem_cep_tx(cep_priv->cep_send_cq, cep_priv);
     }
-    if (cep_priv->cep_recv_cq != 0) {
+    if (cep_priv->cep_recv_cq != 0) {/* remove ceq_recv_cq */
 	tofu_cq_rem_cep_rx(cep_priv->cep_recv_cq, cep_priv);
     }
-    {
-	const size_t offs_ulib = sizeof (cep_priv[0]);
-	ulib_icep_close(cep_priv, offs_ulib);
-    }
+    tofu_icep_close(cep_priv);
     if ( ! dlist_empty( &cep_priv->cep_ent_sep ) ) {
 	if (cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX) {
-	    tofu_sep_rem_cep_tx( cep_priv->cep_sep, cep_priv );
+	    tofu_sep_rem_cep_tx(cep_priv->cep_sep, cep_priv);
 	}
 	else {
 	    tofu_sep_rem_cep_rx( cep_priv->cep_sep, cep_priv );
@@ -51,12 +263,10 @@ static int tofu_cep_close(struct fid *fid)
 	    cep_priv->cep_trx->cep_trx = 0;
 	}
     }
-#ifdef	NOTDEF
-    if (ofi_atomic_get32( &cep_priv->cep_ref ) != 0) {
+    if (ofi_atomic_get32(&cep_priv->cep_ref) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
-#endif	/* NOTDEF */
-    fastlock_destroy( &cep_priv->cep_lck );
+    fastlock_destroy(&cep_priv->cep_lck);
 
     free(cep_priv);
 
@@ -85,7 +295,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
     int fc = FI_SUCCESS;
     struct tofu_cep *cep_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s flags(%lx)\n", __FILE__, flags);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s flags(%lx)\n", __FILE__, flags);
     assert(fid != 0);
     cep_priv = container_of(fid, struct tofu_cep, cep_fid.fid);
 
@@ -103,17 +313,17 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 
     assert(bfid != 0);
     switch (bfid->fclass) {
-	struct tofu_cq *cq__priv;
+	struct tofu_cq *cq_priv;
 	struct tofu_cntr *ctr_priv;
     case FI_CLASS_CQ:
-	cq__priv = container_of(bfid, struct tofu_cq, cq__fid.fid);
-	if (cep_priv->cep_sep->sep_dom != cq__priv->cq__dom) {
+	cq_priv = container_of(bfid, struct tofu_cq, cq_fid.fid);
+	if (cep_priv->cep_sep->sep_dom != cq_priv->cq_dom) {
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
-            //printf("YI******bind: TX cq__priv(%p) flags(%lx)\n", cq__priv, flags);
-            R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) TX_CTX(%p)", cq__priv, cep_priv);
+            //printf("YI******bind: TX cq_priv(%p) flags(%lx)\n", cq_priv, flags);
+            R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) TX_CTX(%p)", cq_priv, cep_priv);
 	    if (flags & FI_SEND) {
 		/*
 		 * man fi_endpoint(3)
@@ -122,24 +332,24 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		 *   For example, an EP may not bind to two counters both
 		 *   using FI_WRITE.
 		 */
-                cq__priv->cq_ssel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
+                cq_priv->cq_ssel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
 		if (cep_priv->cep_send_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
 		}
-		cep_priv->cep_send_cq = cq__priv;
-		tofu_cq_ins_cep_tx(cq__priv, cep_priv);
+		cep_priv->cep_send_cq = cq_priv;
+		tofu_cq_ins_cep_tx(cq_priv, cep_priv);
 	    }
 	    break;
 	case FI_CLASS_RX_CTX:
-            //printf("YI******bind: RX cq__priv(%p) flags(%lx)\n", cq__priv, flags);
-            R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) RX_CTX(%p)", cq__priv, cep_priv);
+            //printf("YI******bind: RX cq_priv(%p) flags(%lx)\n", cq_priv, flags);
+            R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) RX_CTX(%p)", cq_priv, cep_priv);
 	    if (flags & FI_RECV) {
 		if (cep_priv->cep_recv_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
 		}
-		cep_priv->cep_recv_cq = cq__priv;
-		tofu_cq_ins_cep_rx(cq__priv, cep_priv);
-                cq__priv->cq_rsel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
+		cep_priv->cep_recv_cq = cq_priv;
+		tofu_cq_ins_cep_rx(cq_priv, cep_priv);
+                cq_priv->cq_rsel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
 	    }
 	    break;
 	default:
@@ -148,7 +358,7 @@ static int tofu_cep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
         break;
     case FI_CLASS_CNTR:
 	ctr_priv = container_of(bfid, struct tofu_cntr, ctr_fid.fid);
-        //printf("YI*****bind: CNTR cq__priv(%p) flags(%lx)\n", ctr_priv, flags);
+        //printf("YI*****bind: CNTR cq_priv(%p) flags(%lx)\n", ctr_priv, flags);
 	if (cep_priv->cep_sep->sep_dom != ctr_priv->ctr_dom) {
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
@@ -195,13 +405,69 @@ bad:
     return fc;
 }
 
-/* static */ int
+/*
+ * icep_ctrl_enab() is called from tofu_cep_ctrl() that is
+ * implementation of FI_ENABLE on fi_control
+ */
+static int
+icep_ctrl_enab(int class, struct tofu_cep *cep)
+{
+    int uc = UTOFU_SUCCESS;
+    struct tofu_sep *sep = cep->cep_sep;
+
+    if (cep->enabled != 0) {
+	uc = UTOFU_ERR_BUSY; goto bad;
+    }
+
+    /* unexpected entries */
+    /* expected entries */
+    /* transmit entries */
+    /* desc_cash */
+    /* icep_ctrl_enab */
+    if (cep->vcqh == 0) {
+	utofu_vcq_hdl_t vcqh = 0;
+	utofu_tni_id_t tni_id;
+        struct tofu_domain  *dom = cep->cep_sep->sep_dom;
+	const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
+	const unsigned long flags =	0
+				/* | UTOFU_VCQ_FLAG_THREAD_SAFE */
+				/* | UTOFU_VCQ_FLAG_EXCLUSIVE */
+				/* | UTOFU_VCQ_FLAG_SESSION_MODE */
+				;
+	if ((cep->index < 0) || (cep->index >= sep->ntni)) {
+	    uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
+	}
+	tni_id = sep->tnis[cep->index];
+	uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
+	if (uc != UTOFU_SUCCESS) { goto bad; }
+	dbg_show_utof_vcqh(vcqh);
+	assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
+	cep->vcqh = vcqh;
+        /*
+         * vcqh is copied to domain
+         *   It seems that vcqh should be created at domain creation time,
+         *   but vcqh associated with TNI is only created at this time.
+         */
+        dom->dom_vcqh[dom->dom_nvcq] = cep->vcqh;
+        dom->dom_nvcq++;
+    }
+    //icep->nrma = 0;
+    cep->enabled = 1;
+
+bad:
+    return uc;
+}
+
+/*
+ * fi_control FI_ENABLE
+ */
+int
 tofu_cep_ctrl(struct fid *fid, int command, void *arg)
 {
     int fc = FI_SUCCESS;
     struct tofu_cep *cep_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
     cep_priv = container_of(fid, struct tofu_cep, cep_fid.fid);
 
@@ -213,7 +479,7 @@ tofu_cep_ctrl(struct fid *fid, int command, void *arg)
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-	    uc = ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
+	    uc = icep_ctrl_enab(FI_CLASS_TX_CTX, cep_priv);
 	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
 	    cep_priv->cep_enb = 1;
 	    break;
@@ -221,7 +487,7 @@ tofu_cep_ctrl(struct fid *fid, int command, void *arg)
 	    if (cep_priv->cep_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-	    uc = ulib_icep_ctrl_enab(cep_priv, sizeof (cep_priv[0]));
+	    uc = icep_ctrl_enab(FI_CLASS_RX_CTX, cep_priv);
 	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
 	    cep_priv->cep_enb = 1;
 	    break;
@@ -237,41 +503,24 @@ bad:
     return fc;
 }
 
-static struct fi_ops tofu_cep_fi_ops = {
-    .size	    = sizeof (struct fi_ops),
-    .close	    = tofu_cep_close,
-    .bind	    = tofu_cep_bind,
-    .control	    = tofu_cep_ctrl,
-    .ops_open	    = fi_no_ops_open,
-};
-
-
-static int tofu_cep_getopt(
-    fid_t fid,
-    int level,
-    int optname,
-    void *optval,
-    size_t *optlen
-)
+static int
+tofu_cep_getopt(fid_t fid, int level, int optname,
+                           void *optval, size_t *optlen)
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     fc = -FI_ENOSYS;
     return fc;
 }
 
-static int tofu_cep_setopt(
-    fid_t fid,
-    int level,
-    int optname,
-    const void *optval,
-    size_t optlen
-)
+static int
+tofu_cep_setopt(fid_t fid, int level,  int optname,
+                const void *optval, size_t optlen)
 {
     int fc = FI_SUCCESS;
     struct tofu_cep *cep_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
     cep_priv = container_of(fid, struct tofu_cep, cep_fid.fid);
     if (cep_priv == 0) { }
@@ -301,73 +550,18 @@ bad:
     return fc;
 }
 
-static struct fi_ops_ep tofu_cep_ops = {
-    .size           = sizeof (struct fi_ops_ep),
-    .cancel         = fi_no_cancel,
-#ifdef	notdef
-    .getopt         = fi_no_getopt,
-    .setopt         = fi_no_setopt,
-#else	/* notdef */
-    .getopt         = tofu_cep_getopt,
-    .setopt         = tofu_cep_setopt,
-#endif	/* notdef */
-    .tx_ctx         = fi_no_tx_ctx,
-    .rx_ctx         = fi_no_rx_ctx,
-    .rx_size_left   = fi_no_rx_size_left, /* deprecated */
-    .tx_size_left   = fi_no_tx_size_left, /* deprecated */
-};
-#ifdef	NOTDEF_OPS_RMA
-
-/* XXX to be moved to rma.c */
-static struct fi_ops_rma tofu_cep_ops_rma = {
-    .size	    = sizeof (struct fi_ops_rma),
-    .read	    = fi_no_rma_read,
-    .readv	    = fi_no_rma_readv,
-    .readmsg	    = fi_no_rma_readmsg,
-    .write	    = fi_no_rma_write,
-    .writev	    = fi_no_rma_writev,
-    .writemsg	    = fi_no_rma_writemsg,
-    .inject	    = fi_no_rma_inject,
-    .writedata	    = fi_no_rma_writedata,
-    .injectdata	    = fi_no_rma_injectdata,
-};
-#endif	/* NOTDEF_OPS_RMA */
-#ifdef	NOTDEF_OPS_ATM
-
-/* XXX to be moved to atm.c */
-static struct fi_ops_atomic tofu_cep_ops_atomic = {
-    .size	    = sizeof (struct fi_ops_atomic),
-    .write	    = fi_no_atomic_write,
-    .writev	    = fi_no_atomic_writev,
-    .writemsg	    = fi_no_atomic_writemsg,
-    .inject	    = fi_no_atomic_inject,
-    .readwrite	    = fi_no_atomic_readwrite,
-    .readwritev	    = fi_no_atomic_readwritev,
-    .readwritemsg   = fi_no_atomic_readwritemsg,
-    .compwrite	    = fi_no_atomic_compwrite,
-    .compwritev	    = fi_no_atomic_compwritev,
-    .compwritemsg   = fi_no_atomic_compwritemsg,
-    .writevalid	    = fi_no_atomic_writevalid,
-    .readwritevalid = fi_no_atomic_readwritevalid,
-    .compwritevalid = fi_no_atomic_compwritevalid,
-};
-#endif	/* NOTDEF_OPS_ATM */
 
 /*
  * Body of fi_tx_context in Tofu
  */
 int
-tofu_cep_tx_context(struct fid_ep *fid_sep,
-                    int index,
+tofu_cep_tx_context(struct fid_ep *fid_sep,  int index,
                     struct fi_tx_attr *attr,
-                    struct fid_ep **fid_cep_tx,
-                    void *context)
+                    struct fid_ep **fid_cep_tx,  void *context)
 {
     int fc = FI_SUCCESS;
     struct tofu_sep *sep_priv;
     struct tofu_cep *cep_priv = 0;
-    size_t msiz;
-    size_t offs_ulib;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid_sep != 0);
@@ -375,7 +569,7 @@ tofu_cep_tx_context(struct fid_ep *fid_sep,
 	fc = -FI_EINVAL; goto bad;
     }
     sep_priv = container_of(fid_sep, struct tofu_sep, sep_fid);
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
         sep_priv->sep_dom->dom_fab->fab_fid.api_version);
 
     if (attr != 0) {
@@ -385,75 +579,48 @@ tofu_cep_tx_context(struct fid_ep *fid_sep,
 	fc = tofu_chck_cep_tx_attr(prov_attr, attr, user_info_mode);
 	if (fc != 0) { goto bad; }
     }
-    msiz = sizeof (cep_priv[0]);
-    offs_ulib = msiz;  msiz += tofu_imp_ulib_size();
-    cep_priv = calloc(1, msiz);
+    cep_priv = calloc(1, sizeof(struct tofu_cep));
     if (cep_priv == 0) {
         fc = -FI_ENOMEM; goto bad;
     }
-    ulib_ofif_icep_init(cep_priv, offs_ulib);
-
-    /* initialize cep_priv */
-    cep_priv->cep_fid.fid.fclass  = FI_CLASS_TX_CTX;
-    cep_priv->cep_fid.fid.context = context;
-    cep_priv->cep_fid.fid.ops   = &tofu_cep_fi_ops;
-    cep_priv->cep_fid.ops	= &tofu_cep_ops;
-    cep_priv->cep_fid.cm	= &tofu_cep_ops_cm;
-    cep_priv->cep_fid.msg       = &tofu_cep_ops_msg;
-    cep_priv->cep_fid.rma   	= &tofu_cep_ops_rma;
-    cep_priv->cep_fid.tagged	= &tofu_cep_ops_tag;
-    cep_priv->cep_fid.atomic	= &tofu_cep_ops_atomic;
-    cep_priv->cep_sep = sep_priv;
-    ofi_atomic_initialize32( &cep_priv->cep_ref, 0 );
-    cep_priv->cep_idx = index;
-    fastlock_init( &cep_priv->cep_lck );
-    cep_priv->cep_xop_flg = (attr == 0)? 0UL: attr->op_flags;
-    dlist_init( &cep_priv->cep_ent_sep );
-    dlist_init( &cep_priv->cep_ent_cq );
-    dlist_init( &cep_priv->cep_ent_ctr );
-    /* check if CEP of corresponding index has been registered */
-    {
-	struct tofu_cep *cep_dup;
-	fastlock_acquire(&sep_priv->sep_lck);
-	cep_dup = tofu_sep_lup_cep_byi_unsafe(sep_priv,
-                                              FI_CLASS_TX_CTX, index);
-	fastlock_release(&sep_priv->sep_lck);
-	if (cep_dup != 0) {
-            /* index's CEP has been already registered */
-	    fc = -FI_EBUSY; goto bad;
-	}
+    //ulib_ofif_icep_init(cep_priv, offs_ulib);
+    /* initialize cep_priv and register it into SEP */
+    if ((fc = tofu_icep_init(index, cep_priv, sep_priv,
+                             context, attr, FI_CLASS_TX_CTX)) != FI_SUCCESS) {
+        goto bad;
     }
-    /* register this CEP in SEP */
     tofu_sep_ins_cep_tx(cep_priv->cep_sep, cep_priv);
 
     /* return fid_cep */
     fid_cep_tx[0] = &cep_priv->cep_fid;
-    cep_priv = 0; /* ZZZ */
-
+    goto ok;
 bad:
     if (cep_priv != 0) {
 	tofu_cep_close( &cep_priv->cep_fid.fid );
     }
+ok:
     return fc;
 }
 
-int tofu_cep_rx_context(struct fid_ep *fid_sep,
-                        int index,
-                        struct fi_rx_attr *attr,
-                        struct fid_ep **fid_cep_rx,
-                        void *context)
+/*
+ * Body of fi_rx_context in Tofu
+ */
+int
+tofu_cep_rx_context(struct fid_ep *fid_sep, int index,
+                    struct fi_rx_attr *attr,
+                    struct fid_ep **fid_cep_rx, void *context)
 {
     int fc = FI_SUCCESS;
     struct tofu_sep *sep_priv;
     struct tofu_cep *cep_priv = 0;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid_sep != 0);
     if (fid_sep->fid.fclass != FI_CLASS_SEP) {
 	fc = -FI_EINVAL; goto bad;
     }
     sep_priv = container_of(fid_sep, struct tofu_sep, sep_fid );
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
         sep_priv->sep_dom->dom_fab->fab_fid.api_version);
 
     if (attr != 0) {
@@ -463,54 +630,14 @@ int tofu_cep_rx_context(struct fid_ep *fid_sep,
 	fc = tofu_chck_cep_rx_attr( prov_info, attr, user_info_mode);
 	if (fc != 0) { goto bad; }
     }
-
-    {
-	size_t msiz;
-	size_t offs_ulib;
-
-	msiz = sizeof (cep_priv[0]);
-	offs_ulib = msiz;
-	msiz += tofu_imp_ulib_size();
-	cep_priv = calloc(1, msiz);
-	if (cep_priv == 0) {
-	    fc = -FI_ENOMEM; goto bad;
-	}
-	ulib_ofif_icep_init(cep_priv, offs_ulib);
+    cep_priv = calloc(1, sizeof(struct tofu_cep));
+    if (cep_priv == 0) {
+        fc = -FI_ENOMEM; goto bad;
     }
-
-    /* initialize cep_priv */
-    {
-	cep_priv->cep_sep = sep_priv;
-	cep_priv->cep_idx = index;
-	ofi_atomic_initialize32( &cep_priv->cep_ref, 0 );
-	fastlock_init( &cep_priv->cep_lck );
-
-	cep_priv->cep_fid.fid.fclass	= FI_CLASS_RX_CTX;
-	cep_priv->cep_fid.fid.context	= context;
-	cep_priv->cep_fid.fid.ops	= &tofu_cep_fi_ops;
-	cep_priv->cep_fid.ops		= &tofu_cep_ops;
-	cep_priv->cep_fid.cm		= &tofu_cep_ops_cm;
-	cep_priv->cep_fid.msg           = &tofu_cep_ops_msg;
-	cep_priv->cep_fid.rma   	= &tofu_cep_ops_rma;
-	cep_priv->cep_fid.tagged	= &tofu_cep_ops_tag;
-	cep_priv->cep_fid.atomic	= &tofu_cep_ops_atomic;
-
-	/* dlist_init( &cep_priv->cep_ent ); */
-	dlist_init( &cep_priv->cep_ent_sep );
-	dlist_init( &cep_priv->cep_ent_cq );
-	dlist_init( &cep_priv->cep_ent_ctr );
-	cep_priv->cep_xop_flg = (attr == 0)? 0UL: attr->op_flags;
-    }
-    /* check index */
-    {
-	struct tofu_cep *cep_dup;
-	fastlock_acquire( &sep_priv->sep_lck );
-	cep_dup = tofu_sep_lup_cep_byi_unsafe(sep_priv,
-		    FI_CLASS_RX_CTX, index);
-	fastlock_release( &sep_priv->sep_lck );
-	if (cep_dup != 0) {
-	    fc = -FI_EBUSY; goto bad;
-	}
+    /* initialize cep_priv and register it into SEP */
+    if ((fc = tofu_icep_init(index, cep_priv, sep_priv,
+                             context, attr, FI_CLASS_RX_CTX)) != FI_SUCCESS) {
+        goto bad;
     }
     tofu_sep_ins_cep_rx( cep_priv->cep_sep, cep_priv );
 

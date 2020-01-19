@@ -2,50 +2,46 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
-#include "ulib_conv.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 #include <string.h>	    /* for memset() */
 
+extern int      tofu_impl_uri2name(const void *vuri, size_t index,  void *vnam);
 
+/*
+ * man fi_av(3)
+ *   fi_close
+ *     When closing the address vector, there must be no opened
+ *     endpoints associated with the AV.
+ *     If resources are still associated with the AV when attempting to
+ *     close, the call will return -FI_EBUSY.
+ */
 static int tofu_av_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
-    struct tofu_av *av__priv;
+    struct tofu_av *av_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     assert(fid != 0);
-    av__priv = container_of(fid, struct tofu_av, av__fid.fid);
-
-    /*
-     * man fi_av(3)
-     *   fi_close
-     *     When closing the address vector, there must be no opened
-     *     endpoints associated with the AV.
-     *     If resources are still associated with the AV when attempting to
-     *     close, the call will return -FI_EBUSY.
-     */
-    if (ofi_atomic_get32( &av__priv->av__ref ) != 0) {
+    av_priv = container_of(fid, struct tofu_av, av_fid.fid);
+    if (ofi_atomic_get32( &av_priv->av_ref ) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
     /* tab */
-    {
-	if (av__priv->av__tab.tab != 0) {
-	    free(av__priv->av__tab.tab); av__priv->av__tab.tab = 0;
-	}
-	av__priv->av__tab.nct = 0;
-	av__priv->av__tab.mct = 0;
+    if (av_priv->av_tab.tab != 0) {
+        free(av_priv->av_tab.tab); av_priv->av_tab.tab = 0;
     }
-    fastlock_destroy( &av__priv->av__lck );
-
-    free(av__priv);
-
+    av_priv->av_tab.nct = 0;
+    av_priv->av_tab.mct = 0;
+    /**/
+    fastlock_destroy(&av_priv->av_lck);
+    free(av_priv);
 bad:
     return fc;
 }
 
-static struct fi_ops tofu_av__fi_ops = {
+static struct fi_ops tofu_av_fi_ops = {
     .size	    = sizeof (struct fi_ops),
     .close	    = tofu_av_close,
     .bind	    = fi_no_bind,
@@ -63,22 +59,22 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
                fi_addr_t *fi_addr,  uint64_t flags, void *context)
 {
     int            fc = FI_SUCCESS;
-    struct tofu_av *av__priv;
+    struct tofu_av *av_priv;
     size_t         ic;
     uint32_t       afmt;
 
-    FI_INFO( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
-    FI_INFO( &tofu_prov, FI_LOG_AV, "count %ld flags %"PRIx64"\n",
+    FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "count %ld flags %"PRIx64"\n",
 	count, flags);
 
     assert(fid_av_ != 0);
-    av__priv = container_of(fid_av_, struct tofu_av, av__fid);
+    av_priv = container_of(fid_av_, struct tofu_av, av_fid);
 
-    afmt = av__priv->av__dom->dom_fmt;
+    afmt = av_priv->av_dom->dom_fmt;
 
-    /* fastlock_acquire( &av__priv->av__lck ); */
-    fc = tofu_av_resize(&av__priv->av__tab, count);
-    /* fastlock_release( &av__priv->av__lck ); */
+    /* fastlock_acquire( &av_priv->av_lck ); */
+    fc = tofu_av_resize(&av_priv->av_tab, count);
+    /* fastlock_release( &av_priv->av_lck ); */
     if (fc != FI_SUCCESS) { goto bad; }
 
     for (ic = 0; ic < count; ic++) {
@@ -86,11 +82,11 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
         struct ulib_sep_name    vnam;
 
 	/* index */
-	/* fastlock_acquire( &av__priv->av__lck ); */
-	index = av__priv->av__tab.nct++;
-	/* fastlock_release( &av__priv->av__lck ); */
+	/* fastlock_acquire( &av_priv->av_lck ); */
+	index = av_priv->av_tab.nct++;
+	/* fastlock_release( &av_priv->av_lck ); */
 	if (afmt == FI_ADDR_STR) {
-            fc = tofu_imp_str_uri_to_name(addr, ic, (void*) &vnam);
+            fc = tofu_impl_uri2name(addr, ic, (void*) &vnam);
 	} else {
             FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
 	    fc = -1; goto bad;
@@ -108,25 +104,9 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
 	vnam.vpid = index;
 	{/* copy name */
 	    void *src = (void*) &vnam;
-	    void *dst = (char *)av__priv->av__tab.tab + (index * 16); /* XXX */
+	    void *dst = (char *)av_priv->av_tab.tab + (index * 16); /* XXX */
 	    memcpy(dst, src, sizeof(struct ulib_sep_name));
 	}
-#if 0
-        {/* debug print */
-            /*
-             * fi_addr : uint64_t
-             * av__tab.tab[fi_addr] : struct ulib_sep_name
-             */
-            uint64_t ui64;
-            char buf[128];
-            /* Ask Hatanak-san,
-             * how we can understand the tofu_av_lup_tank function
-             */
-            tofu_av_lup_tank(av__priv, fi_addr[index], &ui64);
-            fprintf(stderr, "\tYIYI: fi_addr[%ld]: tofa(%lx)=%s\n",
-              index, ui64, tank2string(buf, 128, ui64));
-        }
-#endif
     }
 
 bad:
@@ -141,7 +121,7 @@ static int tofu_av_remove(
 )
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     return fc;
 }
 
@@ -153,7 +133,7 @@ static int tofu_av_lookup(
 )
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     /*
      * man fi_av(3)
      *   fi_av_lookup
@@ -171,7 +151,7 @@ static const char * tofu_av_straddr(
 )
 {
     size_t bsz = *len;
-    FI_INFO( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     /*
      * man fi_av(3)
      *   fi_av_straddr
@@ -194,38 +174,26 @@ static int tofu_av_resize(struct tofu_av_tab *at, size_t count)
     while (new_mct < (at->nct + count)) {
 	new_mct = (new_mct * 2);
     }
-if (0) {
-printf("\t%3ld : mct %6ld %c= %6ld\n", count,
-at->mct, (at->mct == new_mct)? '=': '!', new_mct);
-}
-
     if (new_mct == at->mct) {
 	goto bad; /* XXX - is not an error */
     }
-
     new_tab = realloc(at->tab, new_mct * 16);
     if (new_tab == 0) {
 	fc = -FI_ENOMEM; goto bad;
     }
-
     /* clear */
-    /* if (new_mct - at->mct) */ {
+    {
 	char *bp = (char *)new_tab + (at->mct * 16);
 	size_t bz = (new_mct - at->mct) * 16;
 	memset(bp, 0, bz);
     }
-if (0) {
-printf("nct %6ld mct %6ld %6ld tab %16p %c= %16p\n", at->nct, at->mct, new_mct,
-at->tab, (at->tab == new_tab)? '=': '!', new_tab);
-}
     at->mct = new_mct;
     at->tab = new_tab;
-
 bad:
     return fc;
 }
 
-static struct fi_ops_av tofu_av__ops = {
+static struct fi_ops_av tofu_av_ops = {
     .size	    = sizeof (struct fi_ops_av),
     .insert	    = tofu_av_insert,
     .insertsvc	    = fi_no_av_insertsvc,
@@ -244,9 +212,9 @@ int tofu_av_open(
 {
     int fc = FI_SUCCESS;
     struct tofu_domain *dom_priv;
-    struct tofu_av *av__priv = 0;
+    struct tofu_av *av_priv = 0;
 
-    FI_INFO( &tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     assert(fid_dom != 0);
     dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid );
 
@@ -261,37 +229,35 @@ int tofu_av_open(
 	if (fc != FI_SUCCESS) { goto bad; }
     }
 
-    av__priv = calloc(1, sizeof (av__priv[0]));
-    if (av__priv == 0) {
+    av_priv = calloc(1, sizeof (av_priv[0]));
+    if (av_priv == 0) {
 	fc = -FI_ENOMEM; goto bad;
     }
 
-    /* initialize av__priv */
+    /* initialize av_priv */
     {
-	av__priv->av__dom = dom_priv;
-	ofi_atomic_initialize32( &av__priv->av__ref, 0 );
-	fastlock_init( &av__priv->av__lck );
-
-	av__priv->av__fid.fid.fclass    = FI_CLASS_AV;
-	av__priv->av__fid.fid.context   = context;
-	av__priv->av__fid.fid.ops       = &tofu_av__fi_ops;
-	av__priv->av__fid.ops           = &tofu_av__ops;
-
-	/* dlist_init( &av__priv->av__ent ); */
+	av_priv->av_dom = dom_priv;
+	ofi_atomic_initialize32(&av_priv->av_ref, 0);
+	fastlock_init(&av_priv->av_lck);
+	av_priv->av_fid.fid.fclass    = FI_CLASS_AV;
+	av_priv->av_fid.fid.context   = context;
+	av_priv->av_fid.fid.ops       = &tofu_av_fi_ops;
+	av_priv->av_fid.ops           = &tofu_av_ops;
+	/* dlist_init( &av_priv->av_ent ); */
     }
-    /* av__priv */
+    /* av_priv */
     {
-	av__priv->av__rxb = (attr == 0)? 0: attr->rx_ctx_bits;
+	av_priv->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
     }
 
     /* return fid_dom */
-    fid_av_[0] = &av__priv->av__fid;
-    av__priv = 0; /* ZZZ */
+    fid_av_[0] = &av_priv->av_fid;
+    av_priv = 0; /* ZZZ */
 
 bad:
-    if (av__priv != 0) {
-	tofu_av_close( &av__priv->av__fid.fid );
+    if (av_priv != 0) {
+	tofu_av_close(&av_priv->av_fid.fid);
     }
-    FI_INFO( &tofu_prov, FI_LOG_AV, "fi_errno %d\n", fc);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "fi_errno %d\n", fc);
     return fc;
 }

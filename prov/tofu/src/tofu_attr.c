@@ -292,7 +292,8 @@ struct fi_info tofu_prov_info = {
 };
 
 
-int tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
+int
+tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
 {
     int fc = FI_SUCCESS;
     const struct fi_fabric_attr *prov_fa = &tofu_fabric_attr;
@@ -361,11 +362,9 @@ skip_checks:
     return fc;
 }
 
-int tofu_chck_prov_info(
-    uint32_t api_version,
-    const struct fi_info *hints,
-    struct fi_info **infos
-)
+int
+tofu_chck_prov_info(uint32_t api_version, const struct fi_info *hints,
+                    struct fi_info **infos)
 {
     int fc = 0;
     struct util_prov util_prov = { .prov = &tofu_prov, };
@@ -405,10 +404,9 @@ int tofu_chck_prov_info(
     return fc;
 }
 
-int tofu_chck_fab_attr(
-    const struct fi_fabric_attr *prov_attr,
-    const struct fi_fabric_attr *user_attr
-)
+int
+tofu_chck_fab_attr(const struct fi_fabric_attr *prov_attr,
+                   const struct fi_fabric_attr *user_attr)
 {
     int fc = 0;
     struct fi_provider *prov = &tofu_prov;
@@ -425,10 +423,9 @@ bad:
     return fc;
 }
 
-int tofu_chck_dom_attr(
-    const struct fi_domain_attr *prov_attr,
-    const struct fi_info *user_info
-)
+int
+tofu_chck_dom_attr(const struct fi_domain_attr *prov_attr,
+                   const struct fi_info *user_info)
 {
     int fc = 0;
     struct fi_provider *prov = &tofu_prov;
@@ -455,9 +452,8 @@ bad:
     return fc;
 }
 
-int tofu_chck_av_attr(
-    const struct fi_av_attr *user_attr
-)
+int
+tofu_chck_av_attr(const struct fi_av_attr *user_attr)
 {
     int fc = FI_SUCCESS;
 
@@ -481,9 +477,8 @@ bad:
     return fc;
 }
 
-int tofu_chck_cq_attr(
-    const struct fi_cq_attr *user_attr
-)
+int
+tofu_chck_cq_attr(const struct fi_cq_attr *user_attr)
 {
     int fc = 0;
     struct fi_provider *prov = &tofu_prov;
@@ -499,11 +494,10 @@ bad:
     return fc;
 }
 
-int tofu_chck_cep_tx_attr(
-    const struct fi_tx_attr *prov_attr,
-    const struct fi_tx_attr *user_attr,
-    uint64_t user_info_mode
-)
+int
+tofu_chck_cep_tx_attr(const struct fi_tx_attr *prov_attr,
+                      const struct fi_tx_attr *user_attr,
+                      uint64_t user_info_mode)
 {
     int fc = 0;
     struct fi_provider *prov = &tofu_prov;
@@ -523,11 +517,10 @@ bad:
     return fc;
 }
 
-int tofu_chck_cep_rx_attr(
-    const struct fi_info *prov_info,
-    const struct fi_rx_attr *user_attr,
-    uint64_t user_info_mode
-)
+int
+tofu_chck_cep_rx_attr(const struct fi_info *prov_info,
+                      const struct fi_rx_attr *user_attr,
+                      uint64_t user_info_mode)
 {
     int fc = 0;
     struct fi_provider *prov = &tofu_prov;
@@ -552,10 +545,9 @@ bad:
     return fc;
 }
 
-int tofu_chck_ep_attr(
-    const struct fi_info *prov_info,
-    const struct fi_info *user_info
-)
+int
+tofu_chck_ep_attr(const struct fi_info *prov_info,
+                  const struct fi_info *user_info)
 {
     int fc = 0;
     struct util_prov util_prov = { .prov = &tofu_prov, };

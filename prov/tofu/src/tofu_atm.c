@@ -1,13 +1,38 @@
 /* -*- Mode: C; c-basic-offset:4 ; indent-tabs-mode:nil ; -*- */
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
-#include "tofu_debug.h"
 #include "tofu_impl.h"
-#include "ulib_shea.h"
-#include "ulib_ofif.h"
-#include "ulib_notify.h"
-#include "tofu_atm.h"
 #include <assert.h>	    /* for assert() */
+
+/*
+ * fi_ioc (in fi_domain.h)
+ *   struct fi_ioc { void *addr; size_t count; };
+ * fi_rma_ioc (in fi_rma.h)
+ *   struct fi_rma_ioc { uint64_t addr, size_t count; uint64_t key; };
+ *
+ * lcl fi_ioc     (+ desc)  const
+ * rem fi_rma_ioc           const
+ * res fi_ioc     (+ desc) !const
+ * cmp fi_ioc     (+ desc)  const
+ */
+
+struct tofu_atm_vec {
+    union {
+	const struct fi_ioc *	    lcl;
+	const struct fi_rma_ioc *   rmt;
+    } vec;
+    void **			    dsc;
+    size_t			    ioc;
+};
+
+struct tofu_atm_arg {
+    const struct fi_msg_atomic *    msg;
+    uint64_t			    flg;
+    struct tofu_atm_vec		    lcl; /* local  */
+    struct tofu_atm_vec		    rmt; /* remote */
+    struct tofu_atm_vec		    res; /* result */
+    struct tofu_atm_vec		    cmp; /* compare */
+};
 
 
 /* fi_atomicvalid() */
@@ -131,7 +156,7 @@ tofu_ce_atm_notify_self(struct tofu_cep *cep_priv_tx,
     uint64_t    flags;
 
     /* The atomic operation queue/counter is the sender side */
-    ulib_notify_sndcmpl_cntr(cep_priv_tx->cep_send_ctr, 0);
+    // ulib_notify_sndcmpl_cntr(cep_priv_tx->cep_send_ctr, 0);
 
     /*
      * man fi_cq(3)
@@ -142,9 +167,11 @@ tofu_ce_atm_notify_self(struct tofu_cep *cep_priv_tx,
      */
     flags = (aarg->msg->op == FI_ATOMIC_READ) ?
                         (FI_ATOMIC|FI_READ) : (FI_ATOMIC|FI_WRITE);
+#if 0
     ulib_init_cqe(cqe, aarg->msg->context, flags,
                   wlen, 0, aarg->msg->data, 0);
     ulib_notify_sndcmpl_cq(cep_priv_tx->cep_send_cq, NULL, cqe);
+#endif
 }
 
 static inline int tofu_cep_atm_wmsg_self(struct tofu_cep *cep_priv_tx,
@@ -199,9 +226,11 @@ static inline int tofu_cep_atm_wmsg_self(struct tofu_cep *cep_priv_tx,
 	    }
 	}
 
+#if 0
 	/* rmt from rmt_ioc */
         fc = tofu_atm_ioc_from_rma(rmt_ioc, dtsz, tmpioc);
         if (fc != 0) { goto bad; }
+#endif
         rmt = tmpioc;
 
 	switch (aarg->msg->op) {
@@ -294,58 +323,11 @@ tofu_cep_atm_rmsg_self(struct tofu_cep *cep_priv_tx,
 	}
 
 	/* rmt from rmt_ioc */
-	{
-#ifdef	NOTDEF
-	    const struct fi_mr_attr *attr;
-	    const struct iovec *mr_iov;
-
-	    /* attr */
-	    {
-		struct tofu_mr *mr__priv;
-		assert(rmt_ioc != 0);
-		mr__priv = (void *)(uintptr_t)rmt_ioc->key; /* XXX */
-		assert(mr__priv->mr__fid.fid.fclass == FI_CLASS_MR);
-		attr = &mr__priv->mr__att;
-	    }
-	    /* mr_iov */
-	    {
-		/* check mr attr */
-		if ( 0
-		    || (attr->iov_count < 1)
-		    || (attr->mr_iov == 0)
-		    /* || (attr->mr_iov->iov_len < rmt_ioc->count ) */
-		    || (attr->mr_iov->iov_base == 0)
-		) {
-		    fc = -FI_EINVAL; goto bad;
-		}
-		mr_iov = attr->mr_iov;
-	    }
-
-	    /* FI_MR_BASIC */
-	    tmpioc->count = rmt_ioc->count;
-	    tmpioc->addr = (void *)(uintptr_t)rmt_ioc->addr;
-	    if ( 0
-		|| (tmpioc->addr < mr_iov->iov_base)
-		|| (tmpioc->addr >= (mr_iov->iov_base + mr_iov->iov_len))
-	    ) {
-		/* FI_MR_SCALABLE */
-		assert(rmt_ioc->addr /* offset */ < mr_iov->iov_len);
-		tmpioc->addr = mr_iov->iov_base + rmt_ioc->addr /* offset */;
-		FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "woff %"PRIu64" o\n",
-		    rmt_ioc->addr);
-	    } else {
-		FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "woff %ld V\n",
-		    tmpioc->addr - mr_iov->iov_base);
-	    }
-
-	    rmt = tmpioc;
-#else	/* NOTDEF */
-	    fc = tofu_atm_ioc_from_rma(rmt_ioc, dtsz, tmpioc);
-	    if (fc != 0) { goto bad; }
-
-	    rmt = tmpioc;
-#endif	/* NOTDEF */
-	}
+#if 0
+        fc = tofu_atm_ioc_from_rma(rmt_ioc, dtsz, tmpioc);
+        if (fc != 0) { goto bad; }
+#endif
+        rmt = tmpioc;
 
 	switch (aarg->msg->op) {
 	    size_t ic, nc;

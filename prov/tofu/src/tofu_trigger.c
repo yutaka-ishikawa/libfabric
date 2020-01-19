@@ -272,7 +272,7 @@ static int tofu_pcol_fidw2toof(
     fi_addr_t my_rxa
 )
 {
-    int rc = FI_SUCCESS, el = 0;
+    int rc = FI_SUCCESS;
     size_t iw;
 #ifdef	notdef_list_0001
     size_t *list = 0;
@@ -285,7 +285,7 @@ static int tofu_pcol_fidw2toof(
     {
 	ment = nw;
 	list = calloc(ment, sizeof (list[0]));
-	if (list == 0) { rc = -FI_ENOMEM; el = __LINE__; goto bad; }
+	if (list == 0) { rc = -FI_ENOMEM; goto bad; }
 	nent = 0;
     }
 

@@ -1,52 +1,22 @@
 if HAVE_TOFU
-_tofu_files = prov/tofu/src/tofu_atm.h	\
-	prov/tofu/src/tofu_av.h	\
-	prov/tofu/src/tofu_conf.h	\
-	prov/tofu/src/tofu_cq.h	\
-	prov/tofu/src/tofu_ctr.h	\
-	prov/tofu/src/tofu_impl.h	\
-	prov/tofu/src/tofu_impl_internal.h	\
-	prov/tofu/src/tofu_impl_shea.h	\
-	prov/tofu/src/tofu_impl_ulib.h	\
-	prov/tofu/src/tofu_int.h	\
-	prov/tofu/src/tofu_msg.h	\
-	prov/tofu/src/tofu_prv.h	\
-	prov/tofu/src/tofu_rma.h	\
-	prov/tofu/src/tofu_sep.h	\
-	prov/tofu/src/tofu_utl.h	\
-	prov/tofu/src/tofu_atm.c	\
-	prov/tofu/src/tofu_attr.c	\
-	prov/tofu/src/tofu_av.c	\
-	prov/tofu/src/tofu_cep.c	\
-	prov/tofu/src/tofu_cm.c	\
-	prov/tofu/src/tofu_cq.c	\
-	prov/tofu/src/tofu_ctr.c	\
-	prov/tofu/src/tofu_dom.c	\
-	prov/tofu/src/tofu_fab.c	\
-	prov/tofu/src/tofu_impl_ulib.c	\
-	prov/tofu/src/tofu_init.c	\
-	prov/tofu/src/tofu_mr.c	\
-	prov/tofu/src/tofu_msg.c	\
-	prov/tofu/src/tofu_rma.c	\
-	prov/tofu/src/tofu_sep.c	\
-	prov/tofu/src/tofu_trigger.c	\
-	prov/tofu/src/utofu.h		\
-	prov/tofu/src/ulib.h		\
-	prov/tofu/src/ulib_conf.h	\
-	prov/tofu/src/ulib_conv.h	\
-	prov/tofu/src/ulib_desc.h	\
-	prov/tofu/src/ulib_dlog.h	\
-	prov/tofu/src/ulib_list.h	\
-	prov/tofu/src/ulib_ofif.h	\
-	prov/tofu/src/ulib_shea.h	\
-	prov/tofu/src/ulib_tick.h	\
-	prov/tofu/src/ulib_toqc.h	\
-	prov/tofu/src/ulib_desc.c	\
-	prov/tofu/src/ulib_ofif.c	\
-	prov/tofu/src/ulib_shea.c	\
-	prov/tofu/src/ulib_tick.c	\
-	prov/tofu/src/ulib_toqc.c	\
-	prov/tofu/src/tofu_workaround.c
+_tofu_files = prov/tofu/src/tofu_conf.h	\
+	    prov/tofu/src/tofu_impl.h	\
+	    prov/tofu/src/tofu_debug.h	\
+	    prov/tofu/src/tofu_attr.c	\
+	    prov/tofu/src/tofu_atm.c	\
+	    prov/tofu/src/tofu_av.c	\
+	    prov/tofu/src/tofu_cep.c	\
+	    prov/tofu/src/tofu_cm.c	\
+	    prov/tofu/src/tofu_ctr.c	\
+	    prov/tofu/src/tofu_cq.c	\
+	    prov/tofu/src/tofu_dom.c	\
+	    prov/tofu/src/tofu_fab.c	\
+	    prov/tofu/src/tofu_impl.c	\
+	    prov/tofu/src/tofu_init.c	\
+	    prov/tofu/src/tofu_mr.c	\
+	    prov/tofu/src/tofu_rma.c	\
+	    prov/tofu/src/tofu_sep.c	\
+	    prov/tofu/src/tofu_trigger.c
 
 if HAVE_TOFU_DL
 pkglib_LTLIBRARIES += libtofu-fi.la

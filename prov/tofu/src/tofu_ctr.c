@@ -9,12 +9,13 @@
 /*
  * fi_close
  */
-static int tofu_cntr_close(struct fid *fid)
+static int
+tofu_cntr_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
     struct tofu_cntr *ctr_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     assert(fid != 0);
     ctr_priv = container_of(fid, struct tofu_cntr, ctr_fid.fid);
 
@@ -40,12 +41,13 @@ static struct fi_ops tofu_ctr_fi_ops = {
 /*
  * fi_cntr_read
  */
-static uint64_t tofu_cntr_read(struct fid_cntr *cntr_fid)
+static uint64_t
+tofu_cntr_read(struct fid_cntr *cntr_fid)
 {
     uint64_t ret;
     struct tofu_cntr *ctr_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     assert(cntr_fid != 0);
     ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
     if (ctr_priv == 0) { }
@@ -57,59 +59,65 @@ static uint64_t tofu_cntr_read(struct fid_cntr *cntr_fid)
 /*
  * fi_cntr_readerr
  */
-static uint64_t tofu_cntr_readerr(struct fid_cntr *cntr_fid)
+static uint64_t
+tofu_cntr_readerr(struct fid_cntr *cntr_fid)
 {
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     return 0; /* YYY ofi_atomic_get64(&cntr->err) */
 }
 
 /*
  * fi_cntr_add
  */
-static int tofu_cntr_add(struct fid_cntr *cntr_fid, uint64_t value)
+static int
+tofu_cntr_add(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     return fc;
 }
 
 /*
  * fi_cntr_adderr
  */
-static int tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
+static int
+tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     return fc;
 }
 
 /*
  * fi_cntr_set
  */
-static int tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
+static int
+tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     return fc;
 }
 
 /*
  * fi_cntr_seterr
  */
-static int tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
+static int
+tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     return fc;
 }
 
 /*
  * fi_cntr_wait
  */
-static int tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
+static int
+tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
 {
     int fc = FI_SUCCESS;
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     fc = -FI_ETIMEDOUT;
     return fc;
 }
@@ -125,9 +133,8 @@ static struct fi_ops_cntr tofu_ctr_ops = {
     .seterr	    = tofu_cntr_seterr,
 };
 
-static int tofu_cntr_verify_attr(
-    const struct fi_cntr_attr *user_attr
-)
+static int
+tofu_cntr_verify_attr(const struct fi_cntr_attr *user_attr)
 {
     int fc = FI_SUCCESS;
 
@@ -166,20 +173,17 @@ bad:
     return fc;
 }
 
-int tofu_cntr_open(
-    struct fid_domain *fid_dom,
-    struct fi_cntr_attr *attr,
-    struct fid_cntr **fid_ctr,
-    void *context
-)
+int
+tofu_cntr_open(struct fid_domain *fid_dom, struct fi_cntr_attr *attr,
+               struct fid_cntr **fid_ctr, void *context)
 {
     int fc = FI_SUCCESS;
     struct tofu_domain *dom_priv;
     struct tofu_cntr *ctr_priv = 0;
 
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     assert(fid_dom != 0);
-    dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid );
+    dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid);
 
     if (attr != 0) {
 	fc = tofu_cntr_verify_attr(attr);
@@ -207,8 +211,8 @@ int tofu_cntr_open(
 	/* dlist_init( &ctr_priv->ctr_ent ); */
 	dlist_init( &ctr_priv->ctr_htx );
 	dlist_init( &ctr_priv->ctr_hrx );
-	ofi_atomic_initialize64( &ctr_priv->ctr_ctr, 0 );
-	ofi_atomic_initialize64( &ctr_priv->ctr_err, 0 );
+	ofi_atomic_initialize64(&ctr_priv->ctr_ctr, 0);
+	ofi_atomic_initialize64(&ctr_priv->ctr_err, 0);
     }
 
     /* return fid_dom */

@@ -39,29 +39,10 @@ tofu_getinfo(uint32_t version, const char *node,
         FI_INFO(&tofu_prov, FI_LOG_CORE, "fail.\n");
         return fc;
     }
-#if 0
-    /*
-     * YI: NEEDS to check by Hatanaka
-     */
-    fc = util_getinfo(&tofu_util_prov, version,
-                      service, node, flags, hints, info);
-    if (fc != FI_SUCCESS) {
-        fprintf(stderr, "%s ERROR 3 fc(%d)\n", __func__, fc);
-    }
-#endif
-    /**/
-    //fprintf(stderr, "YI****** tofu_getinfo: NEEDS to fill in the src_addr and dest_addr fields or set size sero\n"); fflush(stderr);
     fiinfo->src_addr = malloc(fiinfo->src_addrlen);
     fiinfo->dest_addr = malloc(fiinfo->dest_addrlen);
     memset(fiinfo->src_addr, 0, fiinfo->src_addrlen);
     memset(fiinfo->dest_addr, 0, fiinfo->dest_addrlen);
-#if 0
-    fprintf(stderr, "YI****** %s:\n"
-            "\tcaps(0x%lx)\tmode(0x%lx)\taddr_format(%d)\n"
-            "\tsrc_addrlen(%ld)dest_addrlen(%ld)\n",
-            __func__, fiinfo->caps, fiinfo->mode, fiinfo->addr_format,
-            fiinfo->src_addrlen, fiinfo->dest_addrlen); fflush(stderr);
-#endif /* 0 */
     *info = fiinfo;
     FI_INFO(&tofu_prov, FI_LOG_DEBUG,
             "\n\tinfo(%p)->src_addr: 0x%p\n"
@@ -163,4 +144,3 @@ void fi_tofu_setdopt(int flg, int lvl)
     rdbgl = lvl;
     printf("fi_tofu_setdopt is called with %x %x\n", flg, lvl); fflush(stdout);
 }
-
