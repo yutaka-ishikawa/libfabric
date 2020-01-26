@@ -6,70 +6,70 @@
 
 #include "tofu_impl.h"
 
-static inline void tofu_cq_ins_cep_tx(
+static inline void tofu_cq_ins_ctx_tx(
     struct tofu_cq *cq__priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
-    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
-    assert( dlist_empty( &cep_priv->cep_ent_cq ) != 0 );
+    assert(ctx_priv->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
+    assert( dlist_empty( &ctx_priv->ctx_ent_cq ) != 0 );
 
     fastlock_acquire( &cq__priv->cq__lck );
     {
-	dlist_insert_tail( &cep_priv->cep_ent_cq, &cq__priv->cq__htx );
+	dlist_insert_tail( &ctx_priv->ctx_ent_cq, &cq__priv->cq__htx );
 	ofi_atomic_inc32( &cq__priv->cq__ref );
     }
     fastlock_release( &cq__priv->cq__lck );
     return ;
 }
 
-static inline void tofu_cq_rem_cep_tx(
+static inline void tofu_cq_rem_ctx_tx(
     struct tofu_cq *cq__priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
-    assert( dlist_empty( &cep_priv->cep_ent_cq ) == 0 );
+    assert( dlist_empty( &ctx_priv->ctx_ent_cq ) == 0 );
 
     fastlock_acquire( &cq__priv->cq__lck );
     {
-	dlist_remove( &cep_priv->cep_ent_cq );
+	dlist_remove( &ctx_priv->ctx_ent_cq );
 	ofi_atomic_dec32( &cq__priv->cq__ref );
     }
     fastlock_release( &cq__priv->cq__lck );
     return ;
 }
 
-static inline void tofu_cq_ins_cep_rx(
+static inline void tofu_cq_ins_ctx_rx(
     struct tofu_cq *cq__priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
-    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
-    assert( dlist_empty( &cep_priv->cep_ent_cq ) != 0 );
+    assert(ctx_priv->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
+    assert( dlist_empty( &ctx_priv->ctx_ent_cq ) != 0 );
 
     fastlock_acquire( &cq__priv->cq__lck );
     {
-	dlist_insert_tail( &cep_priv->cep_ent_cq, &cq__priv->cq__hrx );
+	dlist_insert_tail( &ctx_priv->ctx_ent_cq, &cq__priv->cq__hrx );
 	ofi_atomic_inc32( &cq__priv->cq__ref );
     }
     fastlock_release( &cq__priv->cq__lck );
     return ;
 }
 
-static inline void tofu_cq_rem_cep_rx(
+static inline void tofu_cq_rem_ctx_rx(
     struct tofu_cq *cq__priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
-    assert( dlist_empty( &cep_priv->cep_ent_cq ) == 0 );
+    assert( dlist_empty( &ctx_priv->ctx_ent_cq ) == 0 );
 
     fastlock_acquire( &cq__priv->cq__lck );
     {
-	dlist_remove( &cep_priv->cep_ent_cq );
+	dlist_remove( &ctx_priv->ctx_ent_cq );
 	ofi_atomic_dec32( &cq__priv->cq__ref );
     }
     fastlock_release( &cq__priv->cq__lck );

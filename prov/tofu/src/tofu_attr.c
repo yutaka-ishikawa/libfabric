@@ -190,12 +190,8 @@ static struct fi_ep_attr tofu_ep_attr = {
     .max_order_war_size = 256, /* YYY */
     .max_order_waw_size = 256, /* YYY */
     .mem_tag_format = 0, /* YYY ??? */
-    .tx_ctx_cnt = 4,
-		/* = 4 */
-		/* = 6 */
-    .rx_ctx_cnt = 4,
-		/* = 4 */
-		/* = 6 */
+    .tx_ctx_cnt = CONF_TOFU_EP_MAX_TX_CNT,	/* = 4 */ /* = 6 */
+    .rx_ctx_cnt = CONF_TOFU_EP_MAX_RX_CNT,	/* = 4 */ /* = 6 */
     .auth_key_size = 0,
     .auth_key = 0,
 };
@@ -495,7 +491,7 @@ bad:
 }
 
 int
-tofu_chck_cep_tx_attr(const struct fi_tx_attr *prov_attr,
+tofu_chck_ctx_tx_attr(const struct fi_tx_attr *prov_attr,
                       const struct fi_tx_attr *user_attr,
                       uint64_t user_info_mode)
 {
@@ -518,7 +514,7 @@ bad:
 }
 
 int
-tofu_chck_cep_rx_attr(const struct fi_info *prov_info,
+tofu_chck_ctx_rx_attr(const struct fi_info *prov_info,
                       const struct fi_rx_attr *user_attr,
                       uint64_t user_info_mode)
 {

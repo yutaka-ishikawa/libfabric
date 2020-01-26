@@ -39,26 +39,26 @@ struct tofu_domain {
     int                 dom_nvcq;
 };
 
-struct tofu_cep {
-    struct fid_ep	cep_fid;
-    struct tofu_sep *	cep_sep;
-    ofi_atomic32_t	cep_ref;
-    uint32_t		cep_enb;    /* enabled */
-    int			cep_idx;
-    fastlock_t		cep_lck;
-/*  struct dlist_entry	cep_ent; */
-    uint64_t		cep_xop_flg;
-    struct tofu_cep *	cep_trx;      /* Name should be changed ? cep_peer ?*/
-                                      /* cep_trx does not mean point to Sender side, right ? */
-    struct dlist_entry	cep_ent_sep;
-    struct dlist_entry	cep_ent_cq;
-    struct dlist_entry	cep_ent_ctr;
-    struct tofu_cq *	cep_send_cq; /* send completion queue */
-    struct tofu_cq *	cep_recv_cq; /* receive completion queue */
-    struct tofu_cntr *	cep_send_ctr; /* fi_write/fi_read and send operation */
-    struct tofu_cntr *	cep_recv_ctr; /* recv operation */
+struct tofu_ctx {
+    struct fid_ep	ctx_fid;
+    struct tofu_sep *	ctx_sep;
+    ofi_atomic32_t	ctx_ref;
+    uint32_t		ctx_enb;    /* enabled */
+    int			ctx_idx;
+    fastlock_t		ctx_lck;
+/*  struct dlist_entry	ctx_ent; */
+    uint64_t		ctx_xop_flg;
+    struct tofu_ctx *	ctx_trx;      /* Name should be changed ? ctx_peer ?*/
+                                      /* ctx_trx does not mean point to Sender side, right ? */
+    struct dlist_entry	ctx_ent_sep;
+    struct dlist_entry	ctx_ent_cq;
+    struct dlist_entry	ctx_ent_ctr;
+    struct tofu_cq *	ctx_send_cq; /* send completion queue */
+    struct tofu_cq *	ctx_recv_cq; /* receive completion queue */
+    struct tofu_cntr *	ctx_send_ctr; /* fi_write/fi_read and send operation */
+    struct tofu_cntr *	ctx_recv_ctr; /* recv operation */
     /*
-     * see struct ulib_icep for more internal structures in ulib_ofif.h
+     * see struct ulib_ictx for more internal structures in ulib_ofif.h
      */
     int                 enabled;
     utofu_vcq_hdl_t     vcqh;
@@ -78,7 +78,7 @@ struct tofu_sep {
 /* tofu dependent */
     utofu_tni_id_t tnis[8];
     size_t ntni;
-    struct ulib_icep *head;
+    struct ulib_ictx *head;
 };
 
 /*
@@ -157,12 +157,12 @@ struct tofu_mr {
 extern struct fi_provider		tofu_prov;
 extern struct fi_ops_mr			tofu_mr__ops;
 extern struct fi_ops_cm			tofu_sep_ops_cm;
-extern struct fi_ops_cm			tofu_cep_ops_cm;
-extern struct fi_ops_msg		tofu_cep_ops_msg;
-extern struct fi_ops_tagged		tofu_cep_ops_tag;
+extern struct fi_ops_cm			tofu_ctx_ops_cm;
+extern struct fi_ops_msg		tofu_ctx_ops_msg;
+extern struct fi_ops_tagged		tofu_ctx_ops_tag;
 
-extern struct fi_ops_rma		tofu_cep_ops_rma;
-extern struct fi_ops_atomic		tofu_cep_ops_atomic;
+extern struct fi_ops_rma		tofu_ctx_ops_rma;
+extern struct fi_ops_atomic		tofu_ctx_ops_atomic;
 
 /* === function prototypes ============================================ */
 extern int      tofu_impl_isep_open(struct tofu_sep *sep_priv);
@@ -194,17 +194,17 @@ extern int	tofu_sep_open(struct fid_domain *fid_dom,
                               struct fi_info *info,
                               struct fid_ep **fid_sep,
                               void *context);
-extern int	tofu_cep_tx_context(struct fid_ep *fid_sep,
+extern int	tofu_ctx_tx_context(struct fid_ep *fid_sep,
                                     int index,
                                     struct fi_tx_attr *attr,
-                                    struct fid_ep **fid_cep_tx,
+                                    struct fid_ep **fid_ctx_tx,
                                     void *context);
-extern int	tofu_cep_rx_context(struct fid_ep *fid_sep,
+extern int	tofu_ctx_rx_context(struct fid_ep *fid_sep,
                                     int index,
                                     struct fi_rx_attr *attr,
-                                    struct fid_ep **fid_cep_rx,
+                                    struct fid_ep **fid_ctx_rx,
                                     void *context);
-extern int	tofu_cep_ctrl(struct fid *fid, int command, void *arg);
+extern int	tofu_ctx_ctrl(struct fid *fid, int command, void *arg);
 
 extern int	tofu_chck_fab_attr(const struct fi_fabric_attr *prov_attr,
                                    const struct fi_fabric_attr *user_attr);
@@ -212,10 +212,10 @@ extern int	tofu_chck_dom_attr(const struct fi_domain_attr *prov_attr,
                                    const struct fi_info *user_info);
 extern int	tofu_chck_av_attr(const struct fi_av_attr *user_attr);
 extern int	tofu_chck_cq_attr(const struct fi_cq_attr *user_attr);
-extern int	tofu_chck_cep_tx_attr(const struct fi_tx_attr *prov_attr,
+extern int	tofu_chck_ctx_tx_attr(const struct fi_tx_attr *prov_attr,
                                       const struct fi_tx_attr *user_attr,
                                       uint64_t user_info_mode);
-extern int	tofu_chck_cep_rx_attr(const struct fi_info *prov_info,
+extern int	tofu_chck_ctx_rx_attr(const struct fi_info *prov_info,
                                       const struct fi_rx_attr *user_attr,
                                       uint64_t user_info_mode);
 extern int	tofu_chck_ep_attr(const struct fi_info *prov_info,

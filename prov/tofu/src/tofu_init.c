@@ -123,7 +123,16 @@ TOFU_INI
 #endif /* ~NDEBUG */
     mypid = getpid();
     myrank = -1; /* will be initialized later */
-    rdbgf = 0; rdbgl = 0;
+    // rdbgf = 0; rdbgl = 0;
+#if 0
+#ifndef TSIM  /* This is only for real-machines, not a simulated environment */
+    {
+	jtofu_job_id_t	j_id;
+	j_id = generate_hash_string(pmix_proc->nspace);
+	jtofu_initialize(j_id, pmix_proc->rank, v->data.bo.bytes);
+    }
+#endif
+#endif
 #ifdef TOFU_SIM_BUG
     {
         extern void wa_init();
@@ -142,5 +151,5 @@ void fi_tofu_setdopt(int flg, int lvl)
 {
     rdbgf = flg;
     rdbgl = lvl;
-    printf("fi_tofu_setdopt is called with %x %x\n", flg, lvl); fflush(stdout);
+    R_DBG("fi_tofu_setdopt is called with %x %x", flg, lvl);
 }

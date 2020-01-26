@@ -1,19 +1,22 @@
 if HAVE_TOFU
 _tofu_files = prov/tofu/src/tofu_conf.h	\
+	    prov/tofu/src/tofu_macro.h	\
 	    prov/tofu/src/tofu_impl.h	\
+	    prov/tofu/src/tofu_addr.h	\
 	    prov/tofu/src/tofu_debug.h	\
 	    prov/tofu/src/tofu_attr.c	\
 	    prov/tofu/src/tofu_atm.c	\
 	    prov/tofu/src/tofu_av.c	\
-	    prov/tofu/src/tofu_cep.c	\
 	    prov/tofu/src/tofu_cm.c	\
 	    prov/tofu/src/tofu_ctr.c	\
+	    prov/tofu/src/tofu_ctx.c	\
 	    prov/tofu/src/tofu_cq.c	\
 	    prov/tofu/src/tofu_dom.c	\
 	    prov/tofu/src/tofu_fab.c	\
 	    prov/tofu/src/tofu_impl.c	\
 	    prov/tofu/src/tofu_init.c	\
 	    prov/tofu/src/tofu_mr.c	\
+	    prov/tofu/src/tofu_msg.c	\
 	    prov/tofu/src/tofu_rma.c	\
 	    prov/tofu/src/tofu_sep.c	\
 	    prov/tofu/src/tofu_trigger.c

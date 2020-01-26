@@ -6,18 +6,18 @@
 
 #include "tofu_impl.h"
 
-static inline void tofu_cntr_ins_cep_tx(
+static inline void tofu_cntr_ins_ctx_tx(
     struct tofu_cntr *ctr_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+    assert(ctx_priv->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
 
     fastlock_acquire( &ctr_priv->ctr_lck );
     {
-	if (dlist_empty( &cep_priv->cep_ent_ctr )) {
-	    dlist_insert_tail( &cep_priv->cep_ent_ctr, &ctr_priv->ctr_htx );
+	if (dlist_empty( &ctx_priv->ctx_ent_ctr )) {
+	    dlist_insert_tail( &ctx_priv->ctx_ent_ctr, &ctr_priv->ctr_htx );
 	}
 	ofi_atomic_inc32( &ctr_priv->ctr_ref );
     }
@@ -25,18 +25,18 @@ static inline void tofu_cntr_ins_cep_tx(
     return ;
 }
 
-static inline void tofu_cntr_rem_cep_tx(
+static inline void tofu_cntr_rem_ctx_tx(
     struct tofu_cntr *ctr_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
 
     fastlock_acquire( &ctr_priv->ctr_lck );
     {
-	if ( ! dlist_empty( &cep_priv->cep_ent_ctr ) ) {
-	    dlist_remove( &cep_priv->cep_ent_ctr );
-	    dlist_init( &cep_priv->cep_ent_ctr );
+	if ( ! dlist_empty( &ctx_priv->ctx_ent_ctr ) ) {
+	    dlist_remove( &ctx_priv->ctx_ent_ctr );
+	    dlist_init( &ctx_priv->ctx_ent_ctr );
 	}
 	ofi_atomic_dec32( &ctr_priv->ctr_ref );
     }
@@ -44,18 +44,18 @@ static inline void tofu_cntr_rem_cep_tx(
     return ;
 }
 
-static inline void tofu_cntr_ins_cep_rx(
+static inline void tofu_cntr_ins_ctx_rx(
     struct tofu_cntr *ctr_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
+    assert(ctx_priv->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
 
     fastlock_acquire( &ctr_priv->ctr_lck );
     {
-	if (dlist_empty( &cep_priv->cep_ent_ctr )) {
-	    dlist_insert_tail( &cep_priv->cep_ent_ctr, &ctr_priv->ctr_hrx );
+	if (dlist_empty( &ctx_priv->ctx_ent_ctr )) {
+	    dlist_insert_tail( &ctx_priv->ctx_ent_ctr, &ctr_priv->ctr_hrx );
 	}
 	ofi_atomic_inc32( &ctr_priv->ctr_ref );
     }
@@ -63,18 +63,18 @@ static inline void tofu_cntr_ins_cep_rx(
     return ;
 }
 
-static inline void tofu_cntr_rem_cep_rx(
+static inline void tofu_cntr_rem_ctx_rx(
     struct tofu_cntr *ctr_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
 
     fastlock_acquire( &ctr_priv->ctr_lck );
     {
-	if ( ! dlist_empty( &cep_priv->cep_ent_ctr ) ) {
-	    dlist_remove( &cep_priv->cep_ent_ctr );
-	    dlist_init( &cep_priv->cep_ent_ctr );
+	if ( ! dlist_empty( &ctx_priv->ctx_ent_ctr ) ) {
+	    dlist_remove( &ctx_priv->ctx_ent_ctr );
+	    dlist_init( &ctx_priv->ctx_ent_ctr );
 	}
 	ofi_atomic_dec32( &ctr_priv->ctr_ref );
     }

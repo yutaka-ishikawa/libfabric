@@ -36,7 +36,7 @@ struct tofu_atm_arg {
 
 
 /* fi_atomicvalid() */
-static int tofu_cep_atm_writevalid(
+static int tofu_ctx_atm_writevalid(
     struct fid_ep *ep,
     enum fi_datatype datatype,
     enum fi_op op,
@@ -85,7 +85,7 @@ bad:
 }
 
 /* fi_fetch_atomicvalid() */
-static int tofu_cep_atm_readwritevalid(
+static int tofu_ctx_atm_readwritevalid(
     struct fid_ep *ep,
     enum fi_datatype datatype,
     enum fi_op op,
@@ -134,7 +134,7 @@ bad:
 }
 
 /* fi_compare_atomicvalid() */
-static int tofu_cep_atm_compwritevalid(
+static int tofu_ctx_atm_compwritevalid(
     struct fid_ep *ep,
     enum fi_datatype datatype,
     enum fi_op op,
@@ -148,7 +148,7 @@ static int tofu_cep_atm_compwritevalid(
 }
 
 static inline void
-tofu_ce_atm_notify_self(struct tofu_cep *cep_priv_tx,
+tofu_ce_atm_notify_self(struct tofu_ctx *ctx_priv_tx,
                         uint64_t wlen,
                         const struct tofu_atm_arg *aarg)
 {
@@ -156,7 +156,7 @@ tofu_ce_atm_notify_self(struct tofu_cep *cep_priv_tx,
     uint64_t    flags;
 
     /* The atomic operation queue/counter is the sender side */
-    // ulib_notify_sndcmpl_cntr(cep_priv_tx->cep_send_ctr, 0);
+    // ulib_notify_sndcmpl_cntr(ctx_priv_tx->ctx_send_ctr, 0);
 
     /*
      * man fi_cq(3)
@@ -170,18 +170,18 @@ tofu_ce_atm_notify_self(struct tofu_cep *cep_priv_tx,
 #if 0
     ulib_init_cqe(cqe, aarg->msg->context, flags,
                   wlen, 0, aarg->msg->data, 0);
-    ulib_notify_sndcmpl_cq(cep_priv_tx->cep_send_cq, NULL, cqe);
+    ulib_notify_sndcmpl_cq(ctx_priv_tx->ctx_send_cq, NULL, cqe);
 #endif
 }
 
-static inline int tofu_cep_atm_wmsg_self(struct tofu_cep *cep_priv_tx,
+static inline int tofu_ctx_atm_wmsg_self(struct tofu_ctx *ctx_priv_tx,
                                          const struct tofu_atm_arg *aarg)
 {
     int fc = FI_SUCCESS;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
-    assert(cep_priv_tx != 0);
-    assert(cep_priv_tx->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+    assert(ctx_priv_tx != 0);
+    assert(ctx_priv_tx->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
 
     /* check iov_count for lcl and rmt */
     if ((aarg == 0)
@@ -256,7 +256,7 @@ static inline int tofu_cep_atm_wmsg_self(struct tofu_cep *cep_priv_tx,
 	default:
 	    fc = -FI_EOPNOTSUPP; goto bad;
 	}
-        tofu_ce_atm_notify_self(cep_priv_tx, dtsz, aarg);
+        tofu_ce_atm_notify_self(ctx_priv_tx, dtsz, aarg);
     }
 bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %d\n", fc);
@@ -264,14 +264,14 @@ bad:
 }
 
 static inline int
-tofu_cep_atm_rmsg_self(struct tofu_cep *cep_priv_tx,
+tofu_ctx_atm_rmsg_self(struct tofu_ctx *ctx_priv_tx,
                        const struct tofu_atm_arg *aarg)
 {
     int fc = FI_SUCCESS;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
-    assert(cep_priv_tx != 0);
-    assert(cep_priv_tx->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
+    assert(ctx_priv_tx != 0);
+    assert(ctx_priv_tx->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
 
     /* check iov_count for lcl, rmt, and res */
     if ((aarg == 0)
@@ -354,7 +354,7 @@ tofu_cep_atm_rmsg_self(struct tofu_cep *cep_priv_tx,
 	default:
 	    fc = -FI_EOPNOTSUPP; goto bad;
 	}
-        tofu_ce_atm_notify_self(cep_priv_tx, dtsz, aarg);
+        tofu_ce_atm_notify_self(ctx_priv_tx, dtsz, aarg);
     }
 bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %d\n", fc);
@@ -362,22 +362,22 @@ bad:
 }
 
 /* fi_atomicmsg() */
-static ssize_t tofu_cep_atm_writemsg(
+static ssize_t tofu_ctx_atm_writemsg(
     struct fid_ep *fid_ep,
     const struct fi_msg_atomic *msg,
     uint64_t flags
 )
 {
     ssize_t ret = 0;
-    struct tofu_cep *cep_priv = 0;
+    struct tofu_ctx *ctx_priv = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
     }
-    cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
-    if (cep_priv == 0) { }
-    /* if (cep_priv->cep_enb != 0) { fc = -FI_EOPBADSTATE; goto bad; } */
+    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    if (ctx_priv == 0) { }
+    /* if (ctx_priv->ctx_enb != 0) { fc = -FI_EOPBADSTATE; goto bad; } */
 
     {
 	struct tofu_atm_arg aarg[1];
@@ -402,7 +402,7 @@ static ssize_t tofu_cep_atm_writemsg(
 	/* aarg->cmp.dsc = 0; */
 	/* aarg->cmp.ioc = 0; */
 
-	fc = tofu_cep_atm_wmsg_self( cep_priv, aarg );
+	fc = tofu_ctx_atm_wmsg_self( ctx_priv, aarg );
 	if (fc != 0) {
 	    ret = fc; goto bad;
 	}
@@ -413,7 +413,7 @@ bad:
 }
 
 /* fi_fetch_atomicmsg() */
-static ssize_t tofu_cep_atm_readwritemsg(
+static ssize_t tofu_ctx_atm_readwritemsg(
     struct fid_ep *fid_ep,
     const struct fi_msg_atomic *msg,
     struct fi_ioc *resultv,
@@ -423,15 +423,15 @@ static ssize_t tofu_cep_atm_readwritemsg(
 )
 {
     ssize_t ret = 0;
-    struct tofu_cep *cep_priv = 0;
+    struct tofu_ctx *ctx_priv = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
     }
-    cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
-    if (cep_priv == 0) { }
-    /* if (cep_priv->cep_enb != 0) { fc = -FI_EOPBADSTATE; goto bad; } */
+    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    if (ctx_priv == 0) { }
+    /* if (ctx_priv->ctx_enb != 0) { fc = -FI_EOPBADSTATE; goto bad; } */
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "C lcl %ld rem %ld res %ld cmp %ld\n",
 	msg->iov_count, msg->rma_iov_count, result_count, 0L);
@@ -492,7 +492,7 @@ static ssize_t tofu_cep_atm_readwritemsg(
 	/* aarg->cmp.dsc = 0; */
 	/* aarg->cmp.ioc = 0; */
 
-	fc = tofu_cep_atm_rmsg_self( cep_priv, aarg );
+	fc = tofu_ctx_atm_rmsg_self( ctx_priv, aarg );
 	if (fc != 0) {
 	    ret = fc; goto bad;
 	}
@@ -503,7 +503,7 @@ bad:
 }
 
 /* fi_compare_atomicmsg() */
-static ssize_t tofu_cep_atm_compwritemsg(
+static ssize_t tofu_ctx_atm_compwritemsg(
     struct fid_ep *fid_ep,
     const struct fi_msg_atomic *msg,
     const struct fi_ioc *comparev,
@@ -516,15 +516,15 @@ static ssize_t tofu_cep_atm_compwritemsg(
 )
 {
     ssize_t ret = 0;
-    struct tofu_cep *cep_priv = 0;
+    struct tofu_ctx *ctx_priv = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
     }
-    cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
-    if (cep_priv == 0) { }
-    /* if (cep_priv->cep_enb != 0) { fc = -FI_EOPBADSTATE; goto bad; } */
+    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    if (ctx_priv == 0) { }
+    /* if (ctx_priv->ctx_enb != 0) { fc = -FI_EOPBADSTATE; goto bad; } */
 
     ret = -FI_ENOSYS;
 
@@ -532,14 +532,14 @@ bad:
     return ret;
 }
 
-struct fi_ops_atomic tofu_cep_ops_atomic = {
+struct fi_ops_atomic tofu_ctx_ops_atomic = {
     .size	    = sizeof (struct fi_ops_atomic),
     .write	    = fi_no_atomic_write,
     .writev	    = fi_no_atomic_writev,
 #ifdef	notdef
     .writemsg	    = fi_no_atomic_writemsg,
 #else	/* notdef */
-    .writemsg	    = tofu_cep_atm_writemsg,
+    .writemsg	    = tofu_ctx_atm_writemsg,
 #endif	/* notdef */
     .inject	    = fi_no_atomic_inject,
     .readwrite	    = fi_no_atomic_readwrite,
@@ -547,22 +547,22 @@ struct fi_ops_atomic tofu_cep_ops_atomic = {
 #ifdef	notdef
     .readwritemsg   = fi_no_atomic_readwritemsg,
 #else	/* notdef */
-    .readwritemsg   = tofu_cep_atm_readwritemsg,
+    .readwritemsg   = tofu_ctx_atm_readwritemsg,
 #endif	/* notdef */
     .compwrite	    = fi_no_atomic_compwrite,
     .compwritev	    = fi_no_atomic_compwritev,
 #ifdef	notdef
     .compwritemsg   = fi_no_atomic_compwritemsg,
 #else	/* notdef */
-    .compwritemsg   = tofu_cep_atm_compwritemsg,
+    .compwritemsg   = tofu_ctx_atm_compwritemsg,
 #endif	/* notdef */
 #ifdef	notdef
     .writevalid	    = fi_no_atomic_writevalid,
     .readwritevalid = fi_no_atomic_readwritevalid,
     .compwritevalid = fi_no_atomic_compwritevalid,
 #else	/* notdef */
-    .writevalid	    = tofu_cep_atm_writevalid,
-    .readwritevalid = tofu_cep_atm_readwritevalid,
-    .compwritevalid = tofu_cep_atm_compwritevalid,
+    .writevalid	    = tofu_ctx_atm_writevalid,
+    .readwritevalid = tofu_ctx_atm_readwritevalid,
+    .compwritevalid = tofu_ctx_atm_compwritevalid,
 #endif	/* notdef */
 };

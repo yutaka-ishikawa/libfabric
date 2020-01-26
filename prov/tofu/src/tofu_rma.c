@@ -9,7 +9,7 @@
  * fi_read:
  */
 static ssize_t
-tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
+tofu_ctx_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
                   fi_addr_t src_addr, uint64_t addr, uint64_t key,
                   void *context)
 {
@@ -17,7 +17,7 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
 //    uint64_t            flags = FI_COMPLETION; /* must be set 2019/08/15 */
 
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "buf(%p) len(%ld) desc(%p) addr(0x%lx) key(%lx) context(%p) in %s\n", buf, len, desc, addr, key, context, __FILE__);
-//    cep_priv = container_of(fid_ep, struct tofu_cep, cep_fid);
+//    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
 
     FI_DBG(&tofu_prov, FI_LOG_EP_DATA, "return %ld\n", ret);
     return ret;
@@ -27,12 +27,12 @@ tofu_cep_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
  * fi_readmsg
  */
 static ssize_t
-tofu_cep_rma_readmsg(struct fid_ep *fid_ep,
+tofu_ctx_rma_readmsg(struct fid_ep *fid_ep,
                      const struct fi_msg_rma *msg,
                      uint64_t flags)
 {
     ssize_t ret = 0;
-//    struct tofu_cep *cep_priv = 0;
+//    struct tofu_ctx *ctx_priv = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     fprintf(stderr, "YI**** fi_readmsg is only implemented for self\n"); fflush(stderr);
@@ -46,11 +46,11 @@ tofu_cep_rma_readmsg(struct fid_ep *fid_ep,
  * fi_writemsg
  */
 static ssize_t 
-tofu_cep_rma_writemsg(struct fid_ep *fid_ep,
+tofu_ctx_rma_writemsg(struct fid_ep *fid_ep,
                       const struct fi_msg_rma *msg, uint64_t flags)
 {
     ssize_t ret = 0;
-//    struct tofu_cep *cep_priv = 0;
+//    struct tofu_ctx *ctx_priv = 0;
 
     fprintf(stderr, "YI**** fi_writemsg is only implemented for self\n"); fflush(stderr);
     printf("YI**** fi_writemsg is only implemented for self\n"); fflush(stdout);
@@ -58,14 +58,14 @@ tofu_cep_rma_writemsg(struct fid_ep *fid_ep,
     return ret;
 }
 
-struct fi_ops_rma tofu_cep_ops_rma = {
+struct fi_ops_rma tofu_ctx_ops_rma = {
     .size	    = sizeof (struct fi_ops_rma),
-    .read	    = tofu_cep_rma_read,
+    .read	    = tofu_ctx_rma_read,
     .readv	    = fi_no_rma_readv,
-    .readmsg	    = tofu_cep_rma_readmsg,
+    .readmsg	    = tofu_ctx_rma_readmsg,
     .write	    = fi_no_rma_write,
     .writev	    = fi_no_rma_writev,
-    .writemsg	    = tofu_cep_rma_writemsg,
+    .writemsg	    = tofu_ctx_rma_writemsg,
     .inject	    = fi_no_rma_inject,
     .writedata	    = fi_no_rma_writedata,
     .injectdata	    = fi_no_rma_injectdata,

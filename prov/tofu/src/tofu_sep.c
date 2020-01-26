@@ -89,13 +89,8 @@ static struct fi_ops_ep tofu_sep_ops = {
     .cancel	    = fi_no_cancel,
     .getopt	    = fi_no_getopt,
     .setopt	    = fi_no_setopt,
-#ifdef	notdef
-    .tx_ctx	    = fi_no_tx_ctx,
-    .rx_ctx	    = fi_no_rx_ctx,
-#else	/* notdef */
-    .tx_ctx	    = tofu_cep_tx_context,
-    .rx_ctx	    = tofu_cep_rx_context,
-#endif	/* notdef */
+    .tx_ctx	    = tofu_ctx_tx_context,
+    .rx_ctx	    = tofu_ctx_rx_context,
     .rx_size_left   = fi_no_rx_size_left, /* deprecated */
     .tx_size_left   = fi_no_tx_size_left, /* deprecated */
 };
@@ -127,8 +122,8 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
 
     /* initialize sep_priv */
     sep_priv->sep_dom = dom_priv;
-    //ofi_atomic_initialize32( &sep_priv->sep_ref, 0 );
-    //fastlock_init( &sep_priv->sep_lck );
+    ofi_atomic_initialize32( &sep_priv->sep_ref, 0 );
+    fastlock_init(&sep_priv->sep_lck);
 
     sep_priv->sep_fid.fid.fclass    = FI_CLASS_SEP;
     sep_priv->sep_fid.fid.context   = context;
@@ -142,10 +137,11 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
     sep_priv->sep_fid.atomic        = 0; /* fi_ops_atomic */
 
     /* dlist_init( &sep_priv->sep_ent ); */
-    dlist_init( &sep_priv->sep_htx );
-    dlist_init( &sep_priv->sep_hrx );
-
+    dlist_init(&sep_priv->sep_htx);
+    dlist_init(&sep_priv->sep_hrx);
+    /* return fid_sep */
+    fid_sep[0] = &sep_priv->sep_fid;
 bad:
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "return %d in %s\n", fc, __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "return %d in %s\n", fc, __FILE__);
     return fc;
 }

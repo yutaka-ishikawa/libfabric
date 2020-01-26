@@ -16,7 +16,7 @@
  *      For PostK machine, we must rewrite this one.
  */
 static int
-tofu_imp_ulib_gnam(void *ceps[CONF_TOFU_CTXC],  size_t offs,
+tofu_imp_ulib_gnam(void *ctxs[CONF_TOFU_CTXC],  size_t offs,
                    char nam_str[128])
 {
     int fc = FI_SUCCESS;
@@ -30,17 +30,17 @@ tofu_imp_ulib_gnam(void *ceps[CONF_TOFU_CTXC],  size_t offs,
     xyzabc[0] = 255;
 
     for (ix = 0; ix < nx; ix++) {
-        struct tofu_cep        *icep = (struct tofu_cep *) ceps[ix];
+        struct tofu_ctx        *ictx = (struct tofu_ctx *) ctxs[ix];
 	utofu_vcq_id_t vcqi = -1UL;
 	int uc;
 
-	if (icep == 0) {
+	if (ictx == 0) {
 	    tnis[ix] = 255; tcqs[ix] = 255; continue;
 	}
-	if (icep->vcqh == 0) {
+	if (ictx->vcqh == 0) {
 	    fc = -FI_ENODEV; goto bad;
 	}
-	uc = utofu_query_vcq_id(icep->vcqh, &vcqi);
+	uc = utofu_query_vcq_id(ictx->vcqh, &vcqi);
 	if (uc != UTOFU_SUCCESS) {
 	    tnis[ix] = 255; tcqs[ix] = 255; continue;
 	}
@@ -118,35 +118,35 @@ static int tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
                 //fprintf(stderr, "YI****** NOT FI_ADDR_STR(0x%x)\n", addr_format); fflush(stderr);
 		fc = -FI_EOTHER; goto bad;
 	    }
-	    /* fill ceps[] */
+	    /* fill ctxs[] */
 	    {
 	    int ix, nx = CONF_TOFU_CTXC;
-	    void *ceps[CONF_TOFU_CTXC];
+	    void *ctxs[CONF_TOFU_CTXC];
 
 	    fastlock_acquire( &sep_priv->sep_lck );
 	    for (ix = 0; ix < nx; ix++) {
-		struct tofu_cep *cep_priv;
+		struct tofu_ctx *ctx_priv;
 		size_t cl = FI_CLASS_TX_CTX;
 
-		cep_priv = tofu_sep_lup_cep_byi_unsafe(sep_priv, cl, ix);
-                //fprintf(stderr, "YI********* cep_priv(%p)\n", cep_priv);
-		if (cep_priv == 0) {
+		ctx_priv = tofu_sep_lup_ctx_byi_unsafe(sep_priv, cl, ix);
+                //fprintf(stderr, "YI********* ctx_priv(%p)\n", ctx_priv);
+		if (ctx_priv == 0) {
 		    cl = FI_CLASS_RX_CTX;
-		    cep_priv = tofu_sep_lup_cep_byi_unsafe(sep_priv, cl, ix);
+		    ctx_priv = tofu_sep_lup_ctx_byi_unsafe(sep_priv, cl, ix);
 		}
-		if (cep_priv == 0) {
-		    ceps[ix] = 0;
+		if (ctx_priv == 0) {
+		    ctxs[ix] = 0;
 		    continue;
 		}
-		ceps[ix] = cep_priv;
+		ctxs[ix] = ctx_priv;
 	    }
 	    fastlock_release( &sep_priv->sep_lck );
 	    {
-		const size_t offs_ulib = sizeof (struct tofu_cep);
+		const size_t offs_ulib = sizeof (struct tofu_ctx);
 		char nam[128];
 
 		nam[0] = 0;
-		fc = tofu_imp_ulib_gnam(ceps, offs_ulib, nam);
+		fc = tofu_imp_ulib_gnam(ctxs, offs_ulib, nam);
                 //fprintf(stderr, "YI********* fc(%d)\n", fc);
 		if (fc != FI_SUCCESS) { goto bad; }
 		/*
@@ -218,7 +218,7 @@ struct fi_ops_cm tofu_sep_ops_cm = {
     .join           = fi_no_join,
 };
 
-struct fi_ops_cm tofu_cep_ops_cm = {
+struct fi_ops_cm tofu_ctx_ops_cm = {
     .size	    = sizeof(struct fi_ops_cm),
     .setname	    = fi_no_setname,
     .getname	    = fi_no_getname,

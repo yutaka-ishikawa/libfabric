@@ -6,83 +6,83 @@
 
 #include "tofu_impl.h"
 
-static inline void tofu_sep_ins_cep_tx(
+static inline void tofu_sep_ins_ctx_tx(
     struct tofu_sep *sep_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_TX_CTX);
-    assert( dlist_empty( &cep_priv->cep_ent_sep ) != 0 );
+    assert(ctx_priv->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
+    assert( dlist_empty( &ctx_priv->ctx_ent_sep ) != 0 );
 
     fastlock_acquire( &sep_priv->sep_lck );
     {
-	dlist_insert_tail( &cep_priv->cep_ent_sep, &sep_priv->sep_htx );
+	dlist_insert_tail( &ctx_priv->ctx_ent_sep, &sep_priv->sep_htx );
 	ofi_atomic_inc32( &sep_priv->sep_ref );
     }
     fastlock_release( &sep_priv->sep_lck );
     return ;
 }
 
-static inline void tofu_sep_rem_cep_tx(
+static inline void tofu_sep_rem_ctx_tx(
     struct tofu_sep *sep_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    assert( dlist_empty( &cep_priv->cep_ent_sep ) == 0 );
+    assert( dlist_empty( &ctx_priv->ctx_ent_sep ) == 0 );
 
     fastlock_acquire( &sep_priv->sep_lck );
     {
-	dlist_remove( &cep_priv->cep_ent_sep );
+	dlist_remove( &ctx_priv->ctx_ent_sep );
 	ofi_atomic_dec32( &sep_priv->sep_ref );
     }
     fastlock_release( &sep_priv->sep_lck );
     return ;
 }
 
-static inline void tofu_sep_ins_cep_rx(
+static inline void tofu_sep_ins_ctx_rx(
     struct tofu_sep *sep_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    assert(cep_priv->cep_fid.fid.fclass == FI_CLASS_RX_CTX);
-    assert( dlist_empty( &cep_priv->cep_ent_sep ) != 0 );
+    assert(ctx_priv->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
+    assert( dlist_empty( &ctx_priv->ctx_ent_sep ) != 0 );
 
     fastlock_acquire( &sep_priv->sep_lck );
     {
-	dlist_insert_tail( &cep_priv->cep_ent_sep, &sep_priv->sep_hrx );
+	dlist_insert_tail( &ctx_priv->ctx_ent_sep, &sep_priv->sep_hrx );
 	ofi_atomic_inc32( &sep_priv->sep_ref );
     }
     fastlock_release( &sep_priv->sep_lck );
     return ;
 }
 
-static inline void tofu_sep_rem_cep_rx(
+static inline void tofu_sep_rem_ctx_rx(
     struct tofu_sep *sep_priv,
-    struct tofu_cep *cep_priv
+    struct tofu_ctx *ctx_priv
 )
 {
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    assert( dlist_empty( &cep_priv->cep_ent_sep ) == 0 );
+    assert( dlist_empty( &ctx_priv->ctx_ent_sep ) == 0 );
 
     fastlock_acquire( &sep_priv->sep_lck );
     {
-	dlist_remove( &cep_priv->cep_ent_sep );
+	dlist_remove( &ctx_priv->ctx_ent_sep );
 	ofi_atomic_dec32( &sep_priv->sep_ref );
     }
     fastlock_release( &sep_priv->sep_lck );
     return ;
 }
 
-/* get cep_priv by index : must lock sep */
-static inline struct tofu_cep *
-tofu_sep_lup_cep_byi_unsafe(struct tofu_sep *sep_priv,
+/* get ctx_priv by index : must lock sep */
+static inline struct tofu_ctx *
+tofu_sep_lup_ctx_byi_unsafe(struct tofu_sep *sep_priv,
                             size_t fclass,
                             int index)
 {
-    struct tofu_cep *found = 0;
+    struct tofu_ctx *found = 0;
     struct dlist_entry *head, *curr;
 
     assert((fclass == FI_CLASS_TX_CTX) || (fclass == FI_CLASS_RX_CTX));
@@ -92,13 +92,13 @@ tofu_sep_lup_cep_byi_unsafe(struct tofu_sep *sep_priv,
 	head = &sep_priv->sep_hrx;
     }
     dlist_foreach(head, curr) {
-	struct tofu_cep *cep_priv;
+	struct tofu_ctx *ctx_priv;
 
-	cep_priv = container_of(curr, struct tofu_cep, cep_ent_sep);
-	assert(cep_priv->cep_sep == sep_priv);
+	ctx_priv = container_of(curr, struct tofu_ctx, ctx_ent_sep);
+	assert(ctx_priv->ctx_sep == sep_priv);
 
-	if (cep_priv->cep_idx == index) {
-	    found = cep_priv;
+	if (ctx_priv->ctx_idx == index) {
+	    found = ctx_priv;
 	    break;
 	}
     }
