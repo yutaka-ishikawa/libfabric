@@ -52,6 +52,9 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
                        uint64_t requested_key,  uint64_t flags,
                        struct fid_mr **fid_mr_, void *context)
 {
+    R_DBG("tofu_mr_reg how we will implement. fid(%p)\n", fid);
+    return -1;
+#if 0
     int fc = FI_SUCCESS;
     int uc;
     struct tofu_domain *dom_priv;
@@ -142,6 +145,7 @@ bad:
     }
 
     return fc;
+#endif
 }
 
 struct fi_ops_mr tofu_mr__ops = {

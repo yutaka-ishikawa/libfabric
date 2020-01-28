@@ -6,48 +6,6 @@
 
 #include "tofu_impl.h"
 
-static inline void tofu_av_ins_sep(
-    struct tofu_av *av__priv,
-    struct tofu_sep *sep_priv
-)
-{
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    assert(sep_priv->sep_fid.fid.fclass == FI_CLASS_SEP);
-
-    fastlock_acquire( &av__priv->av__lck );
-    {
-#ifdef	NOTYET
-	if (dlist_empty( &sep_priv->sep_ent_av )) {
-	    dlist_insert_tail( &sep_priv->sep_ent_av, &av__priv->av__hse );
-	}
-#endif	/* NOTYET */
-	ofi_atomic_inc32( &av__priv->av__ref );
-    }
-    fastlock_release( &av__priv->av__lck );
-    return ;
-}
-
-static inline void tofu_av_rem_sep(
-    struct tofu_av *av__priv,
-    struct tofu_sep *sep_priv
-)
-{
-    FI_INFO( &tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    assert(sep_priv->sep_fid.fid.fclass == FI_CLASS_SEP);
-
-    fastlock_acquire( &av__priv->av__lck );
-    {
-#ifdef	NOTYET
-	if ( ! dlist_empty( &sep_priv->sep_ent_av ) ) {
-	    dlist_remove( &sep_priv->sep_ent_av );
-	    dlist_init( &sep_priv->sep_ent_av );
-	}
-#endif	/* NOTYET */
-	ofi_atomic_dec32( &av__priv->av__ref );
-    }
-    fastlock_release( &av__priv->av__lck );
-    return ;
-}
 
 static inline int
 tofu_av_lup_tank(struct tofu_av *av__priv,  fi_addr_t fi_a,  uint64_t *tank)

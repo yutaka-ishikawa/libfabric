@@ -203,12 +203,9 @@ static struct fi_ops_av tofu_av_ops = {
     .straddr	    = tofu_av_straddr,
 };
 
-int tofu_av_open(
-    struct fid_domain *fid_dom,
-    struct fi_av_attr *attr,
-    struct fid_av **fid_av_,
-    void *context
-)
+int
+tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
+             struct fid_av **fid_av_, void *context)
 {
     int fc = FI_SUCCESS;
     struct tofu_domain *dom_priv;
@@ -249,12 +246,14 @@ int tofu_av_open(
     {
 	av_priv->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
     }
+    R_DBG("YI************ av_priv->av_rxb(%d)", av_priv->av_rxb);
 
     /* return fid_dom */
     fid_av_[0] = &av_priv->av_fid;
     av_priv = 0; /* ZZZ */
 
 bad:
+    R_DBG("YI fc(%d)", fc);
     if (av_priv != 0) {
 	tofu_av_close(&av_priv->av_fid.fid);
     }

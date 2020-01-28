@@ -190,8 +190,8 @@ static struct fi_ep_attr tofu_ep_attr = {
     .max_order_war_size = 256, /* YYY */
     .max_order_waw_size = 256, /* YYY */
     .mem_tag_format = 0, /* YYY ??? */
-    .tx_ctx_cnt = CONF_TOFU_EP_MAX_TX_CNT,	/* = 4 */ /* = 6 */
-    .rx_ctx_cnt = CONF_TOFU_EP_MAX_RX_CNT,	/* = 4 */ /* = 6 */
+    .tx_ctx_cnt = CONF_TOFU_CTXC,
+    .rx_ctx_cnt = CONF_TOFU_CTXC,
     .auth_key_size = 0,
     .auth_key = 0,
 };
@@ -215,17 +215,13 @@ static struct fi_domain_attr tofu_domain_attr = {
     .av_type = FI_AV_UNSPEC,
 		/* = FI_AV_MAP */
 		/* = FI_AV_TABLE */
-#ifdef	NOTYET
-    .mr_mode = FI_MR_UNSPEC,			/* YYY */ 
+    .mr_mode = FI_MR_BASIC /*| FI_MR_ENDPOINT*/,
 		/* = FI_MR_BASIC , FI_MR_SCALABLE */
 		/* =  0 */
 		/* |= FI_MR_LOCAL */
 		/* |= FI_MR_ALLOCATED */
 		/* |= FI_MR_PROV_KEY */
 		/* |= FI_MR_ENDPOINT */
-#else	/* NOTYET */
-    .mr_mode = FI_MR_BASIC,			/* YYY */ 
-#endif	/* NOTYET */
     .mr_key_size = sizeof (uint64_t),
     .cq_data_size = 4,
     .cq_cnt = 44 * 2 /* tx+rx */,
@@ -430,8 +426,7 @@ tofu_chck_dom_attr(const struct fi_domain_attr *prov_attr,
     if (prov_attr == 0) {
 	prov_attr = &tofu_domain_attr; /* &tofu_prov_info.domain_attr */
     }
-    if (
-	(user_info->domain_attr != 0)
+    if ((user_info->domain_attr != 0)
 	&& (user_info->domain_attr->name != 0)
 	&& (strcasecmp(user_info->domain_attr->name, "tofu") != 0)
     ) {

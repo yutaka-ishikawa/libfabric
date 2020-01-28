@@ -30,13 +30,15 @@ struct tofu_fabric {
 struct tofu_domain {
     struct fid_domain	dom_fid;
     struct tofu_fabric *dom_fab;
+    struct tofu_sep    *dom_sep;
     ofi_atomic32_t	dom_ref;
     fastlock_t		dom_lck;
 /*  struct dlist_entry	dom_ent; */
     uint32_t		dom_fmt;    /* addr_format */
-    /* For MR */
-    uintptr_t           dom_vcqh[8];
-    int                 dom_nvcq;
+    /* tofu dependent */
+    utofu_tni_id_t      tnis[8];
+    size_t              ntni;
+    utofu_vcq_hdl_t     vcqh[8];
 };
 
 struct tofu_ctx {
@@ -48,8 +50,6 @@ struct tofu_ctx {
     fastlock_t		ctx_lck;
 /*  struct dlist_entry	ctx_ent; */
     uint64_t		ctx_xop_flg;
-    struct tofu_ctx *	ctx_trx;      /* Name should be changed ? ctx_peer ?*/
-                                      /* ctx_trx does not mean point to Sender side, right ? */
     struct dlist_entry	ctx_ent_sep;
     struct dlist_entry	ctx_ent_cq;
     struct dlist_entry	ctx_ent_ctr;
@@ -57,11 +57,7 @@ struct tofu_ctx {
     struct tofu_cq *	ctx_recv_cq; /* receive completion queue */
     struct tofu_cntr *	ctx_send_ctr; /* fi_write/fi_read and send operation */
     struct tofu_cntr *	ctx_recv_ctr; /* recv operation */
-    /*
-     * see struct ulib_ictx for more internal structures in ulib_ofif.h
-     */
     int                 enabled;
-    utofu_vcq_hdl_t     vcqh;
     int                 index;
 };
 
@@ -69,16 +65,16 @@ struct tofu_sep {
     struct fid_ep	sep_fid;
     struct tofu_domain *sep_dom;
     ofi_atomic32_t	sep_ref;
-    uint32_t		sep_enb;    /* enabled */
+    uint32_t		sep_enb;        /* enabled */
     fastlock_t		sep_lck;
-/*  struct dlist_entry	sep_ent; */
-    struct dlist_entry	sep_htx;    /* head for ep tx ctxs */
-    struct dlist_entry	sep_hrx;    /* head for ep rx ctxs */
+    struct dlist_entry	sep_ent;        /* link to other SEPs */
+    struct dlist_entry	sep_htx;        /* head for ep tx ctxs */
+    struct dlist_entry	sep_hrx;        /* head for ep rx ctxs */
     struct tofu_av *	sep_av_;
-/* tofu dependent */
-    utofu_tni_id_t tnis[8];
-    size_t ntni;
-    struct ulib_ictx *head;
+    struct tofu_ctx     sep_sctx[CONF_TOFU_CTXC];
+    struct tofu_ctx     sep_rctx[CONF_TOFU_CTXC];
+    int                 sep_vcqidx;
+    utofu_vcq_hdl_t     sep_vcqh;       /* copy of sep_dom->vcqh[sep_vcqid] */
 };
 
 /*

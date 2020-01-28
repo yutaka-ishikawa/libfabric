@@ -40,7 +40,6 @@ tofu_ictx_init(int index, struct tofu_ctx *ctx_priv, struct tofu_sep *sep_priv,
     int fc = FI_SUCCESS;
     /* initialize internal members */
     ctx_priv->enabled = 0;
-    ctx_priv->vcqh = 0;
     ctx_priv->index = 0;
     /* initialize fabric members */
     ctx_priv->ctx_fid.fid.fclass  = class;
@@ -212,6 +211,9 @@ tofu_ictx_close(struct tofu_ctx *ctx)
                 ctx, ctx->ctx_sep); fflush(stderr);
 	uc = UTOFU_ERR_INVALID_ARG; goto bad;
     }
+    R_DBG("%s: NEEDS TO IMPLEMENT\n", __func__);
+    abort();
+#if 0
     if (ctx->enabled != 0) {
 	assert(ctx->vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
 	uc = utofu_free_vcq(ctx->vcqh);
@@ -219,6 +221,7 @@ tofu_ictx_close(struct tofu_ctx *ctx)
 	ctx->vcqh = 0; /* XXX */
 	ctx->enabled = 0;
     }
+#endif
     /* unexpected entries */
     /* expected entries */
     /* transmit entries */
@@ -257,12 +260,16 @@ static int tofu_ctx_close(struct fid *fid)
 	    tofu_sep_rem_ctx_rx( ctx_priv->ctx_sep, ctx_priv );
 	}
     }
+    R_DBG("%s: NEEDS TO IMPLEMENT\n", __func__);
+    abort();
+#if 0
     if (ctx_priv->ctx_trx != 0) {
 	if (ctx_priv->ctx_trx->ctx_trx != 0) {
 	    assert(ctx_priv->ctx_trx->ctx_trx == ctx_priv);
 	    ctx_priv->ctx_trx->ctx_trx = 0;
 	}
     }
+#endif
     if (ofi_atomic_get32(&ctx_priv->ctx_ref) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
@@ -413,49 +420,53 @@ static int
 ictx_ctrl_enab(int class, struct tofu_ctx *ctx)
 {
     int uc = UTOFU_SUCCESS;
-    struct tofu_sep *sep = ctx->ctx_sep;
+    struct tofu_sep     *sep = ctx->ctx_sep;
+    struct tofu_domain  *dom;
 
-    if (ctx->enabled != 0) {
+    if (ctx->enabled != 0 || sep->sep_dom == 0) {
 	uc = UTOFU_ERR_BUSY; goto bad;
     }
-
+    dom = sep->sep_dom;
+    R_DBG("ctx->index(%d) dom->ntni(%ld)", ctx->index, dom->ntni);
+    if ((ctx->index < 0) || (ctx->index >= dom->ntni)) {
+        uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
+    }
     /* unexpected entries */
     /* expected entries */
     /* transmit entries */
     /* desc_cash */
     /* ictx_ctrl_enab */
-    if (ctx->vcqh == 0) {
-	utofu_vcq_hdl_t vcqh = 0;
-	utofu_tni_id_t tni_id;
-        struct tofu_domain  *dom = ctx->ctx_sep->sep_dom;
-	const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
-	const unsigned long flags =	0
-				/* | UTOFU_VCQ_FLAG_THREAD_SAFE */
-				/* | UTOFU_VCQ_FLAG_EXCLUSIVE */
-				/* | UTOFU_VCQ_FLAG_SESSION_MODE */
-				;
-	if ((ctx->index < 0) || (ctx->index >= sep->ntni)) {
-	    uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
-	}
-	tni_id = sep->tnis[ctx->index];
-        R_DBG("create_vcq tni_id=%d c_id(%d) flags(%ld))", tni_id, c_id, flags);
-	uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
-        R_DBG("return uc = %d vcqh = %lx", uc, vcqh);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
-	dbg_show_utof_vcqh(vcqh);
-	assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
-	ctx->vcqh = vcqh;
-        /*
-         * vcqh is copied to domain
-         *   It seems that vcqh should be created at domain creation time,
-         *   but vcqh associated with TNI is only created at this time.
-         */
-        dom->dom_vcqh[dom->dom_nvcq] = ctx->vcqh;
-        dom->dom_nvcq++;
-    }
     //ictx->nrma = 0;
+    if (sep->sep_vcqidx == -1) {
+        utofu_vcq_hdl_t     vcqh;
+        int     i;
+        for (i = 0; i < dom->ntni; i++) {
+            if (dom->vcqh[i] == 0) {
+                utofu_tni_id_t          tni_id;
+                const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
+                const unsigned long     flags =	0
+                                        /* | UTOFU_VCQ_FLAG_THREAD_SAFE */
+                                        /* | UTOFU_VCQ_FLAG_EXCLUSIVE */
+                                        /* | UTOFU_VCQ_FLAG_SESSION_MODE */
+                                        ;
+                tni_id = dom->tnis[i];
+                uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
+                R_DBG("tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx",
+                      tni_id, c_id, flags, uc, vcqh);
+                if (uc != UTOFU_SUCCESS) { goto bad; }
+                dbg_show_utof_vcqh(vcqh);
+                assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
+                dom->vcqh[i] = vcqh;
+                sep->sep_vcqidx = i;
+                sep->sep_vcqh = vcqh;
+                goto alloc;
+            }
+        }
+        /* no space */
+        uc = UTOFU_ERR_BUSY; goto bad;
+    }
+alloc:
     ctx->enabled = 1;
-
 bad:
     return uc;
 }
@@ -473,6 +484,7 @@ tofu_ctx_ctrl(struct fid *fid, int command, void *arg)
     assert(fid != 0);
     ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
 
+    R_DBG("ctx_priv->ctx_enb(%d)", ctx_priv->ctx_enb);
     switch (command) {
     case FI_ENABLE:
 	switch (fid->fclass) {
@@ -502,6 +514,7 @@ tofu_ctx_ctrl(struct fid *fid, int command, void *arg)
     }
 
 bad:
+    R_DBG("fc(%d)", fc);
     return fc;
 }
 

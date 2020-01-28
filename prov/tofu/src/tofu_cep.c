@@ -438,7 +438,9 @@ icep_ctrl_enab(int class, struct tofu_cep *cep)
 	    uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
 	}
 	tni_id = sep->tnis[cep->index];
+        R_DBG("create_vcq tni_id=%d c_id(%d) flags(%ld))", tni_id, c_id, flags);
 	uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
+        R_DBG("return uc = %d vcqh = %lx", uc, vcqh);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
 	dbg_show_utof_vcqh(vcqh);
 	assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
@@ -570,8 +572,12 @@ tofu_cep_tx_context(struct fid_ep *fid_sep,  int index,
     }
     sep_priv = container_of(fid_sep, struct tofu_sep, sep_fid);
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
-        sep_priv->sep_dom->dom_fab->fab_fid.api_version);
-
+            sep_priv->sep_dom->dom_fab->fab_fid.api_version);
+#if 0
+    if (index >= (int)sep_priv->attr->ep_attr.tx_ctx_cnt) {
+        fc = -FI_EINVAL; goto bad;
+    }
+#endif
     if (attr != 0) {
 	struct fi_tx_attr *prov_attr = 0; /* default */
 	uint64_t user_info_mode = 0;

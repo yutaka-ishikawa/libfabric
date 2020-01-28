@@ -28,11 +28,11 @@ extern int rdbgf, rdbgl;
 
 #define R_DBG(format, ...)                                              \
    do {									\
-       printf("\t%d: " format " in %s:%d\n",                             \
-              mypid, __VA_ARGS__, __func__, __LINE__);                  \
+       printf("\t%d: " format " in %d:%s/%s\n",                         \
+              mypid, __VA_ARGS__, __LINE__, __func__, __FILE__);        \
        fflush(stdout);                                                  \
-       fprintf(stderr, "%d: " format " in %s:%d\n",                      \
-               mypid, __VA_ARGS__, __func__, __LINE__);                 \
+       fprintf(stderr, "%d: " format " in %d:%s/%s\n",                  \
+               mypid, __VA_ARGS__, __LINE__, __func__, __FILE__);       \
        fflush(stderr);                                                  \
    } while (0)
 

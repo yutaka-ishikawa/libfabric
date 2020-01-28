@@ -99,57 +99,82 @@ int tofu_domain_open(
 )
 {
     int fc = FI_SUCCESS;
-    struct tofu_domain *dom_priv = 0;
-    struct tofu_fabric *fab_priv;
+    struct tofu_domain *dom = 0;
+    struct tofu_fabric *fab;
 
-    FI_INFO( &tofu_prov, FI_LOG_DOMAIN, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_DOMAIN, "in %s\n", __FILE__);
     assert(fid_fab != 0);
-    fab_priv = container_of(fid_fab, struct tofu_fabric, fab_fid );
-    FI_INFO( &tofu_prov, FI_LOG_DOMAIN, "api_version %08x\n",
-	fab_priv->fab_fid.api_version);
+    R_DBG("DOM OPEN fid_fab(%p)", fid_fab);
+    fab = container_of(fid_fab, struct tofu_fabric, fab_fid );
+    FI_INFO(&tofu_prov, FI_LOG_DOMAIN, "api_version %08x\n",
+	fab->fab_fid.api_version);
 
     if ((info != 0) && (info->domain_attr != 0)) {
 	struct fi_domain_attr *prov_attr = 0; /* default */
 
 	fc = tofu_chck_dom_attr( prov_attr, info /* user_info */ );
+        
 	if (fc != 0) { goto bad; }
     }
-
-    dom_priv = calloc(1, sizeof (dom_priv[0]));
-    if (dom_priv == 0) {
+    dom = calloc(1, sizeof (dom[0]));
+    if (dom == 0) {
 	fc = -FI_ENOMEM; goto bad;
     }
 
-    /* initialize dom_priv */
-    {
-	dom_priv->dom_fab = fab_priv;
-	ofi_atomic_initialize32( &dom_priv->dom_ref, 0 );
-	fastlock_init( &dom_priv->dom_lck );
+    /* initialize dom */
+    dom->dom_fab = fab;
+    ofi_atomic_initialize32(&dom->dom_ref, 0);
+    fastlock_init(&dom->dom_lck);
 
-	dom_priv->dom_fid.fid.fclass    = FI_CLASS_DOMAIN;
-	dom_priv->dom_fid.fid.context   = context;
-	dom_priv->dom_fid.fid.ops       = &tofu_dom_fi_ops;
-	dom_priv->dom_fid.ops           = &tofu_dom_ops;
-	dom_priv->dom_fid.mr            = &tofu_mr__ops;
+    dom->dom_fid.fid.fclass    = FI_CLASS_DOMAIN;
+    dom->dom_fid.fid.context   = context;
+    dom->dom_fid.fid.ops       = &tofu_dom_fi_ops;
+    dom->dom_fid.ops           = &tofu_dom_ops;
+    dom->dom_fid.mr            = &tofu_mr__ops;
 
-	/* dlist_init( &dom_priv->dom_ent ); */
-
-	// fc = ofi_mr_map_init( &tofu_prov,
-	//   info->domain_attr->mr_mode, dom_priv->mr_map);
-	// if (fc != 0) { goto bad; }
-    }
+    /* dlist_init( &dom_priv->dom_ent ); */
     /* dom_priv */
+    dom->dom_fmt = (info == 0)? FI_ADDR_STR: info->addr_format;
+
+    /* Initialization of Tofu NIC */
     {
-	dom_priv->dom_fmt = (info == 0)? FI_ADDR_STR: info->addr_format;
+        utofu_tni_id_t *tnis = 0;
+        size_t  ntni = 0;
+        size_t  ni;
+        int     uc;
+        const size_t mtni = sizeof (dom->tnis) / sizeof (dom->tnis[0]);
+
+        uc = utofu_get_onesided_tnis(&tnis, &ntni);
+        R_DBG("rdbgf(%x) rdbgl(%x) uc(%d) ntni(%ld)", rdbgf, rdbgl, uc, ntni);
+        R_DBG0(RDBG_LEVEL1, "uc(%d) ntni(%ld)", uc, ntni);
+        if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
+        if (ntni > mtni) {
+            ntni = mtni;
+        }
+        /* copy tnis[] and ntni */
+        for (ni = 0; ni < ntni; ni++) {
+            struct utofu_onesided_caps *cap;
+            dom->tnis[ni] = tnis[ni];
+            utofu_query_onesided_caps(tnis[ni], &cap);
+            R_DBG0(RDBG_LEVEL2, "tnid(%d) num_stags(%d)",
+                   tnis[ni], cap->num_reserved_stags);
+            dom->vcqh[ni] = 0;
+        }
+        dom->ntni = ntni;
+        /* free tnis[] */
+        if (tnis != 0) {
+            free(tnis); tnis = 0;
+        }
     }
 
     /* return fid_dom */
-    fid_dom[0] = &dom_priv->dom_fid;
-    dom_priv = 0; /* ZZZ */
+    fid_dom[0] = &dom->dom_fid;
+    dom = 0; /* ZZZ */
 
 bad:
-    if (dom_priv != 0) {
-	tofu_domain_close( &dom_priv->dom_fid.fid );
+    if (dom != 0) {
+	tofu_domain_close(&dom->dom_fid.fid );
     }
+    fprintf(stderr, "%s: YI*** 2 return fc(%d)\n", __func__, fc); fflush(stderr);
     return fc;
 }

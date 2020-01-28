@@ -143,14 +143,16 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
 
     ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     av_priv = ctx_priv->ctx_sep->sep_av_;
+    R_DBG("YI************ av_priv(%p)", av_priv);
     tofu_av_lup_tank(av_priv, fi_addr, &ui64);
     return tank2string(buf, sz, ui64);
 }
 
 static int
-utf_post(struct tofu_ctx *ctx, const struct fi_msg_tagged *msg, uint64_t flags)
+utf_recvpost(struct tofu_ctx *ctx,
+	     const struct fi_msg_tagged *msg, uint64_t flags)
 {
-    fprintf(stderr, "%s: ctx(%p) msg(%p) flags(%lx)\n", __func__, ctx, msg, flags);
+    R_DBG("ctx(%p) msg(%p) flags(%lx)", ctx, msg, flags);
     return 0;
 }
 
@@ -179,7 +181,7 @@ tofu_ctx_msg_recv_common(struct fid_ep *fid_ep,
     }
     ctx = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     fastlock_acquire(&ctx->ctx_lck);
-    ret = utf_post(ctx, msg, flags);
+    ret = utf_recvpost(ctx, msg, flags);
     fastlock_release(&ctx->ctx_lck);
 bad:
     return ret;
@@ -299,8 +301,9 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
 {
     ssize_t          ret = FI_SUCCESS;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
+    R_DBG("YI********** SEND class(%ld)", fid_ep->fid.fclass);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }

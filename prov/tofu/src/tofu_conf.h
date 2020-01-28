@@ -12,13 +12,11 @@
 #define CONF_TOFU_RECV
 #define CONF_TOFU_RMA
 
-#define CONF_TOFU_CMPID 0x7
-#define CONF_TOFU_CTXC	8   /* fi_ep_attr . [rt]x_ctx_cnt */
-#define CONF_TOFU_CQSIZE 256
+#define CONF_TOFU_CMPID         0x7
+#define CONF_TOFU_CTXC  	8   /* fi_ep_attr . [rt]x_ctx_cnt */
+#define CONF_TOFU_CQSIZE        256
 
-//#define CONF_TOFU_MSGSIZE       ((16 * 1024 * 1024) - 1) // MAX in TOFU
+//#define CONF_TOFU_MSGSIZE     ((16 * 1024 * 1024) - 1) // MAX in TOFU
 #define CONF_TOFU_MSGSIZE       (32 * 1024) // See also MPIDI_OFI_DEFAULT_SHORT_SEND_SIZE in MPICH
 
-#define CONF_TOFU_EP_MAX_TX_CNT         4
-#define CONF_TOFU_EP_MAX_RX_CNT         4
 #endif	/* _TOFU_CONF_H */
