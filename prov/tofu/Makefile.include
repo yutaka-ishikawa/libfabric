@@ -1,9 +1,10 @@
 if HAVE_TOFU
-_tofu_files = prov/tofu/src/tofu_conf.h	\
-	    prov/tofu/src/tofu_macro.h	\
-	    prov/tofu/src/tofu_impl.h	\
+_tofu_files =				\
 	    prov/tofu/src/tofu_addr.h	\
+	    prov/tofu/src/tofu_conf.h	\
 	    prov/tofu/src/tofu_debug.h	\
+	    prov/tofu/src/tofu_impl.h	\
+	    prov/tofu/src/tofu_macro.h	\
 	    prov/tofu/src/tofu_attr.c	\
 	    prov/tofu/src/tofu_atm.c	\
 	    prov/tofu/src/tofu_av.c	\
