@@ -39,6 +39,9 @@ struct tofu_domain {
     utofu_tni_id_t      tnis[8];
     size_t              ntni;
     utofu_vcq_hdl_t     vcqh[8];
+    size_t              max_mtu[8];
+    size_t              max_piggyback_size[8];
+    size_t              max_edata_size[8];
 };
 
 struct tofu_ctx {
@@ -111,6 +114,15 @@ struct tofu_cntr {
     int                 ctr_rsl;   /* for FI_SELECTIVE_COMPLETION */
 };
 
+/* Tofu Internal */
+struct tofu_vname {
+    uint8_t  xyzabc[6];
+    uint8_t  cid : 3;	/* component id */
+    uint8_t  v : 1;	/* valid */
+    uint32_t vpid;
+    uint8_t  tniq[8];	/* (tni + tcq)[8] */
+};
+
 struct tofu_av {
     struct fid_av	av_fid;
     struct tofu_domain *av_dom;
@@ -119,23 +131,10 @@ struct tofu_av {
     fastlock_t		av_lck;
     /* Tofu Internal */
     struct tofu_av_tab {
-	size_t		mct;
-	size_t		nct;
-	void *		tab;    /* 16B x entry */
+	size_t		   mct;    /* max count */
+	size_t             nct;    /* now count */
+	struct tofu_vname *vnm;    /* 20B x entry */
     }			av_tab;
-};
-
-/* Tofu Internal */
-struct ulib_sep_name {
-    uint8_t  txyz[3];
-    uint8_t  a : 1;
-    uint8_t  b : 2;
-    uint8_t  c : 1;
-    uint8_t  p : 3;	/* component id */
-    uint8_t  v : 1;	/* valid */
-    uint32_t vpid;
-    uint8_t  tniq[8];	/* (tni + tcq)[8] */
-    /* struct ulib_sep_tniq tniq; */
 };
 
 struct tofu_mr {

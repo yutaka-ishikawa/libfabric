@@ -2,109 +2,15 @@
 #include "tofu_addr.h"
 
 extern char *tank2string(char *buf, size_t sz, uint64_t ui64);
+extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqid);
 
-static int
-tofu_imp_name_tniq_byi(const void *vnam, size_t index,  uint8_t tniq[2])
-{
-    int fc = FI_SUCCESS;
-    const struct ulib_sep_name *name = vnam;
-    uint8_t tni, tcq;
-
-    /* check valid flag */
-    if (name->v == 0) { fc = -FI_EINVAL; goto bad; }
-
-    /* check tni */
-    {
-	size_t mx = sizeof (name->tniq) / sizeof (name->tniq[0]);
-
-	if (index > mx) { fc = -FI_EINVAL; goto bad; }
-
-	tni = name->tniq[index] >> 4;
-	tcq = name->tniq[index] &  0x0f;
-	if (tni >= 6) { fc = -FI_EINVAL; goto bad; }
-    }
-
-    tniq[0] = tni; tniq[1] = tcq;
-
-bad:
-    return fc;
-}
-
-static inline void
-ulib_cast_epnt_to_tank(const struct ulib_epnt_info *einf,
-                       struct ulib_tank *tank)
-{
-    assert(sizeof (tank[0]) == sizeof (uint64_t));
-    assert(einf->xyz[0] < (1UL << ULIB_TANK_BITS_TUX));
-    tank->tux = einf->xyz[0];
-    assert(einf->xyz[1] < (1UL << ULIB_TANK_BITS_TUY));
-    tank->tuy = einf->xyz[1];
-    assert(einf->xyz[2] < (1UL << ULIB_TANK_BITS_TUZ));
-    tank->tuz = einf->xyz[2];
-
-    assert(einf->xyz[3] < (1UL << ULIB_TANK_BITS_TUA));
-    tank->tua = einf->xyz[3];
-    assert(einf->xyz[4] < (1UL << ULIB_TANK_BITS_TUB));
-    tank->tub = einf->xyz[4];
-    assert(einf->xyz[5] < (1UL << ULIB_TANK_BITS_TUC));
-    tank->tuc = einf->xyz[5];
-
-    assert(einf->tni[0] < (1UL << ULIB_TANK_BITS_TNI));
-    tank->tni = einf->tni[0];
-    assert(einf->tcq[0] < (1UL << ULIB_TANK_BITS_TCQ));
-    tank->tcq = einf->tcq[0];
-
-    assert(einf->cid[0] < (1UL << ULIB_TANK_BITS_CID));
-    tank->cid = einf->cid[0];
-    tank->vld = 1;
-    tank->pid = einf->pid[0];
-    return ;
-}
-
-static inline void
-ulib_cast_epnt_to_tank_ui64(const struct ulib_epnt_info *einf,
-                            uint64_t *tank_ui64)
-{
-    union ulib_tofa_u tank_u = { .ui64 = 0, };
-    ulib_cast_epnt_to_tank( einf, &tank_u.tank );
-    tank_ui64[0] = tank_u.ui64;
-    return ;
-}
 
 static inline int
-tofu_imp_namS_to_tank(const void *vnam,  size_t index, uint64_t *tank_ui64)
+tofu_av_lookup(struct tofu_av *av_priv,  fi_addr_t fi_a,  utofu_vcq_id_t *vcqi)
 {
-    int fc = FI_SUCCESS;
-    const struct ulib_sep_name *name = vnam;
-    uint8_t tniq[2];
-    struct ulib_epnt_info info[1];
-
-    fc = tofu_imp_name_tniq_byi(vnam, index, tniq);
-    if (fc != FI_SUCCESS) { goto bad; }
-
-    info->xyz[0] = name->txyz[0];
-    info->xyz[1] = name->txyz[1];
-    info->xyz[2] = name->txyz[2];
-    info->xyz[3] = name->a;
-    info->xyz[4] = name->b;
-    info->xyz[5] = name->c;
-    info->tni[0] = tniq[0];
-    info->tcq[0] = tniq[1];
-    info->cid[0] = name->p; /* component id */
-    info->pid[0] = name->vpid; /* virtual processor id. (rank) */
-
-    ulib_cast_epnt_to_tank_ui64(info, tank_ui64);
-
-bad:
-    return fc;
-}
-
-static inline int
-tofu_av_lup_tank(struct tofu_av *av_priv,  fi_addr_t fi_a,  uint64_t *tank)
-{
-    int fc = FI_SUCCESS;
-    size_t av_idx, rx_idx;
-    void *vnam;
+    int	uc, fc = FI_SUCCESS;
+    size_t av_idx;
+    struct tofu_vname *vnam;
 
     if (fi_a == FI_ADDR_NOTAVAIL) {
 	fc = -FI_EINVAL; goto bad;
@@ -112,24 +18,26 @@ tofu_av_lup_tank(struct tofu_av *av_priv,  fi_addr_t fi_a,  uint64_t *tank)
     assert(av_priv->av_rxb >= 0);
     /* assert(av_priv->av_rxb <= TOFU_RX_CTX_MAX_BITS); */
     if (av_priv->av_rxb == 0) {
-	rx_idx = 0;
 	av_idx = fi_a;
-    }
-    else {
-	rx_idx = ((uint64_t)fi_a) >> (64 - av_priv->av_rxb);
+    } else {
 	/* av_idx = fi_a & rx_ctx_mask */
 	av_idx = (((uint64_t)fi_a) << av_priv->av_rxb) >> av_priv->av_rxb;
     }
     if (av_idx >= av_priv->av_tab.nct) {
 	fc = -FI_EINVAL; goto bad;
     }
-    assert(av_priv->av_tab.tab != 0);
-    vnam = (char *)av_priv->av_tab.tab + (av_idx * 16); /* XXX */
-
-    /* get the Tofu network Address + raNK */
-    fc = tofu_imp_namS_to_tank(vnam, rx_idx, tank);
-    if (fc != FI_SUCCESS) { goto bad; }
-
+    assert(av_priv->av_tab.vnm != 0);
+    vnam = &av_priv->av_tab.vnm[av_idx];
+    uc = utofu_construct_vcq_id(vnam->xyzabc,
+				vnam->tniq[0]>>4,
+				vnam->tniq[0]&0x0f,
+				vnam->cid, vcqi);
+    if (uc != UTOFU_SUCCESS) {
+	R_DBG("Something wrong %u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
+	      vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
+	      vnam->xyzabc[3], vnam->xyzabc[4], vnam->xyzabc[5], vnam->cid, uc);
+	fc = -FI_EINVAL;
+    }
 bad:
     return fc;
 }
@@ -139,13 +47,12 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
 {
     struct tofu_ctx *ctx_priv;
     struct tofu_av *av_priv;
-    uint64_t ui64;
+    utofu_vcq_id_t vcqi;
 
     ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     av_priv = ctx_priv->ctx_sep->sep_av_;
-    R_DBG("YI************ av_priv(%p)", av_priv);
-    tofu_av_lup_tank(av_priv, fi_addr, &ui64);
-    return tank2string(buf, sz, ui64);
+    tofu_av_lookup(av_priv, fi_addr, &vcqi);
+    return tank2string(buf, sz, vcqi);
 }
 
 static int
@@ -299,7 +206,13 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
                          const struct fi_msg_tagged *msg,
                          uint64_t flags)
 {
+    int fc;
     ssize_t          ret = FI_SUCCESS;
+    struct tofu_ctx  *ctx = 0;
+    ctx = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    fi_addr_t        fi_a = msg->addr;
+    struct tofu_av   *av;
+    utofu_vcq_id_t   vcqi;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
@@ -312,19 +225,21 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
 	ret = -FI_ENOSYS; goto bad;
     }
 #if 0
-    int fc;
-    struct tofu_ctx  *ctx = 0;
-    union ulib_tofa_u   tank;
-    fi_addr_t        fi_a = msg->addr;
-    struct tofu_av   *av_priv;
-    ctx = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     if (msg->msg_iov[0].iov_base) {
         yi_showcntrl(__func__, __LINE__, msg->msg_iov[0].iov_base);
     }
-    /* convert fi_addr to tank */
-    av_priv = ctx_priv->ctx_sep->sep_av_;
-    fc = tofu_av_lup_tank(av_priv, fi_a, &tank.ui64);
+#endif
+    /* convert fi_addr to utofu_vcq_id_t */
+    av = ctx->ctx_sep->sep_av_;
+    fc = tofu_av_lookup(av, fi_a, &vcqi);
+    {
+	char	buf[128];
+	
+	R_DBG("YI********* dest = %s", vcqid2string(buf, 128, vcqi));
+    }
     if (fc != FI_SUCCESS) { ret = fc; goto bad; }
+#if 0
+    union ulib_tofa_u   tank;
     tank.tank.pid = 0; tank.tank.vld = 0;
     /*
      * My rank must be resolved here

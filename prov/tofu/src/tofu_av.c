@@ -7,7 +7,8 @@
 #include <assert.h>	    /* for assert() */
 #include <string.h>	    /* for memset() */
 
-extern int      tofu_impl_uri2name(const void *vuri, size_t index,  void *vnam);
+extern int
+tofu_impl_uri2name(const void *vuri, size_t index, struct tofu_vname *vnam);
 
 /*
  * man fi_av(3)
@@ -29,8 +30,8 @@ static int tofu_av_close(struct fid *fid)
 	fc = -FI_EBUSY; goto bad;
     }
     /* tab */
-    if (av_priv->av_tab.tab != 0) {
-        free(av_priv->av_tab.tab); av_priv->av_tab.tab = 0;
+    if (av_priv->av_tab.vnm != 0) {
+        free(av_priv->av_tab.vnm); av_priv->av_tab.vnm = 0;
     }
     av_priv->av_tab.nct = 0;
     av_priv->av_tab.mct = 0;
@@ -59,56 +60,43 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
                fi_addr_t *fi_addr,  uint64_t flags, void *context)
 {
     int            fc = FI_SUCCESS;
-    struct tofu_av *av_priv;
+    struct tofu_av *av;
     size_t         ic;
     uint32_t       afmt;
 
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
-    FI_INFO(&tofu_prov, FI_LOG_AV, "count %ld flags %"PRIx64"\n",
-	count, flags);
+    FI_INFO(&tofu_prov, FI_LOG_AV, "count %ld flags %"PRIx64"\n", count, flags);
 
     assert(fid_av_ != 0);
-    av_priv = container_of(fid_av_, struct tofu_av, av_fid);
-
-    afmt = av_priv->av_dom->dom_fmt;
-
-    /* fastlock_acquire( &av_priv->av_lck ); */
-    fc = tofu_av_resize(&av_priv->av_tab, count);
-    /* fastlock_release( &av_priv->av_lck ); */
+    av = container_of(fid_av_, struct tofu_av, av_fid);
+    afmt = av->av_dom->dom_fmt;
+    if (afmt != FI_ADDR_STR) {
+        FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
+        fc = -1; goto bad;
+    }
+    /* fastlock_acquire( &av->av_lck ); */
+    fc = tofu_av_resize(&av->av_tab, count);
+    /* fastlock_release( &av->av_lck ); */
     if (fc != FI_SUCCESS) { goto bad; }
 
+    /* fastlock_acquire(&av->av_lck); */
     for (ic = 0; ic < count; ic++) {
 	size_t index;
-        struct ulib_sep_name    vnam;
 
 	/* index */
-	/* fastlock_acquire( &av_priv->av_lck ); */
-	index = av_priv->av_tab.nct++;
-	/* fastlock_release( &av_priv->av_lck ); */
-	if (afmt == FI_ADDR_STR) {
-            fc = tofu_impl_uri2name(addr, ic, (void*) &vnam);
-	} else {
-            FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
-	    fc = -1; goto bad;
-	}
+	index = av->av_tab.nct++;
+        fc = tofu_impl_uri2name(addr, ic, &av->av_tab.vnm[index]);
 	if (fc != FI_SUCCESS) {
 	    if (fi_addr != 0) {
 		fi_addr[ic] = FI_ADDR_NOTAVAIL;
 	    }
 	    fc = FI_SUCCESS; /* XXX ignored */
-	} else {
-	    if (fi_addr != 0) {
-		fi_addr[ic] = index;
-	    }
+	} else if (fi_addr != 0) {
+            fi_addr[ic] = index;
 	}
-	vnam.vpid = index;
-	{/* copy name */
-	    void *src = (void*) &vnam;
-	    void *dst = (char *)av_priv->av_tab.tab + (index * 16); /* XXX */
-	    memcpy(dst, src, sizeof(struct ulib_sep_name));
-	}
+	av->av_tab.vnm[index].vpid = index;
     }
-
+    /* fastlock_release(&av->av_lck); */
 bad:
     return fc;
 }
@@ -168,27 +156,22 @@ static int tofu_av_resize(struct tofu_av_tab *at, size_t count)
 {
     int fc = FI_SUCCESS;
     size_t new_mct = at->mct;
-    void *new_tab;
+    void *new_vnm;
 
-    if (new_mct == 0) { assert(at->nct == 0); new_mct = 1; }
-    while (new_mct < (at->nct + count)) {
-	new_mct = (new_mct * 2);
-    }
-    if (new_mct == at->mct) {
-	goto bad; /* XXX - is not an error */
-    }
-    new_tab = realloc(at->tab, new_mct * 16);
-    if (new_tab == 0) {
+    new_mct = at->mct + count;
+    if (new_mct == at->mct) { goto bad; /* XXX - is not an error */  }
+    new_vnm = realloc(at->vnm, sizeof(struct tofu_vname)*new_mct);
+    if (new_vnm == 0) {
 	fc = -FI_ENOMEM; goto bad;
     }
     /* clear */
     {
-	char *bp = (char *)new_tab + (at->mct * 16);
-	size_t bz = (new_mct - at->mct) * 16;
+	char *bp = (char *)new_vnm + sizeof(struct tofu_vname)*at->mct;
+	size_t bz = (new_mct - at->mct) * sizeof(struct tofu_vname);
 	memset(bp, 0, bz);
     }
     at->mct = new_mct;
-    at->tab = new_tab;
+    at->vnm = new_vnm;
 bad:
     return fc;
 }

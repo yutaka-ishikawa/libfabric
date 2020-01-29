@@ -159,6 +159,9 @@ int tofu_domain_open(
             R_DBG0(RDBG_LEVEL2, "tnid(%d) num_stags(%d)",
                    tnis[ni], cap->num_reserved_stags);
             dom->vcqh[ni] = 0;
+            dom->max_mtu[ni] = cap->max_mtu;
+            dom->max_piggyback_size[ni] = cap->max_piggyback_size;
+            dom->max_edata_size[ni] = cap->max_edata_size;
         }
         dom->ntni = ntni;
         /* free tnis[] */

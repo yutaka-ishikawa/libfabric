@@ -252,7 +252,7 @@ static int tofu_ctx_close(struct fid *fid)
 	tofu_cq_rem_ctx_rx(ctx_priv->ctx_recv_cq, ctx_priv);
     }
     tofu_ictx_close(ctx_priv);
-    if ( ! dlist_empty( &ctx_priv->ctx_ent_sep ) ) {
+    if (! dlist_empty(&ctx_priv->ctx_ent_sep)) {
 	if (ctx_priv->ctx_fid.fid.fclass == FI_CLASS_TX_CTX) {
 	    tofu_sep_rem_ctx_tx(ctx_priv->ctx_sep, ctx_priv);
 	}
