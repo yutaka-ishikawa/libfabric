@@ -2,6 +2,7 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "utflib.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
@@ -38,12 +39,35 @@ static struct fi_ops tofu_cq_fi_ops = {
  *              fastlock_release(&cq__priv->cq__lck);
  */
 ssize_t
-tofu_progress(struct tofu_cq *cq__priv)
+tofu_progress(struct tofu_cq *cq)
 {
+    struct dlist_entry *head, *curr, *next;
+    int uc;
     int ment = 0;
+
+    if (ofi_cirque_isempty(cq->cq_ccq)) {
+        /* transmit progress */
+        head = &cq->cq_htx;
+        dlist_foreach_safe(head, curr, next) {
+            struct tofu_ctx *ctx;
+            ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
+            assert(ctx->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
+            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_vcqh);
+        }
+        /* receive progress */
+        head = &cq->cq_hrx;
+        dlist_foreach_safe(head, curr, next) {
+            struct tofu_ctx *ctx;
+            ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
+            assert(ctx->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
+            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_vcqh);
+        }
+        ment = ofi_cirque_usedcnt(cq->cq_ccq);
+    }
     return ment;
 }
 
+static int utf_poll_lim;
 /*
  * fi_cq_read
  */
@@ -51,9 +75,38 @@ static ssize_t
 tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 {
     ssize_t        ret = 0;
+    struct tofu_cq *cq;
+    ssize_t        ent, i;
 
+    R_DBGMSG("YI******* tofu_cq_read");
     FI_INFO(&tofu_prov, FI_LOG_CQ, " count(%ld) in %s\n", count, __FILE__);
     assert(fid_cq != 0);
+
+    cq = container_of(fid_cq, struct tofu_cq, cq_fid);
+
+    fastlock_acquire(&cq->cq_lck);
+    ent = tofu_progress(cq);
+    R_DBG("YI******* tofu_cq_read ent(%ld)", ent);
+    if (ent == 0) {
+        ret = -FI_EAGAIN; goto empty;
+    }
+    /* CQ entries are discarded */
+    ent = (ent > count) ? count : ent;
+    for (i = 0; i < ent; i++) {
+        struct fi_cq_tagged_entry *comp;
+	comp = ofi_cirque_head(cq->cq_ccq);
+        assert(comp != 0);
+        /* copy */
+        ((struct fi_cq_tagged_entry *)buf)[i] = *comp;
+        ofi_cirque_discard(cq->cq_ccq);
+    }
+    utf_poll_lim = 0;
+empty:
+    fastlock_release(&cq->cq_lck);
+    if (utf_poll_lim++ > 10) {
+        R_DBGMSG("Exit for debugging\n");
+        abort();
+    }
     return ret;
 }
 

@@ -36,6 +36,16 @@ extern int rdbgf, rdbgl;
        fflush(stderr);                                                  \
    } while (0)
 
+#define R_DBGMSG(format)                                                \
+   do {									\
+       printf("\t%d: " format " in %d:%s/%s\n",                         \
+              mypid, __LINE__, __func__, __FILE__);                     \
+       fflush(stdout);                                                  \
+       fprintf(stderr, "%d: " format " in %d:%s/%s\n",                  \
+               mypid, __LINE__, __func__, __FILE__);                    \
+       fflush(stderr);                                                  \
+   } while (0)
+
 #define R_DBG0(level, format, ...)                                      \
    do {									\
 	   if (rdbgf & 0x01 && level & rdbgl) {                         \

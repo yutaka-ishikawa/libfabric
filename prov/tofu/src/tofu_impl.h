@@ -36,12 +36,13 @@ struct tofu_domain {
 /*  struct dlist_entry	dom_ent; */
     uint32_t		dom_fmt;    /* addr_format */
     /* tofu dependent */
+    utofu_vcq_hdl_t     vcqh[8];
     utofu_tni_id_t      tnis[8];
     size_t              ntni;
-    utofu_vcq_hdl_t     vcqh[8];
-    size_t              max_mtu[8];
-    size_t              max_piggyback_size[8];
-    size_t              max_edata_size[8];
+    size_t              max_mtu;
+    size_t              max_piggyback_size;
+    size_t              max_edata_size;
+    int                 myrank;
 };
 
 struct tofu_ctx {
@@ -56,12 +57,11 @@ struct tofu_ctx {
     struct dlist_entry	ctx_ent_sep;
     struct dlist_entry	ctx_ent_cq;
     struct dlist_entry	ctx_ent_ctr;
-    struct tofu_cq *	ctx_send_cq; /* send completion queue */
-    struct tofu_cq *	ctx_recv_cq; /* receive completion queue */
-    struct tofu_cntr *	ctx_send_ctr; /* fi_write/fi_read and send operation */
-    struct tofu_cntr *	ctx_recv_ctr; /* recv operation */
-    int                 enabled;
-    int                 index;
+    struct tofu_cq     *ctx_send_cq;  /* send completion queue */
+    struct tofu_cq     *ctx_recv_cq;  /* receive completion queue */
+    struct tofu_cntr   *ctx_send_ctr; /* fi_write/fi_read and send operation */
+    struct tofu_cntr   *ctx_recv_ctr; /* recv operation */
+    struct tofu_av     *ctx_av;       /* copy of sep->sep_av_ */
 };
 
 struct tofu_sep {
@@ -73,9 +73,9 @@ struct tofu_sep {
     struct dlist_entry	sep_ent;        /* link to other SEPs */
     struct dlist_entry	sep_htx;        /* head for ep tx ctxs */
     struct dlist_entry	sep_hrx;        /* head for ep rx ctxs */
-    struct tofu_av *	sep_av_;
-    struct tofu_ctx     sep_sctx[CONF_TOFU_CTXC];
-    struct tofu_ctx     sep_rctx[CONF_TOFU_CTXC];
+    struct tofu_av     *sep_av_;
+    struct tofu_ctx    *sep_sctx;
+    struct tofu_ctx    *sep_rctx;
     int                 sep_vcqidx;
     utofu_vcq_hdl_t     sep_vcqh;       /* copy of sep_dom->vcqh[sep_vcqid] */
 };
@@ -129,6 +129,7 @@ struct tofu_av {
     int			av_rxb;    /* rx_ctx_bits */
     ofi_atomic32_t	av_ref;
     fastlock_t		av_lck;
+    size_t              av_cnt;    /* Maximum AV count == nprocs */
     /* Tofu Internal */
     struct tofu_av_tab {
 	size_t		   mct;    /* max count */

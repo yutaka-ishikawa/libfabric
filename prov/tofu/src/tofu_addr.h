@@ -1,3 +1,46 @@
+static inline int
+tofu_av_lookup_vcqid(struct tofu_av *av_priv,  fi_addr_t fi_a,
+		     utofu_vcq_id_t *vcqid, uint64_t *flgs)
+{
+    int	uc, fc = FI_SUCCESS;
+    size_t av_idx;
+    struct tofu_vname *vnam;
+
+    if (fi_a == FI_ADDR_NOTAVAIL) {
+	fc = -FI_EINVAL; goto bad;
+    }
+    assert(av_priv->av_rxb >= 0);
+    /* assert(av_priv->av_rxb <= TOFU_RX_CTX_MAX_BITS); */
+    if (av_priv->av_rxb == 0) {
+	av_idx = fi_a;
+    } else {
+	/* av_idx = fi_a & rx_ctx_mask */
+	av_idx = (((uint64_t)fi_a) << av_priv->av_rxb) >> av_priv->av_rxb;
+    }
+    if (av_idx >= av_priv->av_tab.nct) {
+	fc = -FI_EINVAL; goto bad;
+    }
+    assert(av_priv->av_tab.vnm != 0);
+    vnam = &av_priv->av_tab.vnm[av_idx];
+    uc = utofu_construct_vcq_id(vnam->xyzabc,
+				vnam->tniq[0]>>4,
+				vnam->tniq[0]&0x0f,
+				vnam->cid, vcqid);
+    if (flgs) {
+	utofu_path_id_t	pathid;
+	utofu_get_path_id(*vcqid, vnam->xyzabc, &pathid);
+	*flgs = UTOFU_ONESIDED_FLAG_PATH(pathid);
+    }
+    if (uc != UTOFU_SUCCESS) {
+	R_DBG("Something wrong %u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
+	      vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
+	      vnam->xyzabc[3], vnam->xyzabc[4], vnam->xyzabc[5], vnam->cid, uc);
+	fc = -FI_EINVAL;
+    }
+bad:
+    return fc;
+}
+
 #define ULIB_TOFA_BITS_TUX  5
 #define ULIB_TOFA_BITS_TUY  5
 #define ULIB_TOFA_BITS_TUZ  5

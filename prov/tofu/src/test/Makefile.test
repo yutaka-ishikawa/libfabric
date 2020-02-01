@@ -1,13 +1,15 @@
-INCLUDE=-I../../../include -I../../../
+INCLUDE=-I../../../../include -I../../../../ -I../
+INCLUDE += -I/mnt2/work2/riken-mpich/include
+
+PROGS = size_exam
+SRCS = size_exam.c
+OBJS = $(SRCS:.c=.o)
+
+all: $(PROGS)
+$(PROGS): $(OBJS)
+	cc -g -o $@ $@.o
+clean:
+	rm -f $(PROGS) $(OBJS)
 .c.o:
 	cc -c $< $(INCLUDE)
 
-all: rbtest iovtest
-rbtest: rbtree.o rbtest.o
-	cc $(INCLUDE) rbtree.o rbtest.o -o rbtest
-iovtest: iovtest.o rbtree.o
-	cc $(INCLUDE) rbtree.o iovtest.o -o iovtest
-#	cc $(INCLUDE) test.c -E >test.txt
-#	cc $(INCLUDE) test.c
-rbtest.o: ulib_mem.c rbtest.c
-rbtree.o: ../../../src/rbtree.c

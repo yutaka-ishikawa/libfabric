@@ -2,6 +2,7 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include <pmix.h>
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
@@ -159,9 +160,9 @@ int tofu_domain_open(
             R_DBG0(RDBG_LEVEL2, "tnid(%d) num_stags(%d)",
                    tnis[ni], cap->num_reserved_stags);
             dom->vcqh[ni] = 0;
-            dom->max_mtu[ni] = cap->max_mtu;
-            dom->max_piggyback_size[ni] = cap->max_piggyback_size;
-            dom->max_edata_size[ni] = cap->max_edata_size;
+            dom->max_mtu = cap->max_mtu;
+            dom->max_piggyback_size = cap->max_piggyback_size;
+            dom->max_edata_size = cap->max_edata_size;
         }
         dom->ntni = ntni;
         /* free tnis[] */
@@ -169,7 +170,6 @@ int tofu_domain_open(
             free(tnis); tnis = 0;
         }
     }
-
     /* return fid_dom */
     fid_dom[0] = &dom->dom_fid;
     dom = 0; /* ZZZ */

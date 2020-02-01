@@ -20,7 +20,18 @@ _tofu_files =				\
 	    prov/tofu/src/tofu_msg.c	\
 	    prov/tofu/src/tofu_rma.c	\
 	    prov/tofu/src/tofu_sep.c	\
-	    prov/tofu/src/tofu_trigger.c
+	    prov/tofu/src/tofu_trigger.c \
+	    prov/tofu/src/utf_conf.h \
+	    prov/tofu/src/utf_externs.h \
+	    prov/tofu/src/utf_errmacros.h \
+	    prov/tofu/src/utf_queue.h \
+	    prov/tofu/src/utf_sndmgt.h \
+	    prov/tofu/src/utf_debug.c \
+	    prov/tofu/src/utf_engine.c \
+	    prov/tofu/src/utf_init.c \
+	    prov/tofu/src/utf_mem.c \
+	    prov/tofu/src/utf_msg.c \
+	    prov/tofu/src/utf_umem.c
 
 if HAVE_TOFU_DL
 pkglib_LTLIBRARIES += libtofu-fi.la

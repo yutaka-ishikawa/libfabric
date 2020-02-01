@@ -4,44 +4,6 @@
 extern char *tank2string(char *buf, size_t sz, uint64_t ui64);
 extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqid);
 
-
-static inline int
-tofu_av_lookup(struct tofu_av *av_priv,  fi_addr_t fi_a,  utofu_vcq_id_t *vcqi)
-{
-    int	uc, fc = FI_SUCCESS;
-    size_t av_idx;
-    struct tofu_vname *vnam;
-
-    if (fi_a == FI_ADDR_NOTAVAIL) {
-	fc = -FI_EINVAL; goto bad;
-    }
-    assert(av_priv->av_rxb >= 0);
-    /* assert(av_priv->av_rxb <= TOFU_RX_CTX_MAX_BITS); */
-    if (av_priv->av_rxb == 0) {
-	av_idx = fi_a;
-    } else {
-	/* av_idx = fi_a & rx_ctx_mask */
-	av_idx = (((uint64_t)fi_a) << av_priv->av_rxb) >> av_priv->av_rxb;
-    }
-    if (av_idx >= av_priv->av_tab.nct) {
-	fc = -FI_EINVAL; goto bad;
-    }
-    assert(av_priv->av_tab.vnm != 0);
-    vnam = &av_priv->av_tab.vnm[av_idx];
-    uc = utofu_construct_vcq_id(vnam->xyzabc,
-				vnam->tniq[0]>>4,
-				vnam->tniq[0]&0x0f,
-				vnam->cid, vcqi);
-    if (uc != UTOFU_SUCCESS) {
-	R_DBG("Something wrong %u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
-	      vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
-	      vnam->xyzabc[3], vnam->xyzabc[4], vnam->xyzabc[5], vnam->cid, uc);
-	fc = -FI_EINVAL;
-    }
-bad:
-    return fc;
-}
-
 static inline char *
 fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
 {
@@ -51,7 +13,7 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
 
     ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     av_priv = ctx_priv->ctx_sep->sep_av_;
-    tofu_av_lookup(av_priv, fi_addr, &vcqi);
+    tofu_av_lookup_vcqid(av_priv, fi_addr, &vcqi, 0);
     return tank2string(buf, sz, vcqi);
 }
 
@@ -213,6 +175,7 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
     fi_addr_t        fi_a = msg->addr;
     struct tofu_av   *av;
     utofu_vcq_id_t   vcqi;
+    uint64_t	     flgs;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
@@ -231,11 +194,12 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
 #endif
     /* convert fi_addr to utofu_vcq_id_t */
     av = ctx->ctx_sep->sep_av_;
-    fc = tofu_av_lookup(av, fi_a, &vcqi);
+    fc = tofu_av_lookup_vcqid(av, fi_a, &vcqi, &flgs);
     {
 	char	buf[128];
 	
-	R_DBG("YI********* dest = %s", vcqid2string(buf, 128, vcqi));
+	R_DBG("YI********* dest = %s flgs(%ld)",
+	      vcqid2string(buf, 128, vcqi), flgs);
     }
     if (fc != FI_SUCCESS) { ret = fc; goto bad; }
 #if 0
@@ -670,3 +634,13 @@ struct fi_ops_tagged tofu_ctx_ops_tag = {
     .senddata	    = tofu_ctx_tag_senddata,
     .injectdata	    = tofu_ctx_tag_injectdata,
 };
+
+
+
+void
+tofufab_resolve_addrinfo(void *av, int rank,
+                         utofu_vcq_id_t *vcqid, uint64_t *flgs)
+{
+    tofu_av_lookup_vcqid((struct tofu_av *) av,  (fi_addr_t) rank,
+                         vcqid, flgs);
+}

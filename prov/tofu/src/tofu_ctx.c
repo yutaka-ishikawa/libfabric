@@ -6,6 +6,7 @@
 #include "tofu_debug.h"
 #include "tofu_impl.h"
 #include "tofu_macro.h"
+#include "utflib.h"
 
 static int tofu_ctx_close(struct fid *fid);
 static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags);
@@ -34,41 +35,40 @@ static struct fi_ops_ep tofu_ctx_ops = {
 };
 
 static inline int
-tofu_ictx_init(int index, struct tofu_ctx *ctx_priv, struct tofu_sep *sep_priv,
-               void *context, void *attr, int class)
+tofu_ctx_init(int index, struct tofu_ctx *ctx, struct tofu_sep *sep,
+              void *context, void *attr, int class)
 {
     int fc = FI_SUCCESS;
-    /* initialize internal members */
-    ctx_priv->enabled = 0;
-    ctx_priv->index = 0;
-    /* initialize fabric members */
-    ctx_priv->ctx_fid.fid.fclass  = class;
-    ctx_priv->ctx_fid.fid.context = context;
-    ctx_priv->ctx_fid.fid.ops   = &tofu_ctx_fi_ops;
-    ctx_priv->ctx_fid.ops	= &tofu_ctx_ops;
-    ctx_priv->ctx_fid.cm	= &tofu_ctx_ops_cm;
-    ctx_priv->ctx_fid.msg       = &tofu_ctx_ops_msg;
-    ctx_priv->ctx_fid.rma   	= &tofu_ctx_ops_rma;
-    ctx_priv->ctx_fid.tagged	= &tofu_ctx_ops_tag;
-    ctx_priv->ctx_fid.atomic	= &tofu_ctx_ops_atomic;
-    ctx_priv->ctx_sep = sep_priv;
-    ofi_atomic_initialize32(&ctx_priv->ctx_ref, 0);
-    ctx_priv->ctx_idx = index;
 
-    fastlock_init(&ctx_priv->ctx_lck);
-    ctx_priv->ctx_xop_flg = (attr == 0)? 0UL :
+    /* initialize fabric members */
+    ctx->ctx_fid.fid.fclass  = class;
+    ctx->ctx_fid.fid.context = context;
+    ctx->ctx_fid.fid.ops  = &tofu_ctx_fi_ops;
+    ctx->ctx_fid.ops	= &tofu_ctx_ops;
+    ctx->ctx_fid.cm	= &tofu_ctx_ops_cm;
+    ctx->ctx_fid.msg    = &tofu_ctx_ops_msg;
+    ctx->ctx_fid.rma   	= &tofu_ctx_ops_rma;
+    ctx->ctx_fid.tagged	= &tofu_ctx_ops_tag;
+    ctx->ctx_fid.atomic	= &tofu_ctx_ops_atomic;
+    ctx->ctx_sep = sep;
+    ofi_atomic_initialize32(&ctx->ctx_ref, 0);
+    ctx->ctx_enb = 0;
+    ctx->ctx_idx = index;
+    ctx->ctx_av = sep->sep_av_;  /* copy of sep->sep_av_ */
+
+    fastlock_init(&ctx->ctx_lck);
+    ctx->ctx_xop_flg = (attr == 0)? 0UL :
         ((class == FI_CLASS_TX_CTX) ? ((struct fi_tx_attr*)attr)->op_flags:
          ((struct fi_rx_attr*)attr)->op_flags);
-    dlist_init( &ctx_priv->ctx_ent_sep );
-    dlist_init( &ctx_priv->ctx_ent_cq );
-    dlist_init( &ctx_priv->ctx_ent_ctr );
+    dlist_init(&ctx->ctx_ent_sep);
+    dlist_init(&ctx->ctx_ent_cq);
+    dlist_init(&ctx->ctx_ent_ctr);
     /* check if CTX of corresponding index has been registered */
     {
 	struct tofu_ctx *ctx_dup;
-	fastlock_acquire(&sep_priv->sep_lck);
-	ctx_dup = tofu_sep_lup_ctx_byi_unsafe(sep_priv,
-                                              class, index);
-	fastlock_release(&sep_priv->sep_lck);
+	fastlock_acquire(&sep->sep_lck);
+	ctx_dup = tofu_sep_lup_ctx_byi_unsafe(sep, class, index);
+	fastlock_release(&sep->sep_lck);
 	if (ctx_dup != 0) {
             /* index's CTX has been already registered */
 	    fc = -FI_EBUSY;
@@ -214,12 +214,12 @@ tofu_ictx_close(struct tofu_ctx *ctx)
     R_DBG("%s: NEEDS TO IMPLEMENT\n", __func__);
     abort();
 #if 0
-    if (ctx->enabled != 0) {
+    if (ctx->ctx_enb != 0) {
 	assert(ctx->vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
 	uc = utofu_free_vcq(ctx->vcqh);
 	if (uc != UTOFU_SUCCESS) { goto bad; }
 	ctx->vcqh = 0; /* XXX */
-	ctx->enabled = 0;
+	ctx->ctx_enb = 0;
     }
 #endif
     /* unexpected entries */
@@ -413,22 +413,23 @@ bad:
 }
 
 /*
- * ictx_ctrl_enab() is called from tofu_ctx_ctrl() that is
+ * tofu_ctx_ctrl_enab() is called from tofu_ctx_ctrl() that is
  * implementation of FI_ENABLE on fi_control
  */
 static int
-ictx_ctrl_enab(int class, struct tofu_ctx *ctx)
+tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
 {
     int uc = UTOFU_SUCCESS;
     struct tofu_sep     *sep = ctx->ctx_sep;
     struct tofu_domain  *dom;
+    utofu_vcq_hdl_t     vcqh;
 
-    if (ctx->enabled != 0 || sep->sep_dom == 0) {
+    if (ctx->ctx_enb != 0 || sep->sep_dom == 0) {
 	uc = UTOFU_ERR_BUSY; goto bad;
     }
     dom = sep->sep_dom;
-    R_DBG("ctx->index(%d) dom->ntni(%ld)", ctx->index, dom->ntni);
-    if ((ctx->index < 0) || (ctx->index >= dom->ntni)) {
+    R_DBG("ctx->index(%d) dom->ntni(%ld)", ctx->ctx_idx, dom->ntni);
+    if ((ctx->ctx_idx < 0) || (ctx->ctx_idx >= dom->ntni)) {
         uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
     }
     /* unexpected entries */
@@ -438,7 +439,6 @@ ictx_ctrl_enab(int class, struct tofu_ctx *ctx)
     /* ictx_ctrl_enab */
     //ictx->nrma = 0;
     if (sep->sep_vcqidx == -1) {
-        utofu_vcq_hdl_t     vcqh;
         int     i;
         for (i = 0; i < dom->ntni; i++) {
             if (dom->vcqh[i] == 0) {
@@ -466,7 +466,11 @@ ictx_ctrl_enab(int class, struct tofu_ctx *ctx)
         uc = UTOFU_ERR_BUSY; goto bad;
     }
 alloc:
-    ctx->enabled = 1;
+    /* initialize utf library */
+    /* sep->sep_av_->av_cnt is nproc */
+    uc = utf_init(vcqh, ctx->ctx_sep->sep_dom->max_piggyback_size,
+                  ctx->ctx_av->av_cnt);
+    ctx->ctx_enb = 1;
 bad:
     return uc;
 }
@@ -493,17 +497,15 @@ tofu_ctx_ctrl(struct fid *fid, int command, void *arg)
 	    if (ctx_priv->ctx_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-	    uc = ictx_ctrl_enab(FI_CLASS_TX_CTX, ctx_priv);
+	    uc = tofu_ctx_ctrl_enab(FI_CLASS_TX_CTX, ctx_priv);
 	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
-	    ctx_priv->ctx_enb = 1;
 	    break;
 	case FI_CLASS_RX_CTX:
 	    if (ctx_priv->ctx_enb != 0) {
 		goto bad; /* XXX - is not an error */
 	    }
-	    uc = ictx_ctrl_enab(FI_CLASS_RX_CTX, ctx_priv);
+	    uc = tofu_ctx_ctrl_enab(FI_CLASS_RX_CTX, ctx_priv);
 	    if (uc != UTOFU_SUCCESS) { fc = -FI_EINVAL; goto bad; }
-	    ctx_priv->ctx_enb = 1;
 	    break;
 	default:
 	    fc = -FI_EINVAL; goto bad;
@@ -602,10 +604,9 @@ tofu_ctx_tx_context(struct fid_ep *fid_sep,  int index,
     if (ctx_priv == 0) {
         fc = -FI_ENOMEM; goto bad;
     }
-    //ulib_ofif_ictx_init(ctx_priv, offs_ulib);
     /* initialize ctx_priv and register it into SEP */
-    if ((fc = tofu_ictx_init(index, ctx_priv, sep_priv,
-                             context, attr, FI_CLASS_TX_CTX)) != FI_SUCCESS) {
+    if ((fc = tofu_ctx_init(index, ctx_priv, sep_priv,
+                            context, attr, FI_CLASS_TX_CTX)) != FI_SUCCESS) {
         goto bad;
     }
     tofu_sep_ins_ctx_tx(ctx_priv->ctx_sep, ctx_priv);
@@ -654,8 +655,8 @@ tofu_ctx_rx_context(struct fid_ep *fid_sep, int index,
         fc = -FI_ENOMEM; goto bad;
     }
     /* initialize ctx_priv and register it into SEP */
-    if ((fc = tofu_ictx_init(index, ctx_priv, sep_priv,
-                             context, attr, FI_CLASS_RX_CTX)) != FI_SUCCESS) {
+    if ((fc = tofu_ctx_init(index, ctx_priv, sep_priv,
+                            context, attr, FI_CLASS_RX_CTX)) != FI_SUCCESS) {
         goto bad;
     }
     tofu_sep_ins_ctx_rx( ctx_priv->ctx_sep, ctx_priv );

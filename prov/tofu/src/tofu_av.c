@@ -18,7 +18,8 @@ tofu_impl_uri2name(const void *vuri, size_t index, struct tofu_vname *vnam);
  *     If resources are still associated with the AV when attempting to
  *     close, the call will return -FI_EBUSY.
  */
-static int tofu_av_close(struct fid *fid)
+static int
+tofu_av_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
     struct tofu_av *av_priv;
@@ -101,24 +102,18 @@ bad:
     return fc;
 }
 
-static int tofu_av_remove(
-    struct fid_av *fid_av_,
-    fi_addr_t *fi_addr,
-    size_t count,
-    uint64_t flags
-)
+static int
+tofu_av_remove(struct fid_av *fid_av_,  fi_addr_t *fi_addr,
+               size_t count, uint64_t flags)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     return fc;
 }
 
-static int tofu_av_lookup(
-    struct fid_av *fid_av_,
-    fi_addr_t fi_addr,
-    void *addr,
-    size_t *addrlen
-)
+static int
+tofu_av_lookup(struct fid_av *fid_av_,  fi_addr_t fi_addr,
+               void *addr,  size_t *addrlen)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
@@ -131,12 +126,9 @@ static int tofu_av_lookup(
     return fc;
 }
 
-static const char * tofu_av_straddr(
-    struct fid_av *fid_av_,
-    const void *addr,
-    char *buf,
-    size_t *len
-)
+static const char *
+tofu_av_straddr(struct fid_av *fid_av_, const void *addr,
+                char *buf, size_t *len)
 {
     size_t bsz = *len;
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
@@ -152,7 +144,8 @@ static const char * tofu_av_straddr(
     return buf;
 }
 
-static int tofu_av_resize(struct tofu_av_tab *at, size_t count)
+static int
+tofu_av_resize(struct tofu_av_tab *at, size_t count)
 {
     int fc = FI_SUCCESS;
     size_t new_mct = at->mct;
@@ -191,17 +184,17 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
              struct fid_av **fid_av_, void *context)
 {
     int fc = FI_SUCCESS;
-    struct tofu_domain *dom_priv;
-    struct tofu_av *av_priv = 0;
+    struct tofu_domain *dom;
+    struct tofu_av *av = 0;
 
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     assert(fid_dom != 0);
-    dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid );
+    dom = container_of(fid_dom, struct tofu_domain, dom_fid );
 
     /* tofu_chck_av_attr */
     if (attr != 0) {
         fprintf(stderr,
-                "%s():%d\tav_type %d bits %d count %ld e/n %ld name %p\n",
+                "%s():%d\tav_type(%d) bits(%d) count(%ld) e/n(%ld) name(%p)\n",
                 __func__, __LINE__,
                 attr->type, attr->rx_ctx_bits, attr->count,
                 attr->ep_per_node, attr->name);
@@ -209,36 +202,33 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
 	if (fc != FI_SUCCESS) { goto bad; }
     }
 
-    av_priv = calloc(1, sizeof (av_priv[0]));
-    if (av_priv == 0) {
+    av = calloc(1, sizeof (av[0]));
+    if (av == 0) {
 	fc = -FI_ENOMEM; goto bad;
     }
-
-    /* initialize av_priv */
+    /* initialize av */
     {
-	av_priv->av_dom = dom_priv;
-	ofi_atomic_initialize32(&av_priv->av_ref, 0);
-	fastlock_init(&av_priv->av_lck);
-	av_priv->av_fid.fid.fclass    = FI_CLASS_AV;
-	av_priv->av_fid.fid.context   = context;
-	av_priv->av_fid.fid.ops       = &tofu_av_fi_ops;
-	av_priv->av_fid.ops           = &tofu_av_ops;
-	/* dlist_init( &av_priv->av_ent ); */
+	av->av_dom = dom;
+	ofi_atomic_initialize32(&av->av_ref, 0);
+	fastlock_init(&av->av_lck);
+	av->av_fid.fid.fclass    = FI_CLASS_AV;
+	av->av_fid.fid.context   = context;
+	av->av_fid.fid.ops       = &tofu_av_fi_ops;
+	av->av_fid.ops           = &tofu_av_ops;
+	/* dlist_init( &av->av_ent ); */
     }
-    /* av_priv */
+    /* av */
     {
-	av_priv->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
+	av->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
+        av->av_cnt = attr->count;
     }
-    R_DBG("YI************ av_priv->av_rxb(%d)", av_priv->av_rxb);
-
     /* return fid_dom */
-    fid_av_[0] = &av_priv->av_fid;
-    av_priv = 0; /* ZZZ */
-
+    fid_av_[0] = &av->av_fid;
+    av = 0; /* clear for success */
 bad:
     R_DBG("YI fc(%d)", fc);
-    if (av_priv != 0) {
-	tofu_av_close(&av_priv->av_fid.fid);
+    if (av != 0) {
+	tofu_av_close(&av->av_fid.fid);
     }
     FI_INFO(&tofu_prov, FI_LOG_AV, "fi_errno %d\n", fc);
     return fc;

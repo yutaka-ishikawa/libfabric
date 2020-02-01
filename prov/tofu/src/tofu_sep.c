@@ -159,6 +159,7 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
     /* dlist_init( &sep_priv->sep_ent ); */
     dlist_init(&sep_priv->sep_htx);
     dlist_init(&sep_priv->sep_hrx);
+#if 0
     /* first initialization */
     {
         int     i;
@@ -167,6 +168,7 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
             sep_priv->sep_rctx[i].index = -1;
         }
     }
+#endif
     sep_priv->sep_vcqidx = -1;
     /* return fid_sep */
     fid_sep[0] = &sep_priv->sep_fid;
