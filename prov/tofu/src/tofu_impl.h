@@ -129,8 +129,8 @@ struct tofu_av {
     int			av_rxb;    /* rx_ctx_bits */
     ofi_atomic32_t	av_ref;
     fastlock_t		av_lck;
-    size_t              av_cnt;    /* Maximum AV count == nprocs */
     /* Tofu Internal */
+#define av_cnt av_tab.nct          /* adress vector count = nprocs */
     struct tofu_av_tab {
 	size_t		   mct;    /* max count */
 	size_t             nct;    /* now count */

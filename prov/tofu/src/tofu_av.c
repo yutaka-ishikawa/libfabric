@@ -75,9 +75,9 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
         FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
         fc = -1; goto bad;
     }
-    /* fastlock_acquire( &av->av_lck ); */
+    /* fastlock_acquire(&av->av_lck); */
     fc = tofu_av_resize(&av->av_tab, count);
-    /* fastlock_release( &av->av_lck ); */
+    /* fastlock_release(&av->av_lck); */
     if (fc != FI_SUCCESS) { goto bad; }
 
     /* fastlock_acquire(&av->av_lck); */
@@ -96,6 +96,17 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
             fi_addr[ic] = index;
 	}
 	av->av_tab.vnm[index].vpid = index;
+//        R_IFDBG(RDBG_LEVEL1) {
+        {
+            utofu_vcq_id_t vcqid;
+            struct tofu_vname   *vnam = &av->av_tab.vnm[index];
+            utofu_construct_vcq_id(vnam->xyzabc,
+                                    vnam->tniq[0]>>4,
+                                    vnam->tniq[0]&0x0f,
+                                    vnam->cid, &vcqid);
+            R_DBG("fi_addr[%ld] = %ld ==> vcaqid(%lx)",
+                  ic, fi_addr[ic], vcqid);
+        }
     }
     /* fastlock_release(&av->av_lck); */
 bad:
@@ -220,7 +231,10 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
     /* av */
     {
 	av->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
-        av->av_cnt = attr->count;
+        if (attr->count > 0) { /* Maximum length of vector is allocated */
+            fc = tofu_av_resize(&av->av_tab, attr->count);
+            if (fc != FI_SUCCESS) goto bad;
+        }
     }
     /* return fid_dom */
     fid_av_[0] = &av->av_fid;

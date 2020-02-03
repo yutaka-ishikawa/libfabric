@@ -46,6 +46,8 @@ extern int rdbgf, rdbgl;
        fflush(stderr);                                                  \
    } while (0)
 
+#define R_IFDBG(level) if (rdbgf & 0x01 && level & rdbgl)
+
 #define R_DBG0(level, format, ...)                                      \
    do {									\
 	   if (rdbgf & 0x01 && level & rdbgl) {                         \
