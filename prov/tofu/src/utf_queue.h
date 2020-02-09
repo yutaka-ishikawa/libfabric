@@ -215,7 +215,8 @@ tofu_utf_uexplst_match(uint64_t src, uint64_t tag, uint64_t ignore, int peek)
     utf_printf("\t: not found\n");
     return -1;
 find:
-    utf_printf("\t: found\n");
+    idx = msl->reqidx;
+    utf_printf("\t: found idx(%d)\n", idx);
     if (peek == 0) {
 	utfslist_remove2(&utf_uexplst, cur, prev);
 	utf_msglst_free(msl);
