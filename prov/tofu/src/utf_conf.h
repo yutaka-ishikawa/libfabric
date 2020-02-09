@@ -4,6 +4,9 @@
 #include <stdarg.h>
 #include <stdlib.h>
 #include <unistd.h>
+#ifndef UTF_NATIVE
+#include <sys/uio.h>
+#endif
 
 #define DEBUG(mask) if (utf_dflag&(mask))
 #define DLEVEL_PMIX		0x1

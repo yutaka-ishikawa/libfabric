@@ -1,27 +1,29 @@
 static inline int
-tofu_av_lookup_vcqid(struct tofu_av *av_priv,  fi_addr_t fi_a,
-		     utofu_vcq_id_t *vcqid, uint64_t *flgs)
+tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
+			    utofu_vcq_id_t *vcqid, uint64_t *flgs)
 {
-    int	uc, fc = FI_SUCCESS;
-    size_t av_idx;
+    int		uc, fc = FI_SUCCESS;
+    size_t	rx_idx, av_idx;
     struct tofu_vname *vnam;
 
     if (fi_a == FI_ADDR_NOTAVAIL) {
 	fc = -FI_EINVAL; goto bad;
     }
-    assert(av_priv->av_rxb >= 0);
-    /* assert(av_priv->av_rxb <= TOFU_RX_CTX_MAX_BITS); */
-    if (av_priv->av_rxb == 0) {
+    assert(av->av_rxb >= 0);
+    /* assert(av->av_rxb <= TOFU_RX_CTX_MAX_BITS); */
+    if (av->av_rxb == 0) {
+	rx_idx = 0;
 	av_idx = fi_a;
     } else {
+	rx_idx = ((uint64_t)fi_a) >> (64 - av->av_rxb);
 	/* av_idx = fi_a & rx_ctx_mask */
-	av_idx = (((uint64_t)fi_a) << av_priv->av_rxb) >> av_priv->av_rxb;
+	av_idx = (((uint64_t)fi_a) << av->av_rxb) >> av->av_rxb;
     }
-    if (av_idx >= av_priv->av_tab.nct) {
+    if (av_idx >= av->av_tab[rx_idx].nct) {
 	fc = -FI_EINVAL; goto bad;
     }
-    assert(av_priv->av_tab.vnm != 0);
-    vnam = &av_priv->av_tab.vnm[av_idx];
+    assert(av->av_tab[rx_idx].vnm != 0);
+    vnam = &av->av_tab[rx_idx].vnm[av_idx];
     uc = utofu_construct_vcq_id(vnam->xyzabc,
 				vnam->tniq[0]>>4,
 				vnam->tniq[0]&0x0f,
@@ -39,6 +41,26 @@ tofu_av_lookup_vcqid(struct tofu_av *av_priv,  fi_addr_t fi_a,
     }
 bad:
     return fc;
+}
+
+static inline int
+tofu_av_lookup_rank_by_vcqid(struct tofu_av *av,  utofu_vcq_id_t vcqid)
+{
+    size_t	rx_idx, av_idx;
+    struct tofu_av_tab	*avtp;
+
+    for (rx_idx = 0; rx_idx < CONF_TOFU_ATTR_MAX_EP_TXRX_CTX; rx_idx++) {
+	avtp = &av->av_tab[rx_idx];
+	for (av_idx = 0; av_idx < avtp->nct; av_idx++) {
+	    if (avtp->vnm[av_idx].vcqid == vcqid) {
+		goto find;
+	    }
+	}
+    }
+    av_idx = -1;
+    R_DBG("YI*** Cannot find vcqid(%lx) avtp->nct(%ld)", vcqid, avtp->nct);
+find:
+    return av_idx;
 }
 
 #define ULIB_TOFA_BITS_TUX  5

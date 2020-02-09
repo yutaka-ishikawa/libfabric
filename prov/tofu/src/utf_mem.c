@@ -12,27 +12,27 @@ utofu_stadd_t	egrmgtstadd;	/* stadd of sndmgt */
 /* For Sender-side Eager Buffer */
 static struct utf_egr_sbuf	*utf_egsbuf;
 static int	utf_egsbufsize;
-static slist	utf_egsbuffree;
+static utfslist	utf_egsbuffree;
 static utofu_stadd_t	egsbfstadd;
 
 /* For Sender-side message information */
 static struct utf_send_msginfo	*utf_sndminfo_pool;
 static int	utf_sndminfosize;
-static slist	utf_sndminfofree;
+static utfslist	utf_sndminfofree;
 static utofu_stadd_t	sndminfostadd;
 
 /* For Sender-side control structure */
 static struct utf_send_cntr	*utf_scntrp;
 utofu_stadd_t	sndctrstadd, sndctrstaddend;
 static int	utf_scntrsize;
-static slist	utf_scntrfree;
+static utfslist	utf_scntrfree;
 static uint16_t	*rank2scntridx; /* destination rank to sender control index */
 
 /* For Receiver-side eager message handling */
 struct erecv_buf *erbuf;	/* eager receiver buffer */
 utofu_stadd_t	erbstadd;	/* stadd of eager receiver buffer */
-slist		utf_explst;	/* expected message list */
-slist		utf_uexplst;	/* unexpected message list */
+utfslist		utf_explst;	/* expected message list */
+utfslist		utf_uexplst;	/* unexpected message list */
 #if 0
 struct utf_msglst	utf_explst_head;  /* expected message list */
 struct utf_msglst	utf_explst_tail;  /* expected message list */
@@ -41,12 +41,12 @@ struct utf_msglst	utf_uexplst_tail; /* unexpected message list */
 #endif
 struct utf_msglst	*utf_msglst_pool;  /* shared by explst and unexplst */
 uint32_t		utf_msglst_size;  /* */
-static slist		utf_msglstfree;
+static utfslist		utf_msglstfree;
 //static utf_bits		*utf_msglst_bits; /* */
 
 struct utf_msgreq	*utf_msgreq_pool;
 uint32_t		utf_msgreq_size;
-static slist		utf_msgreqfree;
+static utfslist		utf_msgreqfree;
 //static utf_bits		*utf_msgreq_bits;
 
 void
@@ -56,20 +56,20 @@ utf_msglst_init()
     
     utf_msglst_pool = malloc(sizeof(struct utf_msglst)*REQ_SIZE);
     SYSERRCHECK_EXIT(utf_msglst_pool, ==, NULL, "Not enough memory");
-    slist_init(&utf_msglstfree, NULL);
+    utfslist_init(&utf_msglstfree, NULL);
     for (i = 0; i < REQ_SIZE; i++) {
-	slist_append(&utf_msglstfree, &utf_msglst_pool[i].slst);
+	utfslist_append(&utf_msglstfree, &utf_msglst_pool[i].slst);
 	utf_msglst_pool[i].reqidx = 0;
     }
     utf_msglst_size = REQ_SIZE;
-    slist_init(&utf_explst, 0);
-    slist_init(&utf_uexplst, 0);
+    utfslist_init(&utf_explst, 0);
+    utfslist_init(&utf_uexplst, 0);
 }
     
 static struct utf_msglst *
 utf_msglst_alloc()
 {
-    slist_entry *slst = slist_remove(&utf_msglstfree);
+    utfslist_entry *slst = utfslist_remove(&utf_msglstfree);
     struct utf_msglst	*mp;
 
     if (slst != NULL) {
@@ -86,19 +86,19 @@ utf_msglst_alloc()
 void
 utf_msglst_free(struct utf_msglst *msl)
 {
-    slist_insert(&utf_msglstfree, &msl->slst);
+    utfslist_insert(&utf_msglstfree, &msl->slst);
 }
 
 
 struct utf_msglst *
-utf_msglst_insert(struct slist *head, struct utf_msgreq *req)
+utf_msglst_insert(struct utfslist *head, struct utf_msgreq *req)
 {
     struct utf_msglst	*mlst;
 
     mlst = utf_msglst_alloc();
     mlst->hdr = req->hdr;
     mlst->reqidx = req - utf_msgreq_pool;
-    slist_append(head, &mlst->slst);
+    utfslist_append(head, &mlst->slst);
     return mlst;
 }
 
@@ -111,9 +111,9 @@ utf_msgreq_init()
     utf_msgreq_pool = malloc(sizeof(struct utf_msgreq)*REQ_SIZE);
     SYSERRCHECK_EXIT(utf_msgreq_pool, ==, NULL, "Not enough memory");
     utf_msgreq_size = REQ_SIZE;
-    slist_init(&utf_msgreqfree, NULL);
+    utfslist_init(&utf_msgreqfree, NULL);
     for (i = 0; i < REQ_SIZE; i++) {
-	slist_append(&utf_msgreqfree, &utf_msgreq_pool[i].slst);
+	utfslist_append(&utf_msgreqfree, &utf_msgreq_pool[i].slst);
     }
     // utf_msgreq_bits = utf_bits_alloc(REQ_SIZE);
     // utf_bits_setall(REQ_SIZE, utf_msgreq_bits);
@@ -124,10 +124,13 @@ utf_msgreq_init()
 struct utf_msgreq *
 utf_msgreq_alloc()
 {
-    slist_entry *slst = slist_remove(&utf_msgreqfree);
+    utfslist_entry *slst = utfslist_remove(&utf_msgreqfree);
     if (slst != 0) {
+	struct utf_msgreq *req;
 	// utf_printf("%s allocate entry: %d\n", __func__, pos);
-	return container_of(slst, struct utf_msgreq, slst);
+	req = container_of(slst, struct utf_msgreq, slst);
+	memset(req, 0, sizeof(*req));
+	return req;
     } else {
 	utf_printf("%s No more eager sender buffer\n", __func__);
 	return NULL;
@@ -138,7 +141,7 @@ void
 utf_msgreq_free(struct utf_msgreq *req)
 {
     req->status = REQ_NONE;
-    slist_insert(&utf_msgreqfree, &req->slst);
+    utfslist_insert(&utf_msgreqfree, &req->slst);
 }
 
 
@@ -153,9 +156,9 @@ utf_egrsbuf_init(utofu_vcq_hdl_t vcqh, int entries)
     UTOFU_CALL(utofu_reg_mem, vcqh, (void *)utf_egsbuf,
 	       sizeof(struct utf_egr_sbuf)*entries, 0, &egsbfstadd);
     utf_egsbufsize = entries;
-    slist_init(&utf_egsbuffree, NULL);
+    utfslist_init(&utf_egsbuffree, NULL);
     for (i = 0; i < entries; i++) {
-	slist_append(&utf_egsbuffree, &utf_egsbuf[i].slst);
+	utfslist_append(&utf_egsbuffree, &utf_egsbuf[i].slst);
     }
 }
 
@@ -168,13 +171,13 @@ utf_egrsbuf_fin(utofu_vcq_hdl_t vcqh)
 void
 utf_egrsbuf_free(struct utf_egr_sbuf *p)
 {
-    slist_insert(&utf_egsbuffree, &p->slst);
+    utfslist_insert(&utf_egsbuffree, &p->slst);
 }
 
 struct utf_egr_sbuf *
 utf_egrsbuf_alloc(utofu_stadd_t	*stadd)
 {
-    slist_entry *slst = slist_remove(&utf_egsbuffree);
+    utfslist_entry *slst = utfslist_remove(&utf_egsbuffree);
     struct utf_egr_sbuf *uesp;
     int	pos;
     uesp = container_of(slst, struct utf_egr_sbuf, slst);
@@ -210,9 +213,9 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs, int entries)
     utf_scntrsize = entries;
     sndctrstaddend = sndctrstadd + sizeof(struct utf_send_cntr)*entries;
     memset(utf_scntrp, 0, sizeof(struct utf_send_cntr)*entries);
-    slist_init(&utf_scntrfree, NULL);
+    utfslist_init(&utf_scntrfree, NULL);
     for (i = 0; i < entries; i++) {
-	slist_append(&utf_scntrfree, &utf_scntrp[i].slst);
+	utfslist_append(&utf_scntrfree, &utf_scntrp[i].slst);
 	utf_scntrp[i].mypos = i;
     }
     /* rank2scntridx table is allocated */
@@ -264,7 +267,7 @@ utf_scntr_free(int idx)
     headpos = rank2scntridx[idx];
     if (headpos != 65535) {
 	head = &utf_scntrp[headpos];
-	slist_insert(&utf_scntrfree, &head->slst);
+	utfslist_insert(&utf_scntrfree, &head->slst);
 	rank2scntridx[idx] = -1;
     }
 }
@@ -289,9 +292,9 @@ utf_sndminfo_init(utofu_vcq_hdl_t vcqh, int entries)
     UTOFU_CALL(utofu_reg_mem, vcqh, (void *)utf_sndminfo_pool,
 	       sizeof(struct utf_send_msginfo)*entries, 0, &sndminfostadd);
     utf_sndminfosize = entries;
-    slist_init(&utf_sndminfofree, NULL);
+    utfslist_init(&utf_sndminfofree, NULL);
     for (i = 0; i < entries; i++) {
-	slist_append(&utf_sndminfofree, &utf_sndminfo_pool[i].slst);
+	utfslist_append(&utf_sndminfofree, &utf_sndminfo_pool[i].slst);
     }
 }
 
@@ -299,7 +302,7 @@ utf_sndminfo_init(utofu_vcq_hdl_t vcqh, int entries)
 struct utf_send_msginfo *
 utf_sndminfo_alloc()
 {
-    slist_entry *slst = slist_remove(&utf_sndminfofree);
+    utfslist_entry *slst = utfslist_remove(&utf_sndminfofree);
     struct utf_send_msginfo *smp;
     if (slst != NULL) {
 	smp = container_of(slst, struct utf_send_msginfo, slst);
@@ -313,7 +316,7 @@ utf_sndminfo_alloc()
 void
 utf_sndminfo_free(struct utf_send_msginfo *smp)
 {
-    slist_insert(&utf_sndminfofree, &smp->slst);
+    utfslist_insert(&utf_sndminfofree, &smp->slst);
 }
 
 struct utf_send_cntr *
@@ -326,14 +329,14 @@ utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 	scp = &utf_scntrp[headpos];
     } else {
 	/* No head */
-	slist_entry *slst = slist_remove(&utf_scntrfree);
+	utfslist_entry *slst = utfslist_remove(&utf_scntrfree);
 	if (slst == NULL) {
 	    scp = NULL;
 	    goto err;
 	}
 	scp = container_of(slst, struct utf_send_cntr, slst);
 	rank2scntridx[dst]  = scp->mypos;
-	slist_init(&scp->smsginfo, NULL);
+	utfslist_init(&scp->smsginfo, NULL);
 	scp->state = S_NONE;
 	scp->flags = UTOFU_ONESIDED_FLAG_PATH(flgs);
 	scp->rvcqid = rvcqid;

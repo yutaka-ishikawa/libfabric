@@ -9,7 +9,7 @@
 int	utf_msgmode;
 extern struct utf_msgreq	*utf_msgreq_alloc();
 extern void	utf_msgreq_free(struct utf_msgreq *req);
-extern struct utf_msglst	*utf_msglst_insert(slist *head,
+extern struct utf_msglst	*utf_msglst_insert(utfslist *head,
 						   struct utf_msgreq *req);
 
 void
@@ -90,7 +90,7 @@ utf_recv(int src, size_t size, int tag, void *buf, int *ridx)
     int	idx;
 
     INITCHECK();
-    if ((idx = utf_uexplst_match(src, tag, 1)) != -1) {
+    if ((idx = utf_uexplst_match(src, tag, 0)) != -1) {
 	req = utf_idx2msgreq(idx);
 	bcopy(req->buf, buf, size);
 	/* Thi is unexpected message.
@@ -102,7 +102,8 @@ utf_recv(int src, size_t size, int tag, void *buf, int *ridx)
     } else {
 	if ((req = utf_msgreq_alloc()) == NULL) goto err;
 	// utf_printf("%s: expected msg req(%p)\n", __func__, req);
-	req->hdr.src = src; req->hdr.size = size; req->hdr.tag = tag;
+	req->hdr.src = src; req->hdr.tag = tag;
+	req->expsize = size;
 	req->buf = buf;
 	req->ustatus = REQ_NONE; req->status = REQ_NONE;
 	req->type = REQ_RECV_EXPECTED;	req->rsize = 0;
@@ -197,7 +198,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	 size_t size, int tag, void *buf,  int *ridx)
 {
     int	rc;
-    slist_entry	*ohead;
+    utfslist_entry	*ohead;
     struct utf_send_cntr *usp;
     struct utf_egr_sbuf	*sbufp;
     struct utf_msgreq	*req;
@@ -278,7 +279,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
 	sbufp->msgbdy.rndz = MSG_RENDEZOUS;
     }
-    ohead = slist_append(&usp->smsginfo, &minfo->slst);
+    ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
     if (ohead == NULL) { /* this is the first entry */
 	rc = utf_send_start(vcqh, usp);
     }

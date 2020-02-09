@@ -1,8 +1,17 @@
 #include "tofu_impl.h"
 #include "tofu_addr.h"
+#include "utflib.h"
+#include <rdma/fabric.h>
 
-extern char *tank2string(char *buf, size_t sz, uint64_t ui64);
-extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqid);
+extern int	tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
+				      const struct fi_msg_tagged *msg,
+				      uint64_t flags);
+extern int	tofu_utf_send_post(struct tofu_ctx *ctx,
+				   const struct fi_msg_tagged *msg,
+				   uint64_t flags);
+extern int	tofu_utf_recv_post(struct tofu_ctx *ctx,
+				   const struct fi_msg_tagged *msg,
+				   uint64_t flags);
 
 static inline char *
 fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
@@ -13,17 +22,10 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
 
     ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     av_priv = ctx_priv->ctx_sep->sep_av_;
-    tofu_av_lookup_vcqid(av_priv, fi_addr, &vcqi, 0);
+    tofu_av_lookup_vcqid_by_fia(av_priv, fi_addr, &vcqi, 0);
     return tank2string(buf, sz, vcqi);
 }
 
-static int
-utf_recvpost(struct tofu_ctx *ctx,
-	     const struct fi_msg_tagged *msg, uint64_t flags)
-{
-    R_DBG("ctx(%p) msg(%p) flags(%lx)", ctx, msg, flags);
-    return 0;
-}
 
 static ssize_t
 tofu_ctx_msg_recv_common(struct fid_ep *fid_ep,
@@ -39,6 +41,9 @@ tofu_ctx_msg_recv_common(struct fid_ep *fid_ep,
             msg->msg_iov ? msg->msg_iov[0].iov_base : 0,
             msg->msg_iov ? msg->msg_iov[0].iov_len : 0, flags,
             msg->context, __FILE__);
+    if (msg->iov_count > TOFU_IOV_LIMIT) {
+	ret = -FI_E2BIG; goto bad;
+    }
     if (fid_ep->fid.fclass != FI_CLASS_RX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
@@ -50,7 +55,7 @@ tofu_ctx_msg_recv_common(struct fid_ep *fid_ep,
     }
     ctx = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     fastlock_acquire(&ctx->ctx_lck);
-    ret = utf_recvpost(ctx, msg, flags);
+    ret = tofu_utf_recv_post(ctx, msg, flags);
     fastlock_release(&ctx->ctx_lck);
 bad:
     return ret;
@@ -168,14 +173,9 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
                          const struct fi_msg_tagged *msg,
                          uint64_t flags)
 {
-    int fc;
     ssize_t          ret = FI_SUCCESS;
     struct tofu_ctx  *ctx = 0;
     ctx = container_of(fid_ep, struct tofu_ctx, ctx_fid);
-    fi_addr_t        fi_a = msg->addr;
-    struct tofu_av   *av;
-    utofu_vcq_id_t   vcqi;
-    uint64_t	     flgs;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
@@ -187,60 +187,16 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
     if ((flags & FI_TRIGGER) != 0) {
 	ret = -FI_ENOSYS; goto bad;
     }
-#if 0
-    if (msg->msg_iov[0].iov_base) {
-        yi_showcntrl(__func__, __LINE__, msg->msg_iov[0].iov_base);
-    }
-#endif
-    /* convert fi_addr to utofu_vcq_id_t */
-    av = ctx->ctx_sep->sep_av_;
-    fc = tofu_av_lookup_vcqid(av, fi_a, &vcqi, &flgs);
-    {
-	char	buf[128];
-	
-	R_DBG("YI********* dest = %s flgs(%ld)",
-	      vcqid2string(buf, 128, vcqi), flgs);
-    }
-    if (fc != FI_SUCCESS) { ret = fc; goto bad; }
-#if 0
-    union ulib_tofa_u   tank;
-    tank.tank.pid = 0; tank.tank.vld = 0;
-    /*
-     * My rank must be resolved here
-     */
-    if (ictx->myrank == -1U) {
-	struct tofu_sep *sep_priv = ctx_priv->ctx_sep;
-	struct tofu_av *av_priv = sep_priv->sep_av_;
-	assert(av_priv != 0);
-	tofu_av_lup_rank(av_priv, ictx->vcqh, ictx->index, &ictx->myrank);
-        myrank = ictx->myrank;
-
-	/* for FI_CLASS_RX_CTX ? (ictx->shadow) */
-	if (ctx_priv->ctx_trx != 0) {
-	    struct ulib_ictx *ictx_peer = (void *)(ctx_priv->ctx_trx + 1);
-	    if (ictx_peer->myrank == -1U) {
-		ictx_peer->myrank = ictx->myrank;
-	    }
-	}
-    }
-    if (ictx->tofa.ui64 == tank.ui64) {
-	int fc;
-        FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "***SELF SEND\n");
-        fc = tofu_impl_ulib_sendmsg_self(ctx_priv, sizeof(struct tofu_ctx),
-                                         msg, flags);
-	if (fc != 0) {
-	    ret = fc; goto bad;
-	}
+    if (ctx->ctx_sep->sep_myrank == msg->addr) {
+        ret = tofu_utf_sendmsg_self(ctx, msg, flags);
+	if (ret != 0) { goto bad; }
     } else {
-        const size_t    offs_ulib = sizeof (ctx_priv[0]);
 	/* post it */
-	fastlock_acquire(&ctx_priv->ctx_lck);
-	ret = tofu_imp_ulib_send_post(ctx_priv, offs_ulib, msg, flags,
-                                      ctx_priv->ctx_send_cq);
-	fastlock_release(&ctx_priv->ctx_lck);
+	fastlock_acquire(&ctx->ctx_lck);
+	ret = tofu_utf_send_post(ctx, msg, flags);
+	fastlock_release(&ctx->ctx_lck);
 	if (ret != 0) { goto bad; }
     }
-#endif
 bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "fi_errno %ld\n", ret);
     return ret;
@@ -641,6 +597,6 @@ void
 tofufab_resolve_addrinfo(void *av, int rank,
                          utofu_vcq_id_t *vcqid, uint64_t *flgs)
 {
-    tofu_av_lookup_vcqid((struct tofu_av *) av,  (fi_addr_t) rank,
+    tofu_av_lookup_vcqid_by_fia((struct tofu_av *) av,  (fi_addr_t) rank,
                          vcqid, flgs);
 }

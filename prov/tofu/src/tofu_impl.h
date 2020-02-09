@@ -42,7 +42,6 @@ struct tofu_domain {
     size_t              max_mtu;
     size_t              max_piggyback_size;
     size_t              max_edata_size;
-    int                 myrank;
 };
 
 struct tofu_ctx {
@@ -62,7 +61,7 @@ struct tofu_ctx {
     struct tofu_cntr   *ctx_send_ctr; /* fi_write/fi_read and send operation */
     struct tofu_cntr   *ctx_recv_ctr; /* recv operation */
     struct tofu_av     *ctx_av;       /* copy of sep->sep_av_ */
-};
+} ;
 
 struct tofu_sep {
     struct fid_ep	sep_fid;
@@ -76,8 +75,10 @@ struct tofu_sep {
     struct tofu_av     *sep_av_;
     struct tofu_ctx    *sep_sctx;
     struct tofu_ctx    *sep_rctx;
-    int                 sep_vcqidx;
-    utofu_vcq_hdl_t     sep_vcqh;       /* copy of sep_dom->vcqh[sep_vcqid] */
+    int                 sep_myvcqidx;
+    utofu_vcq_hdl_t     sep_myvcqh;     /* copy of sep_dom->vcqh[sep_vcqid] */
+    utofu_vcq_id_t      sep_myvcqid;    /*  */
+    int                 sep_myrank;     /*  */
 };
 
 /*
@@ -115,27 +116,43 @@ struct tofu_cntr {
 };
 
 /* Tofu Internal */
+#pragma pack(1)
 struct tofu_vname {
     uint8_t  xyzabc[6];
     uint8_t  cid : 3;	/* component id */
     uint8_t  v : 1;	/* valid */
     uint32_t vpid;
     uint8_t  tniq[8];	/* (tni + tcq)[8] */
+    utofu_vcq_id_t vcqid;
 };
+
+#define VNAME_TO_VCQID(vnam, vcqid)                             \
+    utofu_construct_vcq_id((vnam)->xyzabc,                              \
+                           (vnam)->tniq[0]>>4, (vnam)->tniq[0]&0x0f,    \
+                           (vnam)->cid, &vcqid)
 
 struct tofu_av {
     struct fid_av	av_fid;
     struct tofu_domain *av_dom;
+    struct tofu_sep    *av_sep;
     int			av_rxb;    /* rx_ctx_bits */
     ofi_atomic32_t	av_ref;
     fastlock_t		av_lck;
     /* Tofu Internal */
 #define av_cnt av_tab.nct          /* adress vector count = nprocs */
+    /*
+     * address vector is stored in an indexed table.
+     * The index is encapslated in fi_addr whose length is 64 bit.
+     * +<- rx_ctx_bits ->+
+     * +-----------------+------------------------+
+     * |     index       |    address (rank)      |
+     * +-----------------+------------------------+
+     */
     struct tofu_av_tab {
 	size_t		   mct;    /* max count */
 	size_t             nct;    /* now count */
 	struct tofu_vname *vnm;    /* 20B x entry */
-    }			av_tab;
+    } av_tab[CONF_TOFU_ATTR_MAX_EP_TXRX_CTX];
 };
 
 struct tofu_mr {
@@ -217,4 +234,5 @@ extern int	tofu_chck_ctx_rx_attr(const struct fi_info *prov_info,
 extern int	tofu_chck_ep_attr(const struct fi_info *prov_info,
                                   const struct fi_info *user_info);
 extern void     dbg_show_utof_vcqh(utofu_vcq_hdl_t vcqh);
+
 #endif	/* _TOFU_IMPL_H */

@@ -28,7 +28,7 @@ utf_printf(const char *fmt, ...)
 }
 
 int
-utf_init(utofu_vcq_hdl_t vcqh, size_t pigsz, int nprocs)
+utf_init_1(utofu_vcq_hdl_t vcqh, size_t pigsz)
 {
     char	*cp;
     if (utf_initialized) {
@@ -37,24 +37,33 @@ utf_init(utofu_vcq_hdl_t vcqh, size_t pigsz, int nprocs)
     cp = getenv("UTF_DEBUG");
     if (cp) {
 	utf_dflag = atoi(cp);
+	utf_printf("%s: UTF_DEBUG=%s utf_dflag=%d\n", __func__, cp, utf_dflag);
     }
-    nprocs = 128;
     DEBUG(DLEVEL_ALL) {
-	utf_printf("%s: vcqh(%ld) nprocs(%d)\n", __func__, vcqh, nprocs);
+	utf_printf("%s: vcqh(%lx) pigsz(%ld)\n", __func__, vcqh, pigsz);
     }
     utf_initialized = 1;
     utf_pig_size = pigsz;
 
-    /* receive buffer is allocated */
-    utf_recvbuf_init(vcqh, nprocs);
-
     /* sender control structure, eager buffer, and protocol engine */
     utf_egrsbuf_init(vcqh, SND_EGR_BUFENT);
-    utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT);
     utf_sndminfo_init(vcqh, SND_EGR_BUFENT);
     utf_engine_init();
     utf_msgreq_init();
     utf_msglst_init();
+    return 0;
+}
+
+int
+utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
+{
+    DEBUG(DLEVEL_ALL) {
+	utf_printf("%s: vcqh(%lx) nprocs(%d)\n", __func__, vcqh, nprocs);
+    }
+    /* receive buffer is allocated */
+    utf_recvbuf_init(vcqh, nprocs);
+    /* sender control is allocated */
+    utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT);
     return 0;
 }
 

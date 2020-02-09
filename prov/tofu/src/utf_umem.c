@@ -8,15 +8,15 @@
 #include "utf_list.h"
 
 struct meminfo {
-    dlist	dent;
+    utfdlist	dent;
     void	*addr;
     size_t	size;
     int		refc;
     utofu_stadd_t stadd;
 };
 
-static dlist		utf_memalloc;
-static dlist		utf_memiffree;
+static utfdlist		utf_memalloc;
+static utfdlist		utf_memiffree;
 static struct meminfo	*utf_memifpool;
 static int		utf_memifsize;
 static int		utf_memccsize; /* cache size */
@@ -32,10 +32,10 @@ utf_init_mem(int entries, int ccsize, int thr)
     int	i;
     utf_memifpool = malloc(sizeof(struct meminfo)*entries);
     SYSERRCHECK_EXIT(utf_memifpool, ==, NULL, "Not enough memory");
-    dlist_init(&utf_memalloc);
-    dlist_init(&utf_memiffree);
+    utfdlist_init(&utf_memalloc);
+    utfdlist_init(&utf_memiffree);
     for (i = entries - 1; i >= 0; --i) {
-	dlist_insert(&utf_memiffree, &utf_memifpool[i].dent);
+	utfdlist_insert(&utf_memiffree, &utf_memifpool[i].dent);
     }
     utf_memifsize = entries;
     if (ccsize > entries) ccsize = entries;
@@ -47,16 +47,16 @@ static void
 utf_remove_memcache(utofu_vcq_hdl_t hndl, int nkeeps)
 {
     int	uc;
-    dlist	   *ent;
+    utfdlist	   *ent;
     struct meminfo *mp;
 
-    dlist_foreach_rev(&utf_memalloc, ent) {
+    utfdlist_foreach_rev(&utf_memalloc, ent) {
 	mp = container_of(ent, struct meminfo, dent);
 	if (mp->refc == 0) {
 	    uc = utofu_dereg_mem(hndl, mp->stadd, 0);
 	    UTOFU_ERRCHECK_EXIT(uc);
-	    dlist_remove(ent); /* remove entry */
-	    dlist_insert(&utf_memiffree, ent); /* push it to free list */
+	    utfdlist_remove(ent); /* remove entry */
+	    utfdlist_insert(&utf_memiffree, ent); /* push it to free list */
 	    --utf_memccent;
 	    if (utf_memccent < nkeeps) {
 		break;
@@ -70,10 +70,10 @@ utf_dereg_mem(utofu_vcq_hdl_t vcq_hdl, utofu_stadd_t stadd,
 	       unsigned long int flags)
 {
     int	uc;
-    dlist	   *ent;
+    utfdlist	   *ent;
     struct meminfo *mp;
 
-    dlist_foreach(&utf_memalloc, ent) {
+    utfdlist_foreach(&utf_memalloc, ent) {
 	mp = container_of(ent, struct meminfo, dent);
 	if (mp->stadd == stadd) goto find;
     }
@@ -95,12 +95,12 @@ uint64_t
 utf_reg_mem(utofu_vcq_hdl_t hndl, void *addr, size_t size)
 {
     int	rc, nth;
-    dlist	   *ent;
+    utfdlist	   *ent;
     struct meminfo *mp;
     utofu_stadd_t stadd;
 
     nth = 0;
-    dlist_foreach(&utf_memalloc, ent) {
+    utfdlist_foreach(&utf_memalloc, ent) {
 	mp = container_of(ent, struct meminfo, dent);
 	if (mp->addr == addr && mp->size >= size) {
 	    stadd = mp->stadd;
@@ -108,20 +108,20 @@ utf_reg_mem(utofu_vcq_hdl_t hndl, void *addr, size_t size)
 	    mp->refc++;
 	    if (nth > utf_memtopthr) {
 		/* move to top entry */
-		dlist_remove(ent); /* remove entry */
-		dlist_insert(&utf_memalloc, ent); /* inert it into top */
+		utfdlist_remove(ent); /* remove entry */
+		utfdlist_insert(&utf_memalloc, ent); /* inert it into top */
 	    }
 	    goto find;
 	}
 	nth++;
     }
     /* not found */
-    ent = dlist_get(&utf_memiffree);
+    ent = utfdlist_get(&utf_memiffree);
     if (ent == NULL) {
 	int	nremove = utf_memccent/2;
 	if (nremove == 0) nremove = utf_memccent;
 	if (nremove > 0) utf_remove_memcache(hndl, nremove);
-	ent = dlist_get(&utf_memiffree);
+	ent = utfdlist_get(&utf_memiffree);
 #ifdef UMEM_TEST
 	ERRCHECK_RETURN(ent, ==, NULL, 0);
 #else
@@ -135,7 +135,7 @@ utf_reg_mem(utofu_vcq_hdl_t hndl, void *addr, size_t size)
     mp->size = size;
     mp->refc++;
     mp->stadd = stadd;
-    dlist_insert(&utf_memalloc, ent);
+    utfdlist_insert(&utf_memalloc, ent);
 find:
     return stadd;
 }
@@ -143,12 +143,12 @@ find:
 void
 utf_dump_meminfo(FILE *fp)
 {
-    dlist	   *ent;
+    utfdlist	   *ent;
     struct meminfo *mp;
 
     fprintf(fp, "      " "     Address      " "      Size    "
 	    "Ref-C" "     ST Address    " "\n");
-    dlist_foreach(&utf_memalloc, ent) {
+    utfdlist_foreach(&utf_memalloc, ent) {
 	mp = container_of(ent, struct meminfo, dent);
 	fprintf(fp, "[%4d] 0x%016lx, 0x%08lx, %03d, 0x%016lx\n",
 		myrank, (uint64_t) mp->addr, mp->size, mp->refc, mp->stadd);
@@ -159,11 +159,11 @@ utf_dump_meminfo(FILE *fp)
 int
 utf_vrfy_mem(void *addr, int expct, int vfy)
 {
-    dlist	*ent;
+    utfdlist	*ent;
     struct meminfo *mp;
     int		nth = 0;
 	
-    dlist_foreach(&utf_memalloc, ent) {
+    utfdlist_foreach(&utf_memalloc, ent) {
 	mp = container_of(ent, struct meminfo, dent);
 	if (mp->addr == addr) {
 	    if (nth == expct) {

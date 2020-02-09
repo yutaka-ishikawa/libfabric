@@ -2,6 +2,8 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "utflib.h"
+#include "tofu_addr.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
@@ -23,6 +25,7 @@ tofu_av_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
     struct tofu_av *av_priv;
+    int i;
 
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     assert(fid != 0);
@@ -31,11 +34,13 @@ tofu_av_close(struct fid *fid)
 	fc = -FI_EBUSY; goto bad;
     }
     /* tab */
-    if (av_priv->av_tab.vnm != 0) {
-        free(av_priv->av_tab.vnm); av_priv->av_tab.vnm = 0;
+    for (i = 0; i < CONF_TOFU_ATTR_MAX_EP_TXRX_CTX; i++) {
+        if (av_priv->av_tab[i].vnm != 0) {
+            free(av_priv->av_tab[i].vnm); av_priv->av_tab[i].vnm = 0;
+        }
+        av_priv->av_tab[i].nct = 0;
+        av_priv->av_tab[i].mct = 0;
     }
-    av_priv->av_tab.nct = 0;
-    av_priv->av_tab.mct = 0;
     /**/
     fastlock_destroy(&av_priv->av_lck);
     free(av_priv);
@@ -62,12 +67,12 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
 {
     int            fc = FI_SUCCESS;
     struct tofu_av *av;
-    size_t         ic;
+    struct tofu_av_tab *avtp;
+    size_t         idx, ic;
     uint32_t       afmt;
 
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     FI_INFO(&tofu_prov, FI_LOG_AV, "count %ld flags %"PRIx64"\n", count, flags);
-
     assert(fid_av_ != 0);
     av = container_of(fid_av_, struct tofu_av, av_fid);
     afmt = av->av_dom->dom_fmt;
@@ -75,18 +80,28 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
         FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
         fc = -1; goto bad;
     }
+    /*
+     * It is now assumed that all contexts use the same address vector.
+     * We should change av_tab[XXX] to av_tab single entry.
+     *  idx = ((uint64_t)fi_addr[0]) >> (64 - av->av_rxb);
+     */
+    idx = 0;
+    avtp = &av->av_tab[idx];
     /* fastlock_acquire(&av->av_lck); */
-    fc = tofu_av_resize(&av->av_tab, count);
+    fc = tofu_av_resize(avtp, count);
     /* fastlock_release(&av->av_lck); */
     if (fc != FI_SUCCESS) { goto bad; }
 
     /* fastlock_acquire(&av->av_lck); */
     for (ic = 0; ic < count; ic++) {
-	size_t index;
+        struct tofu_vname   *vnam;
+        utofu_vcq_id_t  vcqid;
+	size_t          index;
 
 	/* index */
-	index = av->av_tab.nct++;
-        fc = tofu_impl_uri2name(addr, ic, &av->av_tab.vnm[index]);
+	index = avtp->nct++;
+        vnam = &avtp->vnm[index];
+        fc = tofu_impl_uri2name(addr, ic, vnam);
 	if (fc != FI_SUCCESS) {
 	    if (fi_addr != 0) {
 		fi_addr[ic] = FI_ADDR_NOTAVAIL;
@@ -95,20 +110,17 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
 	} else if (fi_addr != 0) {
             fi_addr[ic] = index;
 	}
-	av->av_tab.vnm[index].vpid = index;
-//        R_IFDBG(RDBG_LEVEL1) {
-        {
-            utofu_vcq_id_t vcqid;
-            struct tofu_vname   *vnam = &av->av_tab.vnm[index];
-            utofu_construct_vcq_id(vnam->xyzabc,
-                                    vnam->tniq[0]>>4,
-                                    vnam->tniq[0]&0x0f,
-                                    vnam->cid, &vcqid);
-            R_DBG("fi_addr[%ld] = %ld ==> vcaqid(%lx)",
-                  ic, fi_addr[ic], vcqid);
-        }
+	vnam->vpid = index;
+        VNAME_TO_VCQID(vnam, vcqid);
+        vnam->vcqid = vcqid;
+        R_DBG("fi_addr[%ld] = %ld ==> vcaqid(%lx)", ic, fi_addr[ic], vcqid);
     }
+    /* My rank must be resolved here */
+    av->av_sep->sep_myrank
+        = tofu_av_lookup_rank_by_vcqid(av, av->av_sep->sep_myvcqid);
+    myrank = av->av_sep->sep_myrank;
     /* fastlock_release(&av->av_lck); */
+    utf_init_2(av->av_sep->sep_myvcqh, avtp->nct);
 bad:
     return fc;
 }
@@ -204,11 +216,14 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
 
     /* tofu_chck_av_attr */
     if (attr != 0) {
+        /* av_type: 1 FI_AV_TABLE
+         * name: FI_NAMED_AV_0 
+         */
         fprintf(stderr,
-                "%s():%d\tav_type(%d) bits(%d) count(%ld) e/n(%ld) name(%p)\n",
+                "%s():%d\tav_type(%d) bits(%d) count(%ld) e/n(%ld) name(%s)\n",
                 __func__, __LINE__,
                 attr->type, attr->rx_ctx_bits, attr->count,
-                attr->ep_per_node, attr->name);
+                attr->ep_per_node, attr->name == 0 ? "NULL": attr->name);
 	fc = tofu_chck_av_attr(attr);
 	if (fc != FI_SUCCESS) { goto bad; }
     }
@@ -231,10 +246,7 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
     /* av */
     {
 	av->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
-        if (attr->count > 0) { /* Maximum length of vector is allocated */
-            fc = tofu_av_resize(&av->av_tab, attr->count);
-            if (fc != FI_SUCCESS) goto bad;
-        }
+        /* at this time av->av_tab cannot be allocated */
     }
     /* return fid_dom */
     fid_av_[0] = &av->av_fid;

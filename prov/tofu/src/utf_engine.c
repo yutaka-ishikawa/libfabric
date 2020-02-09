@@ -5,12 +5,15 @@
 #include "utf_errmacros.h"
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
+#ifndef UTF_NATIVE
+#include <ofi_iov.h>
+#endif
 
 extern void	tofufab_resolve_addrinfo(void *, int rank,
 					 utofu_vcq_id_t *vcqid, uint64_t *flgs);
 extern sndmgt	*egrmgt;
 extern struct utf_msgreq	*utf_msgreq_alloc();
-extern struct utf_msglst	*utf_msglst_insert(slist *head,
+extern struct utf_msglst	*utf_msglst_insert(utfslist *head,
 						   struct utf_msgreq *req);
     
 extern struct utf_msglst	utf_explst_head;
@@ -78,9 +81,22 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 		 "EMSG_SIZE(msgp)=%ld\n",
 		 __func__, req->rsize, req->hdr.size, cpysz, EMSG_SIZE(msgp));
     }
-    bcopy(EMSG_DATA(msgp), &req->buf[req->rsize], cpysz);
+    if ((req->rsize + cpysz) > req->expsize) { /* overrun */
+	req->ustatus = REQ_OVERRUN;
+    }  else {
+	if (req->buf) { /* enough buffer area has been allocated */
+	    bcopy(EMSG_DATA(msgp), &req->buf[req->rsize], cpysz);
+	} else {
+#ifndef UTF_NATIVE /* for Fabric */
+	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, req->rsize,
+			    EMSG_DATA(msgp), cpysz);
+#else
+	utf_printf("%s: Something wrong in utf native mode\n", __func__);
+#endif
+	}
+    }
     req->rsize += cpysz;
-    if (req->hdr.size == req->rsize) {
+    if (req->hdr.size == req->rsize) { /* all data has come */
 	req->status = REQ_DONE;
 	ursp->state = R_DONE;
     } else {
@@ -109,11 +125,19 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_NONE: /* Begin receiving message */
     {
 	int	idx;
-	if ((idx = utf_explst_match(pkt->hdr.src, pkt->hdr.tag, 1)) != -1) {
+#ifndef UTF_NATIVE
+	if ((idx = tofu_utf_explst_match(pkt->hdr.src, pkt->hdr.tag, 0)) != -1) {
+#else
+	if ((idx = utf_explst_match(pkt->hdr.src, pkt->hdr.tag, 0)) != -1) {
+#endif
 	    req = utf_idx2msgreq(idx);
 	    req->rndz = msgp->rndz;
 	    if (req->rndz == MSG_RENDEZOUS) goto rendezous;
 	    /* eager */
+	    req->hdr.size = pkt->hdr.size;
+#ifndef UTF_NATIVE
+	    req->hdr.data = pkt->hdr.data;
+#endif
 	    if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
 	} else { /* New Unexpected message */
 	    req = utf_msgreq_alloc();
@@ -189,15 +213,19 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_DONE: done:
 	if (req->type == REQ_RECV_UNEXPECTED) {
 	    /* Regiger it to unexpected queue */
+	    utf_printf("%s: register req(%p) to unexpected queue\n", __func__, req);
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: register it to unexpected queue\n", __func__);
 	    }
 	    utf_msglst_insert(&utf_uexplst, req);
 	} else {
+	    utf_printf("%s: Expected message arrived (idx=%d)\n", __func__,
+		       utf_msgreq2idx(req));
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: Expected message arrived (idx=%d)\n", __func__,
 			 utf_msgreq2idx(req));
 	    }
+	    if (req->notify) req->notify(req);
 	}
 	/* reset the state */
 	ursp->state = R_NONE;
@@ -237,7 +265,7 @@ char *str_evnt[EVT_END] = {
 void
 utf_sendengine(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp, uint64_t rslt, int evt)
 {
-    slist_entry			*slst;
+    utfslist_entry		*slst;
     struct utf_send_msginfo	*minfo;
 
     DEBUG(DLEVEL_PROTOCOL) {
@@ -264,7 +292,7 @@ utf_sendengine(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp, uint64_t rslt, in
 	return;
     }
 progress0:
-    slst = slist_head(&usp->smsginfo);
+    slst = utfslist_head(&usp->smsginfo);
     minfo = container_of(slst, struct utf_send_msginfo, slst);
     if (slst == NULL) {
 	utf_printf("%s: why ? slst == NULL\n", __func__);
@@ -453,11 +481,13 @@ progress:
 	/* Falls through. */
     case S_DONE_EGR:
     {
-	minfo->mreq->status = REQ_DONE;
+	struct utf_msgreq	*req = minfo->mreq;
+	req->status = REQ_DONE;
 	minfo->mreq = NULL;
-	slist_remove(&usp->smsginfo);
-	slst = slist_head(&usp->smsginfo);
+	utfslist_remove(&usp->smsginfo);
+	slst = utfslist_head(&usp->smsginfo);
 	utf_sndminfo_free(minfo);
+	if (req->notify) req->notify(req);
 	if (slst != NULL) {
 	    minfo = container_of(slst, struct utf_send_msginfo, slst);
 	    usp->state = S_HAS_ROOM;
@@ -704,6 +734,7 @@ int
 utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 {
     int rc1, rc2;
+
     rc1 = utf_tcqprogress(vcqh);
     rc2 = utf_mrqprogress(av, vcqh);
     /* NEEDS to check return value if error occurs YI */

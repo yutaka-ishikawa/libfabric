@@ -2,27 +2,30 @@
 #define LIST_DEF
 
 #define myoffsetof(t, m) ((size_t) &((t *)0)->m)
+#ifdef container_of
+#undef container_of
+#endif
 #define container_of(ptr, type, field) ((type *) ((char *)ptr - myoffsetof(type, field)))
 
-typedef struct slist_entry {
-    struct slist_entry	*next;
-} slist_entry;
+typedef struct utfslist_entry {
+    struct utfslist_entry	*next;
+} utfslist_entry;
 
-typedef struct slist {
-    struct slist_entry	*head;
-    struct slist_entry	*tail;
-} slist;
+typedef struct utfslist {
+    struct utfslist_entry	*head;
+    struct utfslist_entry	*tail;
+} utfslist;
 
 static inline void
-slist_init(slist *lst, slist_entry *ent)
+utfslist_init(utfslist *lst, utfslist_entry *ent)
 {
     lst->head = lst->tail = ent;
 }
 
-static inline slist_entry *
-slist_append(slist *lst, slist_entry *ent)
+static inline utfslist_entry *
+utfslist_append(utfslist *lst, utfslist_entry *ent)
 {
-    slist_entry	*ohead;
+    utfslist_entry	*ohead;
     if ((ohead = lst->head)) {
 	lst->tail->next = ent;
     } else { /* empty */
@@ -34,7 +37,7 @@ slist_append(slist *lst, slist_entry *ent)
 }
 
 static inline void
-slist_insert(slist *lst, slist_entry *ent)
+utfslist_insert(utfslist *lst, utfslist_entry *ent)
 {
     if (lst->head) {
 	ent->next = lst->head;
@@ -46,7 +49,7 @@ slist_insert(slist *lst, slist_entry *ent)
 }
 
 static inline void
-slist_insert2(slist_entry *head, slist_entry *tail, slist_entry *ent)
+utfslist_insert2(utfslist_entry *head, utfslist_entry *tail, utfslist_entry *ent)
 {
     ent->next = NULL;
     if (head->next) {
@@ -60,12 +63,12 @@ slist_insert2(slist_entry *head, slist_entry *tail, slist_entry *ent)
     }
 }
 
-static inline slist_entry *
-slist_remove(slist *lst)
+static inline utfslist_entry *
+utfslist_remove(utfslist *lst)
 {
-    slist_entry *ent = lst->head;
+    utfslist_entry *ent = lst->head;
     if (lst->head == lst->tail) {
-	slist_init(lst, 0);
+	utfslist_init(lst, 0);
     } else {
 	lst->head = ent->next;
     }
@@ -73,33 +76,45 @@ slist_remove(slist *lst)
     return ent;
 }
 
-#define slistent_remove(prev, cur)   (prev)->next = (cur)->next
-#define slistent_next(lst)	(lst)->next
-#define slist_head(lst)		((lst)->head)
-#define slist_isnull(lst)	((lst)->head == NULL)
-#define slist_foreach(lst, cur)					\
+static inline utfslist_entry *
+utfslist_remove2(utfslist *lst, utfslist_entry *cur, utfslist_entry *prev)
+{
+    //utfslist_entry *ent = lst->head;
+    if (lst->head == cur) {
+	lst->head = cur->next;
+    } else {
+	prev->next = cur->next;
+    }
+    return cur->next;
+}
+
+#define utfslistent_remove(prev, cur)   (prev)->next = (cur)->next
+#define utfslistent_next(lst)	(lst)->next
+#define utfslist_head(lst)		((lst)->head)
+#define utfslist_isnull(lst)	((lst)->head == NULL)
+#define utfslist_foreach(lst, cur)					\
 	for ((cur) = (lst)->head; (cur) != NULL;		\
 			(cur) = (cur)->next)
-#define slist_foreach2(lst, cur, prev)				\
+#define utfslist_foreach2(lst, cur, prev)				\
 	for ((prev) = NULL, (cur) = (lst)->head; (cur) != NULL;	\
 			(prev) = (cur), (cur) = (cur)->next)
-#define slistent_foreach2(ini, cur, prev)			\
+#define utfslistent_foreach2(ini, cur, prev)			\
 	    for ((cur) = (ini), (prev) = 0; (cur) != 0;		\
 			(prev) = (cur), (cur) = (cur)->next)
 
-typedef struct dlist {
-    struct dlist	*next;
-    struct dlist	*prev;
-} dlist;
+typedef struct utfdlist {
+    struct utfdlist	*next;
+    struct utfdlist	*prev;
+} utfdlist;
 
 static inline void
-dlist_init(dlist *lst)
+utfdlist_init(utfdlist *lst)
 {
     lst->next = lst->prev = lst;
 }
 
 static inline void
-dlist_insert(dlist *head, dlist *ent)
+utfdlist_insert(utfdlist *head, utfdlist *ent)
 {
     ent->next = head->next;
     ent->prev = head;
@@ -108,28 +123,28 @@ dlist_insert(dlist *head, dlist *ent)
 }
 
 static inline void
-dlist_remove(dlist *ent)
+utfdlist_remove(utfdlist *ent)
 {
     ent->prev->next = ent->next;
     ent->next->prev = ent->prev;
 }
 
 
-static inline dlist*
-dlist_get(dlist *head)
+static inline utfdlist*
+utfdlist_get(utfdlist *head)
 {
-    dlist	*dp;
+    utfdlist	*dp;
     if (head == head->next) {
 	return NULL;
     }
     dp = head->next;
-    dlist_remove(dp);
+    utfdlist_remove(dp);
     return dp;
 }
 
-#define dlist_foreach(head, ent) \
+#define utfdlist_foreach(head, ent) \
     for ((ent) = (head)->next; (ent) != (head); (ent) = (ent)->next)
-#define dlist_foreach_rev(head, ent) \
+#define utfdlist_foreach_rev(head, ent) \
     for ((ent) = (head)->prev; (ent) != (head); (ent) = (ent)->prev)
 
 #endif /* ~LIST_DEF */

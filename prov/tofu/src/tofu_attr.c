@@ -100,7 +100,7 @@ static struct fi_tx_attr tofu_tx_attr = {
 		/* | FI_ORDER_STRICT */
 		/* | FI_ORDER_DATA */
 	    ,
-    .inject_size = 0, /*1024,*/        /* 2019/04/26 */
+    .inject_size = CONF_TOFU_INJECTSIZE,
     .size = 2048, /* YYY */
     .iov_limit = 1, /* XXX TOFU_IOV_LIMIT */
     .rma_iov_limit = 1, /* XXX TOFU_IOV_LIMIT */
@@ -223,28 +223,16 @@ static struct fi_domain_attr tofu_domain_attr = {
 		/* |= FI_MR_PROV_KEY */
 		/* |= FI_MR_ENDPOINT */
     .mr_key_size = sizeof (uint64_t),
-    .cq_data_size = 4,
-    .cq_cnt = 44 * 2 /* tx+rx */,
-		/* = 44 (= (12-1) * 4 */
-		/* = 66 (= (12-1) * 6 */
-    .ep_cnt = 12 - 1,
-    .tx_ctx_cnt = 44,
-		/* = 44 (= (12-1) * 4 */
-		/* = 66 (= (12-1) * 6 */
-    .rx_ctx_cnt = 44,
-		/* = 44 (= (12-1) * 4 */
-		/* = 66 (= (12-1) * 6 */
-    .max_ep_tx_ctx = 4,
-		/* = 4 */
-		/* = 6 */
-    .max_ep_rx_ctx = 4,
-		/* = 4 */
-		/* = 6 */
+    .cq_data_size = CONF_TOFU_ATTR_CQ_DATA_SIZE,
+    .cq_cnt = CONF_TOFU_ATTR_CQ_CNT,
+    .ep_cnt = CONF_TOFU_ATTR_EP_CNT,
+    .tx_ctx_cnt = CONF_TOFU_ATTR_TXRX_CTX_CNT,
+    .rx_ctx_cnt = CONF_TOFU_ATTR_TXRX_CTX_CNT,
+    .max_ep_tx_ctx = CONF_TOFU_ATTR_MAX_EP_TXRX_CTX,
+    .max_ep_rx_ctx = CONF_TOFU_ATTR_MAX_EP_TXRX_CTX,
     .max_ep_stx_ctx = 0,
     .max_ep_srx_ctx = 0,
-    .cntr_cnt = 44 * 2 /* tx+rx */,	    /* YYY */
-		/* = 44 (= (12-1) * 4 */
-		/* = 66 (= (12-1) * 6 */
+    .cntr_cnt = CONF_TOFU_ATTR_CNTR_CNT,
     .mr_iov_limit = 1,
     .caps = 0, /* YYY */
     .mode = 0, /* YYY */

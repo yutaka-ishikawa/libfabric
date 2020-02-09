@@ -3,7 +3,6 @@
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
-#include "tofu_debug.h"
 #include "tofu_impl.h"
 #include "tofu_macro.h"
 #include "utflib.h"
@@ -438,7 +437,7 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
     /* desc_cash */
     /* ictx_ctrl_enab */
     //ictx->nrma = 0;
-    if (sep->sep_vcqidx == -1) {
+    if (sep->sep_myvcqidx == -1) {
         int     i;
         for (i = 0; i < dom->ntni; i++) {
             if (dom->vcqh[i] == 0) {
@@ -457,8 +456,10 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
                 dbg_show_utof_vcqh(vcqh);
                 assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
                 dom->vcqh[i] = vcqh;
-                sep->sep_vcqidx = i;
-                sep->sep_vcqh = vcqh;
+                sep->sep_myvcqidx = i;
+                sep->sep_myvcqh = vcqh;
+                utofu_query_vcq_id(vcqh, &sep->sep_myvcqid);
+                /* sep_myrank cannot be determined here */
                 goto alloc;
             }
         }
@@ -468,8 +469,8 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
 alloc:
     /* initialize utf library */
     /* sep->sep_av_->av_cnt is nproc */
-    uc = utf_init(vcqh, ctx->ctx_sep->sep_dom->max_piggyback_size,
-                  ctx->ctx_av->av_cnt);
+    uc = utf_init_1(vcqh, ctx->ctx_sep->sep_dom->max_piggyback_size);
+//                  ctx->ctx_av->av_cnt);
     ctx->ctx_enb = 1;
 bad:
     return uc;
@@ -537,7 +538,8 @@ tofu_ctx_setopt(fid_t fid, int level,  int optname,
     int fc = FI_SUCCESS;
     struct tofu_ctx *ctx_priv;
 
-    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "optname(%d) optlen(%ld) in %s\n",
+            optname, optlen, __FILE__);
     assert(fid != 0);
     ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
     if (ctx_priv == 0) { }
@@ -558,6 +560,7 @@ tofu_ctx_setopt(fid_t fid, int level,  int optname,
 	    fc = -FI_EINVAL; goto bad;
 	}
 	/* ctx_priv->min_multi_recv = ((size_t *)optval)[0]; */
+        R_DBG("%s: FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
 	break;
     default:
 	fc = -FI_ENOPROTOOPT; goto bad;

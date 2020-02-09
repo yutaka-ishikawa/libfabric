@@ -21,7 +21,7 @@ tofu_gnam(struct tofu_sep *sep,  char nam_str[128])
     utofu_vcq_hdl_t vcqh;
     utofu_vcq_id_t  vcqi;
     
-    vcqh = sep->sep_vcqh;
+    vcqh = sep->sep_myvcqh;
     if (vcqh != 0) {
 	uc = utofu_query_vcq_id(vcqh, &vcqi);
     }

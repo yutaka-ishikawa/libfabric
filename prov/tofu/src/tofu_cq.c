@@ -52,7 +52,7 @@ tofu_progress(struct tofu_cq *cq)
             struct tofu_ctx *ctx;
             ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
-            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_vcqh);
+            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_myvcqh);
         }
         /* receive progress */
         head = &cq->cq_hrx;
@@ -60,14 +60,13 @@ tofu_progress(struct tofu_cq *cq)
             struct tofu_ctx *ctx;
             ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
-            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_vcqh);
+            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_myvcqh);
         }
         ment = ofi_cirque_usedcnt(cq->cq_ccq);
     }
     return ment;
 }
 
-static int utf_poll_lim;
 /*
  * fi_cq_read
  */
@@ -78,20 +77,17 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     struct tofu_cq *cq;
     ssize_t        ent, i;
 
-    R_DBGMSG("YI******* tofu_cq_read");
     FI_INFO(&tofu_prov, FI_LOG_CQ, " count(%ld) in %s\n", count, __FILE__);
     assert(fid_cq != 0);
 
     cq = container_of(fid_cq, struct tofu_cq, cq_fid);
 
-    fastlock_acquire(&cq->cq_lck);
     ent = tofu_progress(cq);
-    R_DBG("YI******* tofu_cq_read ent(%ld)", ent);
     if (ent == 0) {
         ret = -FI_EAGAIN; goto empty;
     }
-    /* CQ entries are discarded */
     ent = (ent > count) ? count : ent;
+    fastlock_acquire(&cq->cq_lck);
     for (i = 0; i < ent; i++) {
         struct fi_cq_tagged_entry *comp;
 	comp = ofi_cirque_head(cq->cq_ccq);
@@ -100,28 +96,42 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
         ((struct fi_cq_tagged_entry *)buf)[i] = *comp;
         ofi_cirque_discard(cq->cq_ccq);
     }
-    utf_poll_lim = 0;
-empty:
     fastlock_release(&cq->cq_lck);
-    if (utf_poll_lim++ > 10) {
-        R_DBGMSG("Exit for debugging\n");
-        abort();
-    }
+    ret = ent;
+empty:
     return ret;
 }
 
 /*
- * fi_cq_reader
+ * fi_cq_readerr
+ *                      flags ?
  */
 static ssize_t
-tofu_cq_readerr(struct fid_cq *cq, struct fi_cq_err_entry *buf,
+tofu_cq_readerr(struct fid_cq *fid_cq, struct fi_cq_err_entry *buf,
                 uint64_t flags)
 {
+    struct tofu_cq *cq;
+    ssize_t        ent;
+    struct fi_cq_err_entry *comp;
+    int fc;
+    
     FI_INFO(&tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
-
-    fprintf(stderr, "fi_cq_readerr must be imeplemented"); fflush(stderr);
-    fprintf(stdout, "fi_cq_readerr must be imeplemented"); fflush(stdout);
-    return -1;
+    assert(fid_cq != 0);
+    cq = container_of(fid_cq, struct tofu_cq, cq_fid);
+    fastlock_acquire(&cq->cq_lck);
+    ent = ofi_cirque_usedcnt(cq->cq_cceq);
+    if (ent > 0) {
+	comp = ofi_cirque_head(cq->cq_cceq);
+        assert(comp != 0);
+        /* copy */
+        ((struct fi_cq_err_entry *)buf)[0] = *comp;
+        ofi_cirque_discard(cq->cq_cceq);
+        fc = 1; /* one retrieve */
+    } else {
+        fc = -FI_EAGAIN;
+    }
+    fastlock_release(&cq->cq_lck);
+    return fc;
 }
 
 static struct fi_ops_cq tofu_cq_ops = {
@@ -178,8 +188,9 @@ int tofu_cq_open(struct fid_domain *fid_dom, struct fi_cq_attr *attr,
     }
     /* initialize cq_priv */
     cq_priv->cq_dom = dom_priv;
-    ofi_atomic_initialize32(&cq_priv->cq_ref, 0 );
-    fastlock_init( &cq_priv->cq_lck );
+    ofi_atomic_initialize32(&cq_priv->cq_ref, 0);
+    R_DBG("cq_priv->cq_lck(%p)\n", &cq_priv->cq_lck);
+    fastlock_init(&cq_priv->cq_lck);
     cq_priv->cq_fid.fid.fclass    = FI_CLASS_CQ;
     cq_priv->cq_fid.fid.context   = context;
     cq_priv->cq_fid.fid.ops       = &tofu_cq_fi_ops;

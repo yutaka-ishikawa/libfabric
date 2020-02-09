@@ -3,6 +3,16 @@
 #include "utf_externs.h"
 #include "utf_queue.h"
 
+char *
+utf_msghdr_string(struct utf_msghdr *hdrp, void *bp)
+{
+    static char	buf[128];
+    snprintf(buf, 128, "src(%ld) tag(0x%lx) size(%ld) data(%ld) msg(0x%lx)",
+	     hdrp->src, hdrp->tag, hdrp->size, hdrp->data,
+	     bp != 0 ? *(uint64_t*) bp: 0);
+    return buf;
+}
+
 void
 mrq_notice_show(struct utofu_mrq_notice *ntcp)
 {

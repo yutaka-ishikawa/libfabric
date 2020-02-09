@@ -1,22 +1,6 @@
 #include "utf_list.h"
 /*
- * In case of MPICH
- *  #define MPI_TAG_UB           0x64400001	32 bit
  */
-
-/* The following lines must be deleted because edata is only 1B available */
-//#define EDATA_ASSEMBLE(sidx, ridx)	(((sidx) << 16) | ((ridx) & 0xffff))
-//#define EDATA_SEND_CNTR_IDX(edata)	((edata)>>16)
-//#define EDATA_EGBUF_IDX(edata)		((edata)&0xffff)
-//union edata {
-//    struct {
-//	uint16_t sidx;	/* 4B: index of eager send control array */
-//	uint16_t ridx;	/* 6B: index of receiver buffer array */
-//	uint16_t size;	/* 8B: size of buffer */
-//	uint16_t type;	/* 2B */
-//    } encoded;
-//    uint64_t	u64;
-//};
 #define EVT_START	0
 #define EVT_LCL		1
 #define EVT_RMT_RGETDON	2	/* remote armw operation */
@@ -25,14 +9,26 @@
 #define EVT_CONT	5
 #define EVT_END		6
 
+#ifdef UTF_NATIVE
 #pragma pack(1)
 struct utf_msghdr { /* 16 Byte */
     uint32_t	src;
     uint32_t	tag:32;
     size_t	size;
 };
+#else /* for Fabric */
+#pragma pack(1)
+struct utf_msghdr { /* 32 Byte */
+    uint64_t	src;
+    uint64_t	tag;
+    size_t	size;
+    uint64_t	data;
+};
+#endif
 #define MSGHDR_SIZE sizeof(struct utf_msghdr)
 
+/* sizeof(uint16_t) is reserved for entire message size.
+ * See struct utf_msgbdy */
 #define MSG_EAGER_SIZE	(MSG_SIZE - MSGHDR_SIZE - sizeof(uint16_t))
 #define MSG_PAYLOAD_SIZE (MSG_SIZE - sizeof(uint16_t))
 #define MSG_MAKE_PSIZE(sz) ((sz) + MSGHDR_SIZE + sizeof(uint16_t))
@@ -69,7 +65,7 @@ struct utf_msgbdy {
  */
 struct utf_egr_sbuf {
     union {
-	slist_entry	slst;
+	utfslist_entry	slst;
 	struct utf_msgbdy	msgbdy;
     };
 };
@@ -77,6 +73,7 @@ struct utf_egr_sbuf {
 enum utq_reqstatus {
     REQ_NONE	= 0,
     REQ_DONE,
+    REQ_OVERRUN,
 };
 
 enum {
@@ -90,18 +87,35 @@ struct utf_msgreq {
     uint8_t	*buf;		/* 24: buffer address */
     utofu_stadd_t bufstadd;	/*   : stadd of the buffer address */
     utofu_stadd_t rmtstadd;	/**/
-    uint16_t	ustatus;	/* 26: user-level status */
+    uint8_t	ustatus;	/* 26: user-level status */
+    uint8_t	fistatus;	/* 26: fabric-level status */
     uint8_t	status;		/* 27: utf-level  status */
     uint8_t	type:4,		/* 28: EXPECTED or UNEXPECTED or SENDREQ */
 		rndz:4;		/* RENDEZOUS or not */
     size_t	rsize;		/* 36: utf received size */
-    slist_entry	slst;		/* 44: list */
+    size_t	expsize;	/* 40: expected size in expected queue */
+    utfslist_entry slst;	/* 44: list */
+    void	(*notify)(struct utf_msgreq*);
+#ifndef UTF_NATIVE
+    /* for Fabric and expected message */
+    void	*fi_ctx;
+    uint64_t	fi_ignore;
+    uint64_t	fi_flgs;
+    void	*fi_ucontext;
+    size_t	fi_iov_count;
+    struct iovec fi_msg[4];	/* TOFU_IOV_LIMIT */
+#endif
 };
 
 struct utf_msglst {
-    slist_entry		slst;	/*  8 B */
+    utfslist_entry	slst;	/*  8 B */
     struct utf_msghdr	hdr;	/* 24 B */
     uint32_t		reqidx;	/* 28 B: index of utf_msgreq */
+#ifndef UTF_NATIVE
+    uint64_t	fi_rvignore;	/* ~ignore */
+    uint64_t	fi_flgs;
+    void	*fi_context;
+#endif
 };
 
 extern struct utf_msgreq	*utf_msgreq_pool;
@@ -120,43 +134,41 @@ utf_msgreq2idx(struct utf_msgreq *req)
 
 struct utf_msglst *msl;
 extern void	utf_msglst_free(struct utf_msglst *msl);
-extern slist	utf_explst;	/* expected message list */
-extern slist	utf_uexplst;	/* unexpected message list */
+extern utfslist	utf_explst;	/* expected message list */
+extern utfslist	utf_uexplst;	/* unexpected message list */
 
 static inline int
-utf_uexplst_match(uint32_t src, uint32_t tag, int flg)
+utf_uexplst_match(uint32_t src, uint32_t tag, int peek)
 {
     struct utf_msglst	*msl;
     uint32_t		idx;
+    utfslist_entry	*cur, *prev;
 
-    if (slist_isnull(&utf_uexplst)) {
+    if (utfslist_isnull(&utf_uexplst)) {
 	return -1;
     }
     if (src == -1 && tag == -1) {
-	slist_entry *slst = slist_remove(&utf_uexplst);
-	msl = container_of(slst, struct utf_msglst, slst);
+	cur = utf_uexplst.head; prev = 0;
+	msl = container_of(cur, struct utf_msglst, slst);
 	goto find;
     } else if (src == -1 && tag != -1) {
-	slist_entry	*cur;
-	slist_foreach(&utf_uexplst, cur) {
+	utfslist_foreach2(&utf_uexplst, cur, prev) {
 	    msl = container_of(cur, struct utf_msglst, slst);
 	    if (tag == msl->hdr.tag) {
 		goto find;
 	    } 
 	}
     } else if (tag == -1) {
-	slist_entry	*cur;
-	slist_foreach(&utf_uexplst, cur) {
+	utfslist_foreach2(&utf_uexplst, cur, prev) {
 	    msl = container_of(cur, struct utf_msglst, slst);
 	    if (src == msl->hdr.tag) {
 		goto find;
 	    } 
 	}
     } else {
-	slist_entry	*cur;
-	slist_foreach(&utf_uexplst, cur) {
+	utfslist_foreach2(&utf_uexplst, cur, prev) {
 	    msl = container_of(cur, struct utf_msglst, slst);
-	    if (src == msl->hdr.tag && tag == msl->hdr.tag) {
+	    if (src == msl->hdr.src && tag == msl->hdr.tag) {
 		goto find;
 	    } 
 	}
@@ -164,7 +176,48 @@ utf_uexplst_match(uint32_t src, uint32_t tag, int flg)
     return -1;
 find:
     idx = msl->reqidx;
-    if (flg) {
+    if (peek == 0) {
+	utfslist_remove2(&utf_uexplst, cur, prev);
+	utf_msglst_free(msl);
+    }
+    return idx;
+}
+
+static inline int
+tofu_utf_uexplst_match(uint64_t src, uint64_t tag, uint64_t ignore, int peek)
+{
+    struct utf_msglst	*msl;
+    utfslist_entry	*cur, *prev;
+    uint32_t		idx;
+
+    utf_printf("tofu_utf_uexplst_match: utf_uexplst(%p) src(%ld) tag(%lx) ignore(%lx) peek(%d)\n",
+	       &utf_uexplst, src, tag, ignore, peek);
+    if (utfslist_isnull(&utf_uexplst)) {
+	utf_printf("\t: list is null\n");
+	return -1;
+    }
+    if (src == -1UL) {
+	utfslist_foreach2(&utf_uexplst, cur, prev) {
+	    msl = container_of(cur, struct utf_msglst, slst);
+	    if ((tag & ~ignore) == (msl->hdr.tag & ~ignore)) {
+		goto find;
+	    }
+	}
+    } else {
+	utfslist_foreach2(&utf_uexplst, cur, prev) {
+	    msl = container_of(cur, struct utf_msglst, slst);
+	    if (src == msl->hdr.src &&
+		(tag & ~ignore) == (msl->hdr.tag & ~ignore)) {
+		goto find;
+	    }
+	}
+    } /* not found */
+    utf_printf("\t: not found\n");
+    return -1;
+find:
+    utf_printf("\t: found\n");
+    if (peek == 0) {
+	utfslist_remove2(&utf_uexplst, cur, prev);
 	utf_msglst_free(msl);
     }
     return idx;
@@ -174,17 +227,17 @@ static inline int
 utf_explst_match(uint32_t src, uint32_t tag, int flg)
 {
     struct utf_msglst	*msl;
-    slist_entry		*cur;
+    utfslist_entry		*cur;
     uint32_t		idx;
 
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("explst_match: utf_explst(%p) src(%d) tag(%d)\n",
 		 &utf_explst, src, tag);
     }
-    if (slist_isnull(&utf_explst)) {
+    if (utfslist_isnull(&utf_explst)) {
 	return -1;
     }
-    slist_foreach(&utf_explst, cur) {
+    utfslist_foreach(&utf_explst, cur) {
 	msl = container_of(cur, struct utf_msglst, slst);
 	uint32_t exp_src = msl->hdr.src;
 	uint32_t exp_tag = msl->hdr.tag;
@@ -206,6 +259,52 @@ find:
     idx = msl->reqidx;
     if (flg) {
 	utf_msglst_free(msl);
+    }
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("\t return idx(%d)\n", idx);
+    }
+    return idx;
+}
+
+static inline int
+tofu_utf_explst_match(uint32_t src, uint64_t tag,  int peek)
+{
+    struct utf_msglst	*mlst;
+    utfslist_entry	*cur, *prev;
+    uint32_t		idx;
+
+    utf_printf("tofu_utf_explst_match: utf_explst(%p) src(%d) tag(%lx) peek(%d)\n",
+	       &utf_explst, src, tag, peek);
+
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("tofu_utf_explst_match: utf_explst(%p) src(%d) tag(%d)\n",
+		 &utf_explst, src, tag);
+    }
+    if (utfslist_isnull(&utf_explst)) {
+	return -1;
+    }
+    utfslist_foreach2(&utf_explst, cur, prev) {
+	mlst = container_of(cur, struct utf_msglst, slst);
+	uint32_t exp_src = mlst->hdr.src;
+	uint32_t exp_tag = mlst->hdr.tag;
+	uint32_t exp_rvignr = mlst->fi_rvignore;
+	DEBUG(DLEVEL_PROTOCOL) {
+	    utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%d) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
+	}
+	utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%d) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
+	if (exp_src == -1 && (tag & exp_rvignr) == (exp_tag & exp_rvignr)) {
+	    goto find;
+	} else if (exp_src == src
+		   && (tag & exp_rvignr) == (exp_tag & exp_rvignr)) {
+	    goto find;
+	}
+    }
+    return -1;
+find:
+    idx = mlst->reqidx;
+    if (peek == 0) {
+	utfslist_remove2(&utf_uexplst, cur, prev);
+	utf_msglst_free(mlst);
     }
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("\t return idx(%d)\n", idx);
@@ -287,10 +386,10 @@ struct utf_send_cntr {	/* 92 Byte */
     utofu_vcq_id_t	rvcqid;		/*  +8 = 28 Byte */
     size_t		psize;		/* packet-level sent size  +8=36 Byte */
     size_t		usize;		/* user-level sent size */
-    slist		smsginfo;	/* +16 = 52 Byte */
+    utfslist		smsginfo;	/* +16 = 52 Byte */
     union {
 	uint8_t		desc[32];	/* +32 = 84 Byte */
-	slist_entry	slst;		/* for free list */
+	utfslist_entry	slst;		/* for free list */
     };
 };
 
@@ -301,8 +400,11 @@ struct utf_send_msginfo { /* msg info */
     utofu_stadd_t	usrstadd;	/* stadd of user buf   +8 = 48 Byte */
     void		*usrbuf;	/* stadd of user buf   +8 = 48 Byte */
     struct utf_msgreq	*mreq;		/* request struct      +8 = 32 Byte */
-    slist_entry		slst;		/* next pointer        +8 = 56 Byte */
+    utfslist_entry		slst;		/* next pointer        +8 = 56 Byte */
     uint8_t		cntrtype;
+#ifndef UTF_NATIVE
+    void		*context;	/* for Fabric */
+#endif
 };
 
 #if 0
@@ -322,7 +424,7 @@ struct utf_send_cntr {	/* 128 Byte */
     utofu_stadd_t	sndstadd;	/*  +8 =100 Byte */
     utofu_stadd_t	usrstadd;	/*  +8 =108 Byte */
     struct utf_msgreq	*mreq;		/*  +8 =116 Byte */
-    slist_entry		slst;		/*  +8 =124 Byte */
+    utfslist_entry		slst;		/*  +8 =124 Byte */
     uint32_t		rsrv;		/*  +4 =128 Byte */
 };
 #endif /* 0 */

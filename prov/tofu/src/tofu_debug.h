@@ -3,9 +3,13 @@
 
 #ifndef _TOFU_DEBUG_H
 #define _TOFU_DEBUG_H
-
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
+#include <utofu.h>
+
+extern char	*tofu_fi_flags_string(uint64_t flags);
+
 extern int mypid, myrank;
 extern int rdbgf, rdbgl;
 
@@ -28,21 +32,21 @@ extern int rdbgf, rdbgl;
 
 #define R_DBG(format, ...)                                              \
    do {									\
-       printf("\t%d: " format " in %d:%s/%s\n",                         \
-              mypid, __VA_ARGS__, __LINE__, __func__, __FILE__);        \
+       printf("\t[%d]:%d:%s:%d " format " in %s\n",                     \
+              myrank, mypid, __func__, __LINE__, __VA_ARGS__, __FILE__);\
        fflush(stdout);                                                  \
-       fprintf(stderr, "%d: " format " in %d:%s/%s\n",                  \
-               mypid, __VA_ARGS__, __LINE__, __func__, __FILE__);       \
+       fprintf(stderr, "[%d]:%d:%s:%d " format " in %s\n",              \
+               myrank, mypid, __func__, __LINE__, __VA_ARGS__, __FILE__);\
        fflush(stderr);                                                  \
    } while (0)
 
 #define R_DBGMSG(format)                                                \
    do {									\
-       printf("\t%d: " format " in %d:%s/%s\n",                         \
-              mypid, __LINE__, __func__, __FILE__);                     \
+       printf("\t[%d]:%d:%s:%d " format " in %s\n",                     \
+              myrank, mypid, __func__, __LINE__, __FILE__);             \
        fflush(stdout);                                                  \
-       fprintf(stderr, "%d: " format " in %d:%s/%s\n",                  \
-               mypid, __LINE__, __func__, __FILE__);                    \
+       fprintf(stderr, "[%d]:%d:%s:%d " format " in %s\n",              \
+               myrank, mypid, __func__, __LINE__, __FILE__);            \
        fflush(stderr);                                                  \
    } while (0)
 
@@ -69,7 +73,7 @@ extern int rdbgf, rdbgl;
 			   mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stdout);					\
             } else if (rdbgf & 0x02 && level & rdbgl) {                 \
-		    fprintf(stderr, "%d: " format " in %s:%d\n",		\
+	    fprintf(stderr, "%d: " format " in %s:%d\n",		\
 			    mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stderr);					\
 	    }								\
@@ -107,4 +111,38 @@ static inline void desc_dump(void *desc, size_t sz)
     printf("\n");
 }
 
+extern void rdbg_mpich_cntrl(const char *func, int lno, void *ptr);
+extern void rdbg_iovec(const char *func, int lno, size_t, const void *iovec);
+extern char *tank2string(char *buf, size_t sz, uint64_t ui64);
+extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqi);
+extern void dbg_show_utof_vcqh(utofu_vcq_hdl_t vcqh);
+
+/* Copy from mpich/src/mpid/ch4/netmod/ofi/ofi_pre.h */
+enum {
+    MPIDI_AMTYPE_SHORT_HDR = 0,
+    MPIDI_AMTYPE_SHORT,
+    MPIDI_AMTYPE_LMT_REQ,
+    MPIDI_AMTYPE_LMT_ACK
+};
+
+#define MPIDI_OFI_MAX_AM_HDR_SIZE    128
+#define MPIDI_OFI_AM_HANDLER_ID_BITS   8
+#define MPIDI_OFI_AM_TYPE_BITS         8
+#define MPIDI_OFI_AM_HDR_SZ_BITS       8
+#define MPIDI_OFI_AM_DATA_SZ_BITS     48
+#define MPIDI_OFI_AM_CONTEXT_ID_BITS  16
+#define MPIDI_OFI_AM_RANK_BITS        32
+#define MPIDI_OFI_AM_MSG_HEADER_SIZE (sizeof(MPIDI_OFI_am_header_t))
+#include <rdma/fabric.h>
+
+struct MPIDI_OFI_am_header {
+    uint64_t handler_id:MPIDI_OFI_AM_HANDLER_ID_BITS;
+    uint64_t am_type:MPIDI_OFI_AM_TYPE_BITS;
+    uint64_t am_hdr_sz:MPIDI_OFI_AM_HDR_SZ_BITS;
+    uint64_t data_sz:MPIDI_OFI_AM_DATA_SZ_BITS;
+    uint16_t seqno;/* Sequence number of this message.
+		    * Number is unique to (fi_src_addr, fi_dest_addr) pair. */
+    fi_addr_t fi_src_addr;      /* OFI address of the sender */
+    uint64_t payload[0];
+} *head;
 #endif	/* _TOFU_DEBUG_H */

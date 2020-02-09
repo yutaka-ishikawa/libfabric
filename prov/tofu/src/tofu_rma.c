@@ -2,7 +2,6 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
-#include "tofu_debug.h"
 #include <assert.h>	    /* for assert() */
 
 /*
