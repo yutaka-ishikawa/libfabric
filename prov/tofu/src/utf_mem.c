@@ -31,8 +31,15 @@ static uint16_t	*rank2scntridx; /* destination rank to sender control index */
 /* For Receiver-side eager message handling */
 struct erecv_buf *erbuf;	/* eager receiver buffer */
 utofu_stadd_t	erbstadd;	/* stadd of eager receiver buffer */
+#ifndef UTF_NATIVE
+utfslist	utf_fitag_explst;	/* expected tagged message list */
+utfslist	utf_fitag_uexplst;	/* unexpected tagged message list */
+utfslist	utf_fimsg_explst;	/* expected message list */
+utfslist	utf_fimsg_uexplst;	/* unexpected message list */
+#else
 utfslist		utf_explst;	/* expected message list */
 utfslist		utf_uexplst;	/* unexpected message list */
+#endif
 #if 0
 struct utf_msglst	utf_explst_head;  /* expected message list */
 struct utf_msglst	utf_explst_tail;  /* expected message list */
@@ -62,8 +69,15 @@ utf_msglst_init()
 	utf_msglst_pool[i].reqidx = 0;
     }
     utf_msglst_size = REQ_SIZE;
-    utfslist_init(&utf_explst, 0);
-    utfslist_init(&utf_uexplst, 0);
+#ifndef UTF_NATIVE
+    utfslist_init(&utf_fitag_explst, NULL);/* expected tagged message list */
+    utfslist_init(&utf_fitag_uexplst, NULL);/* unexpected tagged message list*/
+    utfslist_init(&utf_fimsg_explst, NULL);/* expected message list */
+    utfslist_init(&utf_fimsg_uexplst, NULL);/* unexpected message list */
+#else
+    utfslist_init(&utf_explst, NULL);
+    utfslist_init(&utf_uexplst, NULL);
+#endif
 }
     
 static struct utf_msglst *

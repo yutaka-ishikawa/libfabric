@@ -16,11 +16,6 @@ extern struct utf_msgreq	*utf_msgreq_alloc();
 extern struct utf_msglst	*utf_msglst_insert(utfslist *head,
 						   struct utf_msgreq *req);
     
-extern struct utf_msglst	utf_explst_head;
-extern struct utf_msglst	utf_explst_tail;
-extern struct utf_msglst	utf_uexplst_head;
-extern struct utf_msglst	utf_uexplst_tail;
-
 extern int scntr2idx(struct utf_send_cntr *scp);
 static struct utf_recv_cntr	rcntr[MSG_PEERS];
 static utofu_vcq_id_t		vcqrcntr[MSG_PEERS];
@@ -126,7 +121,9 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     {
 	int	idx;
 #ifndef UTF_NATIVE
-	if ((idx = tofu_utf_explst_match(pkt->hdr.src, pkt->hdr.tag, 0)) != -1) {
+        utfslist *explst
+	    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
+	if ((idx = tofu_utf_explst_match(explst, pkt->hdr.src, pkt->hdr.tag, 0)) != -1) {
 #else
 	if ((idx = utf_explst_match(pkt->hdr.src, pkt->hdr.tag, 0)) != -1) {
 #endif
@@ -136,7 +133,9 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    /* eager */
 	    req->hdr.size = pkt->hdr.size;
 #ifndef UTF_NATIVE
+	    req->hdr.tag = pkt->hdr.tag;
 	    req->hdr.data = pkt->hdr.data;
+	    req->hdr.flgs = pkt->hdr.flgs;
 #endif
 	    if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
 	} else { /* New Unexpected message */
@@ -217,7 +216,15 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: register it to unexpected queue\n", __func__);
 	    }
+#ifndef UTF_NATIVE
+	    {
+		utfslist *uexplst
+		  = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
+		utf_msglst_insert(uexplst, req);
+	    }
+#else
 	    utf_msglst_insert(&utf_uexplst, req);
+#endif
 	} else {
 	    utf_printf("%s: Expected message arrived (idx=%d)\n", __func__,
 		       utf_msgreq2idx(req));

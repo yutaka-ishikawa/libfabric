@@ -328,7 +328,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
-            //printf("YI******bind: TX cq_priv(%p) flags(%lx)\n", cq_priv, flags);
+            R_DBG("YI******bind: TX cq_priv(%p) flags(%s)\n", cq_priv, tofu_fi_flags_string(flags));
             R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) TX_CTX(%p)", cq_priv, ctx_priv);
 	    if (flags & FI_SEND) {
 		/*
@@ -347,7 +347,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    }
 	    break;
 	case FI_CLASS_RX_CTX:
-            //printf("YI******bind: RX cq_priv(%p) flags(%lx)\n", cq_priv, flags);
+            R_DBG("YI******bind: RX cq_priv(%p) flags(%s)\n", cq_priv, tofu_fi_flags_string(flags));
             R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) RX_CTX(%p)", cq_priv, ctx_priv);
 	    if (flags & FI_RECV) {
 		if (ctx_priv->ctx_recv_cq != 0) {

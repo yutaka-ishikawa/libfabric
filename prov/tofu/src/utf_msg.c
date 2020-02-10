@@ -82,7 +82,7 @@ remote_get(utofu_vcq_hdl_t vcqh,
     return 0;
 }
 
-
+#ifdef UTF_NATIVE
 int
 utf_recv(int src, size_t size, int tag, void *buf, int *ridx)
 {
@@ -114,6 +114,7 @@ utf_recv(int src, size_t size, int tag, void *buf, int *ridx)
 err:
     return -1;
 }
+#endif
 
 
 int

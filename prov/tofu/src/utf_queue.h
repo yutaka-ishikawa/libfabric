@@ -18,11 +18,12 @@ struct utf_msghdr { /* 16 Byte */
 };
 #else /* for Fabric */
 #pragma pack(1)
-struct utf_msghdr { /* 32 Byte */
+struct utf_msghdr { /* 40 Byte */
     uint64_t	src;
     uint64_t	tag;
     size_t	size;
     uint64_t	data;
+    uint64_t	flgs;
 };
 #endif
 #define MSGHDR_SIZE sizeof(struct utf_msghdr)
@@ -112,7 +113,7 @@ struct utf_msglst {
     struct utf_msghdr	hdr;	/* 24 B */
     uint32_t		reqidx;	/* 28 B: index of utf_msgreq */
 #ifndef UTF_NATIVE
-    uint64_t	fi_rvignore;	/* ~ignore */
+    uint64_t	fi_ignore;	/* ignore */
     uint64_t	fi_flgs;
     void	*fi_context;
 #endif
@@ -134,9 +135,17 @@ utf_msgreq2idx(struct utf_msgreq *req)
 
 struct utf_msglst *msl;
 extern void	utf_msglst_free(struct utf_msglst *msl);
+#ifndef UTF_NATIVE /* Fabric */
+extern utfslist	utf_fitag_explst;	/* expected tagged message list */
+extern utfslist	utf_fitag_uexplst;	/* unexpected tagged message list */
+extern utfslist	utf_fimsg_explst;	/* expected message list */
+extern utfslist	utf_fimsg_uexplst;	/* unexpected message list */
+#else
 extern utfslist	utf_explst;	/* expected message list */
 extern utfslist	utf_uexplst;	/* unexpected message list */
+#endif /* ~UTF_NATIVE */
 
+#ifdef UTF_NATIVE
 static inline int
 utf_uexplst_match(uint32_t src, uint32_t tag, int peek)
 {
@@ -184,47 +193,6 @@ find:
 }
 
 static inline int
-tofu_utf_uexplst_match(uint64_t src, uint64_t tag, uint64_t ignore, int peek)
-{
-    struct utf_msglst	*msl;
-    utfslist_entry	*cur, *prev;
-    uint32_t		idx;
-
-    utf_printf("tofu_utf_uexplst_match: utf_uexplst(%p) src(%ld) tag(%lx) ignore(%lx) peek(%d)\n",
-	       &utf_uexplst, src, tag, ignore, peek);
-    if (utfslist_isnull(&utf_uexplst)) {
-	utf_printf("\t: list is null\n");
-	return -1;
-    }
-    if (src == -1UL) {
-	utfslist_foreach2(&utf_uexplst, cur, prev) {
-	    msl = container_of(cur, struct utf_msglst, slst);
-	    if ((tag & ~ignore) == (msl->hdr.tag & ~ignore)) {
-		goto find;
-	    }
-	}
-    } else {
-	utfslist_foreach2(&utf_uexplst, cur, prev) {
-	    msl = container_of(cur, struct utf_msglst, slst);
-	    if (src == msl->hdr.src &&
-		(tag & ~ignore) == (msl->hdr.tag & ~ignore)) {
-		goto find;
-	    }
-	}
-    } /* not found */
-    utf_printf("\t: not found\n");
-    return -1;
-find:
-    idx = msl->reqidx;
-    utf_printf("\t: found idx(%d)\n", idx);
-    if (peek == 0) {
-	utfslist_remove2(&utf_uexplst, cur, prev);
-	utf_msglst_free(msl);
-    }
-    return idx;
-}
-
-static inline int
 utf_explst_match(uint32_t src, uint32_t tag, int flg)
 {
     struct utf_msglst	*msl;
@@ -243,7 +211,7 @@ utf_explst_match(uint32_t src, uint32_t tag, int flg)
 	uint32_t exp_src = msl->hdr.src;
 	uint32_t exp_tag = msl->hdr.tag;
 	DEBUG(DLEVEL_PROTOCOL) {
-	    utf_printf("\t exp_src(%d) exp_tag(%d)\n", exp_src, exp_tag);
+	    utf_printf("\t exp_src(%d) exp_tag(%x)\n", exp_src, exp_tag);
 	}
 	if (exp_src == -1 && exp_tag != -1) {
 	    goto find;
@@ -267,32 +235,75 @@ find:
     return idx;
 }
 
+#else
+
 static inline int
-tofu_utf_explst_match(uint32_t src, uint64_t tag,  int peek)
+tofu_utf_uexplst_match(utfslist *uexplst, uint64_t src, uint64_t tag, uint64_t ignore, int peek)
+{
+    struct utf_msglst	*msl;
+    utfslist_entry	*cur, *prev;
+    uint32_t		idx;
+
+    utf_printf("tofu_utf_uexplst_match: uexplst(%p) src(%ld) tag(%lx) ignore(%lx) peek(%d)\n",
+	       uexplst, src, tag, ignore, peek);
+    if (utfslist_isnull(uexplst)) {
+	utf_printf("\t: list is null\n");
+	return -1;
+    }
+    if (src == -1UL) {
+	utfslist_foreach2(uexplst, cur, prev) {
+	    msl = container_of(cur, struct utf_msglst, slst);
+	    if ((tag & ~ignore) == (msl->hdr.tag & ~ignore)) {
+		goto find;
+	    }
+	}
+    } else {
+	utfslist_foreach2(uexplst, cur, prev) {
+	    msl = container_of(cur, struct utf_msglst, slst);
+	    if (src == msl->hdr.src &&
+		(tag & ~ignore) == (msl->hdr.tag & ~ignore)) {
+		goto find;
+	    }
+	}
+    } /* not found */
+    utf_printf("\t: not found\n");
+    return -1;
+find:
+    idx = msl->reqidx;
+    utf_printf("\t: found idx(%d)\n", idx);
+    if (peek == 0) {
+	utfslist_remove2(uexplst, cur, prev);
+	utf_msglst_free(msl);
+    }
+    return idx;
+}
+
+static inline int
+tofu_utf_explst_match(utfslist *explst, uint32_t src, uint64_t tag,  int peek)
 {
     struct utf_msglst	*mlst;
     utfslist_entry	*cur, *prev;
     uint32_t		idx;
 
-    utf_printf("tofu_utf_explst_match: utf_explst(%p) src(%d) tag(%lx) peek(%d)\n",
-	       &utf_explst, src, tag, peek);
+    utf_printf("tofu_utf_explst_match: explst(%p) src(%d) tag(0x%lx) peek(%d)\n",
+	       explst, src, tag, peek);
 
     DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("tofu_utf_explst_match: utf_explst(%p) src(%d) tag(%d)\n",
-		 &utf_explst, src, tag);
+	utf_printf("tofu_utf_explst_match: explst(%p) src(%d) tag(%d)\n",
+		 explst, src, tag);
     }
-    if (utfslist_isnull(&utf_explst)) {
+    if (utfslist_isnull(explst)) {
 	return -1;
     }
-    utfslist_foreach2(&utf_explst, cur, prev) {
+    utfslist_foreach2(explst, cur, prev) {
 	mlst = container_of(cur, struct utf_msglst, slst);
-	uint32_t exp_src = mlst->hdr.src;
-	uint32_t exp_tag = mlst->hdr.tag;
-	uint32_t exp_rvignr = mlst->fi_rvignore;
+	uint64_t exp_src = mlst->hdr.src;
+	uint64_t exp_tag = mlst->hdr.tag;
+	uint64_t exp_rvignr = ~mlst->fi_ignore;
 	DEBUG(DLEVEL_PROTOCOL) {
-	    utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%d) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
+	    utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%x) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
 	}
-	utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%d) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
+	utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%lx) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
 	if (exp_src == -1 && (tag & exp_rvignr) == (exp_tag & exp_rvignr)) {
 	    goto find;
 	} else if (exp_src == src
@@ -303,8 +314,9 @@ tofu_utf_explst_match(uint32_t src, uint64_t tag,  int peek)
     return -1;
 find:
     idx = mlst->reqidx;
+    utf_printf("\t return idx(%d) mlst(%p) exp_src(%ld) exp_tag(0x%lx) exp_ignore(0x%lx)\n", idx, mlst, mlst->hdr.src, mlst->hdr.tag, mlst->fi_ignore);
     if (peek == 0) {
-	utfslist_remove2(&utf_uexplst, cur, prev);
+	utfslist_remove2(explst, cur, prev);
 	utf_msglst_free(mlst);
     }
     DEBUG(DLEVEL_PROTOCOL) {
@@ -312,7 +324,7 @@ find:
     }
     return idx;
 }
-
+#endif /* ~UTF_NATIVE */
 
 /* 24 BYTE, 10 entries in one cache line */
 struct uexp_entry {

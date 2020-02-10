@@ -209,6 +209,7 @@ int
 tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 		      const struct fi_msg_tagged *msg, uint64_t flags)
 {
+    utfslist *explst;
     fi_addr_t	src = msg->addr;
     uint64_t	tag = msg->tag;
     struct utf_msgreq	*req;
@@ -217,8 +218,9 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
     int fc = FI_SUCCESS;
 
     utf_printf("%s: YI***** \n", __func__);
+    explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
     sndsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
-    if ((idx = tofu_utf_explst_match(src, tag, 0)) != -1) {/* found */
+    if ((idx = tofu_utf_explst_match(explst, src, tag, 0)) != -1) {/* found */
 	req = utf_idx2msgreq(idx);
 	/* sender data is copied to the specified buffer */
 	if (req->fi_iov_count == 1) {
@@ -270,7 +272,8 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 	req->fi_ctx = ctx;	/* used for completion */
 	req->fi_flgs = flags;
 	req->fi_ucontext = msg->context;
-	utf_msglst_insert(&utf_uexplst, req);
+	explst = flags & FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
+	utf_msglst_insert(explst, req);
     }
 err:
     return fc;
@@ -297,7 +300,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     utfslist_entry	*ohead;
 
     INITCHECK();
-    utf_printf("%s: msghdr(%s)\n",  __func__, tofu_fi_msg_string(msg));
+    utf_printf("%s: msghdr(%s) flags(%s)\n",  __func__, tofu_fi_msg_string(msg), tofu_fi_flags_string(flags));
     if (msg->msg_iov[0].iov_base) {
 	rdbg_iovec(__func__, __LINE__, msg->iov_count, msg->msg_iov);
         rdbg_mpich_cntrl(__func__, __LINE__, msg->msg_iov[0].iov_base);
@@ -353,6 +356,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     if (flags & FI_REMOTE_CQ_DATA) {
 	minfo->msghdr.data = msg->data; /* 64 bit */
     }
+    minfo->msghdr.flgs = flags;
     minfo->mreq = req;
     minfo->context = msg->context;
     req->hdr = minfo->msghdr; /* copy the header */
@@ -436,14 +440,20 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     fi_addr_t	src = msg->addr;
     uint64_t	tag = msg->tag;
     uint64_t	ignore = msg->ignore;
+    utfslist *uexplst;
 
     R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
 	  ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
-    if ((flags & FI_TAGGED) && (flags & FI_PEEK) && ~(flags & FI_CLAIM)) {
-	/* tagged message with just FI_PEEK option */
-	peek = 1;
-    } /* else, non-tagged or tagged message with FI_PEEK&FI_CLAIM option */
-    if ((idx = tofu_utf_uexplst_match(src, tag, ignore, peek)) != -1) {
+    if (flags & FI_TAGGED) {
+	uexplst =  &utf_fitag_uexplst;
+	if ((flags & FI_PEEK) && ~(flags & FI_CLAIM)) {
+	    /* tagged message with just FI_PEEK option */
+	    peek = 1;
+	} /* else, non-tagged or tagged message with FI_PEEK&FI_CLAIM option */
+    } else {
+	uexplst = &utf_fimsg_uexplst;
+    }
+    if ((idx=tofu_utf_uexplst_match(uexplst, src, tag, ignore, peek)) != -1) {
 	/* found in unexpected queue */
 	size_t	sz;
 	req = utf_idx2msgreq(idx);
@@ -483,6 +493,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	}
     }
     if (peek == 0) { /* register this request to the expected queue */
+	utfslist *explst;
 	struct utf_msglst *mlst;
 	size_t	i;
 	if ((req = utf_msgreq_alloc()) == NULL) {
@@ -499,15 +510,16 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	}
 	req->type = REQ_RECV_EXPECTED;	req->rsize = 0;
 	req->status = R_NONE;
-	req->fi_ignore = ignore; /* must be removed ? */
+	req->fi_ignore = ignore;
 	req->notify = tofu_catch_rcvnotify;
 	req->fi_ctx = ctx;
 	req->fi_flgs = flags;
 	req->fistatus = 0; req->status = REQ_NONE;
-	mlst = utf_msglst_insert(&utf_explst, req);
-	utf_printf("%s: Insert mlst(%p) to expected queue\n", __func__, mlst);
-	mlst->fi_rvignore = ~ignore;
+	explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
+	mlst = utf_msglst_insert(explst, req);
+	mlst->fi_ignore = ignore;
 	mlst->fi_context = 0;
+	utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
     }
 err:
     return fc;
