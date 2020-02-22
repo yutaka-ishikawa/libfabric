@@ -120,6 +120,8 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_NONE: /* Begin receiving message */
     {
 	int	idx;
+	utf_printf("%s: begin receiving src(%d) tag(0x%lx) data(0x%ld)\n",
+		   __func__, pkt->hdr.src, pkt->hdr.tag, pkt->hdr.data);
 #ifndef UTF_NATIVE
         utfslist *explst
 	    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;

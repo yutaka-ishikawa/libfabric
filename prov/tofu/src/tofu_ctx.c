@@ -211,7 +211,6 @@ tofu_ictx_close(struct tofu_ctx *ctx)
 	uc = UTOFU_ERR_INVALID_ARG; goto bad;
     }
     R_DBG("%s: NEEDS TO IMPLEMENT\n", __func__);
-    abort();
 #if 0
     if (ctx->ctx_enb != 0) {
 	assert(ctx->vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
@@ -260,7 +259,6 @@ static int tofu_ctx_close(struct fid *fid)
 	}
     }
     R_DBG("%s: NEEDS TO IMPLEMENT\n", __func__);
-    abort();
 #if 0
     if (ctx_priv->ctx_trx != 0) {
 	if (ctx_priv->ctx_trx->ctx_trx != 0) {

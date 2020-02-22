@@ -180,6 +180,7 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "\tdest(%ld) iovcount(%ld) size(%ld) in %s\n", msg->addr, msg->iov_count, msg->msg_iov[0].iov_len, __FILE__);
 
     R_DBG("YI********** SEND class(%ld)", fid_ep->fid.fclass);
+    //abort();
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
 	ret = -FI_EINVAL; goto bad;
     }
@@ -508,7 +509,7 @@ tofu_ctx_tag_senddata(struct fid_ep *fid_ep,
     void                 *dscs[1];
     uint64_t             flags = FI_TAGGED | FI_REMOTE_CQ_DATA | FI_COMPLETION;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s data(%ld)\n", __FILE__, data);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s data(%ld) len(%ld)\n", __FILE__, data, len);
 
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;
@@ -553,7 +554,9 @@ tofu_ctx_tag_injectdata(struct fid_ep *fid_ep,
     uint64_t flags = FI_INJECT | FI_TAGGED | FI_REMOTE_CQ_DATA
 		    /* | TOFU_USE_OP_FLAG */ /* YYY */
 		    ;
-
+    R_DBG("fi_tinjectdata dest(%ld) len(%ld) data(%ld) flags(%s)",
+	   dest_addr, len, data, tofu_fi_flags_string(flags));
+    
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%s) len(%ld) data(%ld) flags(%lx)",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data,flags);

@@ -18,7 +18,6 @@ tofu_fi_flags_string(uint64_t flags)
     if (flags & FI_WRITE) strncat(buf, ", FI_WRITE", B_SIZE);
     if (flags & FI_RECV) strncat(buf, ", FI_RECV", B_SIZE);
     if (flags & FI_SEND) strncat(buf, ", FI_SEND", B_SIZE);
-    if (flags & FI_TRANSMIT) strncat(buf, ", FI_TRANSMIT", B_SIZE);
     if (flags & FI_REMOTE_READ) strncat(buf, ", FI_REMOTE_READ", B_SIZE);
     if (flags & FI_REMOTE_WRITE) strncat(buf, ", FI_REMOTE_WRITE", B_SIZE);
     if (flags & FI_MULTI_RECV) strncat(buf, ", FI_MULTI_RECV", B_SIZE);
@@ -28,7 +27,6 @@ tofu_fi_flags_string(uint64_t flags)
     if (flags & FI_TRIGGER) strncat(buf, ", FI_TRIGGER", B_SIZE);
     if (flags & FI_FENCE) strncat(buf, ", FI_FENCE", B_SIZE);
     if (flags & FI_COMPLETION) strncat(buf, ", FI_COMPLETION", B_SIZE);
-    if (flags & FI_EVENT) strncat(buf, ", FI_EVENT", B_SIZE);
     if (flags & FI_INJECT) strncat(buf, ", FI_INJECT", B_SIZE);
     if (flags & FI_INJECT_COMPLETE) strncat(buf, ", FI_INJECT_COMPLETE", B_SIZE);
     if (flags & FI_TRANSMIT_COMPLETE) strncat(buf, ", FI_TRANSMIT_COMPLETE", B_SIZE);

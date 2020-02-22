@@ -109,11 +109,22 @@ int mypid, myrank;
 int rdbgf;
 int rdbgl;
 
-void
-tofu_dflag_set(int f, int l)
+static FILE	*logfp;
+static char	logname[PATH_MAX];
+
+static void
+redirect()
 {
-    rdbgf = f; rdbgl = l;
-}
+    if (stderr != logfp) {
+        sprintf(logname, "tofulog-%d", mypid);
+        if ((logfp = fopen(logname, "w")) == NULL) {
+            /* where we have to print ? /dev/console ? */
+            fprintf(stderr, "Cannot create the logfile: %s\n", logname);
+        }
+        fclose(stderr);
+        stderr = logfp;
+   }
+ }
 
 TOFU_INI
 {
@@ -123,7 +134,18 @@ TOFU_INI
 #endif /* ~NDEBUG */
     mypid = getpid();
     myrank = -1; /* will be initialized later */
-    // rdbgf = 0; rdbgl = 0;
+    {
+        char *cp;
+        cp = getenv("TOFU_DEBUG_LVL");
+        if (cp) {
+            rdbgl = atoi(cp);
+        }
+        cp = getenv("TOFU_DEBUG_FD");
+        if (cp) {
+            rdbgf = atoi(cp);
+            redirect();
+        }
+    }
 #if 0
 #ifndef TSIM  /* This is only for real-machines, not a simulated environment */
     {
@@ -152,4 +174,5 @@ void fi_tofu_setdopt(int flg, int lvl)
     rdbgf = flg;
     rdbgl = lvl;
     R_DBG("fi_tofu_setdopt is called with %x %x", flg, lvl);
+    redirect();
 }

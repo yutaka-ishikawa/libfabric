@@ -31,10 +31,7 @@ extern int rdbgf, rdbgl;
 #define RDBG_LEVEL8     0x8     /* for finding DLST bug */
 
 #define R_DBG(format, ...)                                              \
-   do {									\
-       printf("\t[%d]:%d:%s:%d " format " in %s\n",                     \
-              myrank, mypid, __func__, __LINE__, __VA_ARGS__, __FILE__);\
-       fflush(stdout);                                                  \
+   do {                                                                 \
        fprintf(stderr, "[%d]:%d:%s:%d " format " in %s\n",              \
                myrank, mypid, __func__, __LINE__, __VA_ARGS__, __FILE__);\
        fflush(stderr);                                                  \
@@ -42,9 +39,6 @@ extern int rdbgf, rdbgl;
 
 #define R_DBGMSG(format)                                                \
    do {									\
-       printf("\t[%d]:%d:%s:%d " format " in %s\n",                     \
-              myrank, mypid, __func__, __LINE__, __FILE__);             \
-       fflush(stdout);                                                  \
        fprintf(stderr, "[%d]:%d:%s:%d " format " in %s\n",              \
                myrank, mypid, __func__, __LINE__, __FILE__);            \
        fflush(stderr);                                                  \

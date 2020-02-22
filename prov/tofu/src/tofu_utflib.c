@@ -59,8 +59,9 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 
     utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
 	       __func__, context, tofu_fi_flags_string(flags), len, data, tag);
-    if (!(flags & FI_COMPLETION)) {
+    if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
+	utf_printf("%s: no receive completion is generated\n",  __func__);
 	return fc;
     }
     fastlock_acquire(&cq->cq_lck);
@@ -101,8 +102,9 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
     utf_printf("%s: flags = %s\n", __func__, tofu_fi_flags_string(flags));
-    if (!(flags & FI_COMPLETION)) {
+    if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
+	utf_printf("%s: no completion is generated\n",  __func__);
 	return fc;
     }
     fastlock_acquire(&cq->cq_lck);
@@ -113,12 +115,13 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     /* FI_CLAIM */
     cq_e->op_context	= context;
     cq_e->flags		=   FI_RECV
-		| (flags & (FI_MULTI_RECV|FI_TAGGED|FI_REMOTE_CQ_DATA));
+		| (flags & (FI_MULTI_RECV|FI_TAGGED|FI_REMOTE_CQ_DATA|FI_COMPLETION));
     cq_e->len		= len;
     cq_e->buf		= bufp;
     cq_e->data		= data;
     cq_e->tag		= tag;
-
+    utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx)\n",
+	       __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag);
     /* get an entry pointed by w.p. */
     comp = ofi_cirque_tail(cq->cq_ccq);
     assert(comp != 0);
@@ -146,13 +149,13 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     if (req->ustatus == REQ_OVERRUN) {
 	utf_printf("%s: overrun\n", __func__);
 	tofu_reg_rcveq(ctx->ctx_recv_cq, req->fi_ucontext,
-		       req->fi_flgs, req->rsize,
+		       req->hdr.flgs, req->rsize,
 		       req->hdr.size, -1, -1,
 		       0, req->hdr.data, req->hdr.tag);
     } else {
 	tofu_reg_rcvcq(ctx->ctx_recv_cq, req->fi_ucontext,
-		       req->fi_flgs, req->rsize,
-		       0, req->hdr.data, req->hdr.tag);
+		       req->hdr.flgs, req->rsize,
+		       req->buf, req->hdr.data, req->hdr.tag);
     }
     utf_msgreq_free(req);
 }
@@ -163,14 +166,19 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 {
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
-    utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
-	       __func__, context, tofu_fi_flags_string(flags), len, data, tag);
     cq_e->op_context	= context;
-    cq_e->flags		= flags | FI_SEND;
+    cq_e->flags		= (flags&(FI_TAGGED|FI_COMPLETION)) | FI_SEND;
     cq_e->len		= len;
     cq_e->buf		= 0;
     cq_e->data		= data;
     cq_e->tag		= tag;
+    utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx)\n",
+	       __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag);
+    if (flags & FI_INJECT
+	|| (cq->cq_ssel && !(flags & FI_COMPLETION))) {
+	utf_printf("%s: no send completion is generated\n",  __func__);
+	goto skip;
+    }
     fastlock_acquire(&cq->cq_lck);
     /* get an entry pointed by w.p. */
     comp = ofi_cirque_tail(cq->cq_ccq);
@@ -179,6 +187,7 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     /* advance w.p. by one  */
     ofi_cirque_commit(cq->cq_ccq);
     fastlock_release(&cq->cq_lck);
+skip:
     utf_printf("%s: YI***** 3\n", __func__);
 }
 
@@ -187,20 +196,16 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
 {
     struct tofu_ctx *ctx;
     struct tofu_cq  *cq;
-    uint64_t	     flgs;
 
     utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
 	       __func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
     assert(req->type == REQ_SND_REQ);
-    flgs = req->fi_flgs;
-    if (flgs & FI_INJECT) { goto skip; }
     ctx = req->fi_ctx;
     assert(ctx != 0);
     cq = ctx->ctx_send_cq;
     assert(cq != 0);
-    tofu_reg_sndcq(cq, ctx, req->fi_flgs, req->hdr.size,
+    tofu_reg_sndcq(cq, req->fi_ucontext, req->fi_flgs, req->hdr.size,
 		   req->hdr.data, req->hdr.tag);
-skip:
     utf_msgreq_free(req);
     utf_printf("%s: YI***** 3\n", __func__);
 }
@@ -515,10 +520,11 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	req->fi_ctx = ctx;
 	req->fi_flgs = flags;
 	req->fistatus = 0; req->status = REQ_NONE;
+	req->fi_ucontext = msg->context;
 	explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
 	mlst = utf_msglst_insert(explst, req);
 	mlst->fi_ignore = ignore;
-	mlst->fi_context = 0;
+	mlst->fi_context = msg->context;
 	utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
     }
 err:

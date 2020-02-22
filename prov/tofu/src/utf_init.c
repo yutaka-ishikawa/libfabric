@@ -17,13 +17,10 @@ utf_printf(const char *fmt, ...)
 {
     va_list	ap;
     int		rc;
-    printf("[%d] ", myrank); fprintf(stderr, "[%d] ", myrank);
-    va_start(ap, fmt);
-    rc = vprintf(fmt, ap);
     va_start(ap, fmt);
     rc = vfprintf(stderr, fmt, ap);
     va_end(ap);
-    fflush(stdout); fflush(stderr);
+    fflush(stderr);
     return rc;
 }
 

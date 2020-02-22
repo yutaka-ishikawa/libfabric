@@ -1,3 +1,54 @@
+struct fi_msg_tagged {
+	const struct iovec	*msg_iov;
+	void			**desc;
+	size_t			iov_count;
+	fi_addr_t		addr;
+	uint64_t		tag;
+	uint64_t		ignore;
+	void			*context;
+	uint64_t		data;
+};
+
+struct tofu_recv_en {
+    struct dlist_entry	    entry;
+    struct fi_msg_tagged    tmsg;
+    struct iovec	    iovs[TOFU_IOV_LIMIT];
+    void *		    dscs[TOFU_IOV_LIMIT];
+    struct fid *	    fidp;			<- cntxt
+    uint64_t		    flags;
+};
+
+struct ulib_shea_expd {
+    struct dlist_entry entry;
+    struct fi_msg_tagged tmsg;
+    uint64_t flgs;
+    uint32_t mblk;
+    uint32_t nblk;
+    uint64_t rtag;
+    uint32_t wlen;
+    uint32_t olen;
+    uint32_t niov;
+    struct iovec iovs[ULIB_MSG_IOV_LEN];
+    int (*func)(void *farg, const struct fi_cq_tagged_entry *comp);
+    void *farg;
+};
+
+struct ulib_shea_uexp {
+    uint64_t utag;
+    uint32_t flag;
+    uint32_t srci;
+    struct ulib_shea_rbuf rbuf;
+    void * vspc_list[2];
+};
+
+struct ulib_shea_rbuf {
+    struct iovec iovs[ULIB_MAX_IOV];
+    uint16_t niov;
+    uint16_t alloced;  /* if memory is allocated */
+    uint32_t leng;
+};
+
+
 tofu_cq_open
  creating Completion Queue
 	tofu_domain
