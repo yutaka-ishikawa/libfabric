@@ -1,0 +1,92 @@
+0 : xyzabc(17:19:23:0:0:0), tni(0), cqid(0), cid(0xf)
+job size = 64
+pval->data.bo.bytes(0x400004003900) pval->data.bo.size(2376)
+ver_major=3 ver_minor=0
+system_size=1817188e 18:17:18:8e
+	x(24) y(23) z(24) a(02) b(03) c(02)
+system_torus=x(01) y(00) z(01) a(00) b(01) c(00)
+dimension=0x1
+logical_size=x(64) y(00) z(00)
+ref_addr=x(17) y(19) z(23) a(00) b(00) c(00)
+max_size=x(06) y(01) z(01) a(02) b(03) c(02)
+broken_icc=0
+broken_node=0
+universe_size=64
+num_node_assign_bulk=0
+max_proc_per_node=48
+proc_per_node=1
+stack_sort=0
+world_size=64
+static_proc_shape=x(64) y(00) z(00)
+order=0x1
+num_hostlist=0
+offset_hostlist=0x0
+num_proc=0
+mapinfo_size=0x108
+total_size=0x948
+allocation_mode=0
+system_size3d=x(48) y(69) z(48)
+system_torus3d=x(01) y(00) z(01)
+63 : xyzabc(17:19:23:1:0:0), tni(0), cqid(0), cid(0xf)
+31 : xyzabc(17:19:23:0:0:1), tni(0), cqid(0), cid(0xf)
+32 : xyzabc(17:19:23:1:0:1), tni(0), cqid(0), cid(0xf)
+48 : xyzabc(17:19:23:1:1:0), tni(0), cqid(0), cid(0xf)
+47 : xyzabc(17:19:23:1:1:1), tni(0), cqid(0), cid(0xf)
+15 : xyzabc(17:19:23:0:1:0), tni(0), cqid(0), cid(0xf)
+16 : xyzabc(17:19:23:0:1:1), tni(0), cqid(0), cid(0xf)
+26 : xyzabc(21:19:23:0:2:1), tni(0), cqid(0), cid(0xf)
+55 : xyzabc(22:19:23:1:2:0), tni(0), cqid(0), cid(0xf)
+58 : xyzabc(21:19:23:1:2:0), tni(0), cqid(0), cid(0xf)
+36 : xyzabc(20:19:23:1:2:1), tni(0), cqid(0), cid(0xf)
+62 : xyzabc(18:19:23:1:0:0), tni(0), cqid(0), cid(0xf)
+27 : xyzabc(20:19:23:0:2:1), tni(0), cqid(0), cid(0xf)
+5 : xyzabc(21:19:23:0:2:0), tni(0), cqid(0), cid(0xf)
+17 : xyzabc(18:19:23:0:1:1), tni(0), cqid(0), cid(0xf)
+14 : xyzabc(18:19:23:0:1:0), tni(0), cqid(0), cid(0xf)
+46 : xyzabc(18:19:23:1:1:1), tni(0), cqid(0), cid(0xf)
+18 : xyzabc(19:19:23:0:1:1), tni(0), cqid(0), cid(0xf)
+8 : xyzabc(22:19:23:0:2:0), tni(0), cqid(0), cid(0xf)
+37 : xyzabc(21:19:23:1:2:1), tni(0), cqid(0), cid(0xf)
+13 : xyzabc(19:19:23:0:1:0), tni(0), cqid(0), cid(0xf)
+49 : xyzabc(18:19:23:1:1:0), tni(0), cqid(0), cid(0xf)
+43 : xyzabc(20:19:23:1:0:1), tni(0), cqid(0), cid(0xf)
+50 : xyzabc(19:19:23:1:1:0), tni(0), cqid(0), cid(0xf)
+30 : xyzabc(18:19:23:0:0:1), tni(0), cqid(0), cid(0xf)
+45 : xyzabc(19:19:23:1:1:1), tni(0), cqid(0), cid(0xf)
+59 : xyzabc(20:19:23:1:2:0), tni(0), cqid(0), cid(0xf)
+51 : xyzabc(20:19:23:1:1:0), tni(0), cqid(0), cid(0xf)
+9 : xyzabc(22:19:23:0:0:0), tni(0), cqid(0), cid(0xf)
+12 : xyzabc(20:19:23:0:1:0), tni(0), cqid(0), cid(0xf)
+11 : xyzabc(20:19:23:0:0:0), tni(0), cqid(0), cid(0xf)
+33 : xyzabc(18:19:23:1:0:1), tni(0), cqid(0), cid(0xf)
+52 : xyzabc(20:19:23:1:0:0), tni(0), cqid(0), cid(0xf)
+4 : xyzabc(20:19:23:0:2:0), tni(0), cqid(0), cid(0xf)
+42 : xyzabc(21:19:23:1:0:1), tni(0), cqid(0), cid(0xf)
+28 : xyzabc(19:19:23:0:2:1), tni(0), cqid(0), cid(0xf)
+7 : xyzabc(22:19:23:0:1:0), tni(0), cqid(0), cid(0xf)
+23 : xyzabc(22:19:23:0:2:1), tni(0), cqid(0), cid(0xf)
+44 : xyzabc(20:19:23:1:1:1), tni(0), cqid(0), cid(0xf)
+1 : xyzabc(18:19:23:0:0:0), tni(0), cqid(0), cid(0xf)
+54 : xyzabc(22:19:23:1:0:0), tni(0), cqid(0), cid(0xf)
+22 : xyzabc(22:19:23:0:0:1), tni(0), cqid(0), cid(0xf)
+61 : xyzabc(19:19:23:1:0:0), tni(0), cqid(0), cid(0xf)
+41 : xyzabc(22:19:23:1:0:1), tni(0), cqid(0), cid(0xf)
+40 : xyzabc(22:19:23:1:2:1), tni(0), cqid(0), cid(0xf)
+2 : xyzabc(19:19:23:0:0:0), tni(0), cqid(0), cid(0xf)
+19 : xyzabc(20:19:23:0:1:1), tni(0), cqid(0), cid(0xf)
+39 : xyzabc(22:19:23:1:1:1), tni(0), cqid(0), cid(0xf)
+20 : xyzabc(20:19:23:0:0:1), tni(0), cqid(0), cid(0xf)
+29 : xyzabc(19:19:23:0:0:1), tni(0), cqid(0), cid(0xf)
+34 : xyzabc(19:19:23:1:0:1), tni(0), cqid(0), cid(0xf)
+10 : xyzabc(21:19:23:0:0:0), tni(0), cqid(0), cid(0xf)
+35 : xyzabc(19:19:23:1:2:1), tni(0), cqid(0), cid(0xf)
+21 : xyzabc(21:19:23:0:0:1), tni(0), cqid(0), cid(0xf)
+6 : xyzabc(21:19:23:0:1:0), tni(0), cqid(0), cid(0xf)
+56 : xyzabc(22:19:23:1:1:0), tni(0), cqid(0), cid(0xf)
+60 : xyzabc(19:19:23:1:2:0), tni(0), cqid(0), cid(0xf)
+38 : xyzabc(21:19:23:1:1:1), tni(0), cqid(0), cid(0xf)
+25 : xyzabc(21:19:23:0:1:1), tni(0), cqid(0), cid(0xf)
+57 : xyzabc(21:19:23:1:1:0), tni(0), cqid(0), cid(0xf)
+24 : xyzabc(22:19:23:0:1:1), tni(0), cqid(0), cid(0xf)
+53 : xyzabc(21:19:23:1:0:0), tni(0), cqid(0), cid(0xf)
+3 : xyzabc(19:19:23:0:2:0), tni(0), cqid(0), cid(0xf)
