@@ -11,11 +11,12 @@ all: $(PROGS) procmap
 $(PROGS): $(OBJS)
 	$(CC) -g -o $@ $@.o
 procmap: procmap.o
-	 $(MPICC) -g -o $@ $@.o -L$(PMIXLIBDIR) -lpmix
+#	 $(MPICC) -g -o $@ $@.o -L$(PMIXLIBDIR) -lpmix
+	 $(MPICC) -g -o $@ $@.o $(HOME)/riken-mpich/lib/libpmix.so
 clean:
 	rm -f $(PROGS) $(OBJS)
 run-clean:
-	rm -f run-numazu.sh.* core.*
+	rm -f run-numazu.sh.* run-fugaku.sh.* core.*
 .c.o:
 	$(CC) -c $< $(INCLUDE)
 
