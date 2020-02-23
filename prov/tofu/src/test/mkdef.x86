@@ -1,0 +1,3 @@
+INCLUDE += -I$(HOME)/riken-mpich/include
+CC=cc
+MPICC=mpicc

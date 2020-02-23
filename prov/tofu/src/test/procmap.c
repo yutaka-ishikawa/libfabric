@@ -96,7 +96,7 @@ main(int argc, char **argv)
     printf("order=0x%x\n", minfo->order);
 
     printf("num_hostlist=%d\n",  minfo->num_hostlist);
-    printf("offset_hostlist=0x%x\n",  minfo->offset_hostlist);
+    printf("offset_hostlist=0x%lx\n",  minfo->offset_hostlist);
     {
 	tlib_tofu3d	*hostp = (tlib_tofu3d*) TLIB_OFFSET2PTR(minfo->offset_hostlist);
 	int	i;
@@ -158,7 +158,7 @@ utofu_addr(int rank)
 	    fprintf(stderr, "%s: utofu_query_vcq_id error (%d)\n", __func__, uc);
 	    goto bad;
 	}
-	printf("[%d] xyzabc(%d:%d:%d:%d:%d:%d), tni(%d), cqid(%d), cid(0x%x)\n",
+	printf("%d : xyzabc(%d:%d:%d:%d:%d:%d), tni(%d), cqid(%d), cid(0x%x)\n",
 	       rank, abcxyz[0], abcxyz[1], abcxyz[2], abcxyz[3], abcxyz[4], abcxyz[5],
 	       tni[0], tcq[0], cid[0]); fflush(stdout);
 bad:
