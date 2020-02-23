@@ -1,12 +1,14 @@
 #include <pmix.h>
 #include <pmix_fjext.h>
 #include <process_map_info.h>
+#include <utofu.h>
 #include <stdio.h>
 
 pmix_proc_t	pmix_proc[1];
 pmix_value_t	*pval;
 struct tlib_process_mapinfo	*minfo;
 char	buf1[128], buf2[128], buf3[128];
+int	myrank, nprocs;
 
 /*
  * 31             24 23           16 15            8 7 6 5  2 1 0
@@ -42,29 +44,37 @@ string_tofu3d(tlib_tofu3d host, char *buf)
     return buf;
 }
 
+extern void utofu_addr(int rank);
 
 int
 main(int argc, char **argv)
 {
-    int rc, myrank;
+    int rc;
     
     rc = PMIx_Init(pmix_proc, NULL, 0);
     if (rc != PMIX_SUCCESS) {
 	printf("rc = %d\n", rc); fflush(stdout);
 	exit(-1);
     }
-    if (pmix_proc->rank != 0) goto finalize;
+    utofu_addr(pmix_proc->rank);
     myrank = pmix_proc->rank;
     pmix_proc->rank= PMIX_RANK_WILDCARD;
+    rc = PMIx_Get(pmix_proc, PMIX_JOB_SIZE, NULL, 0, &pval);
+    if (rc != PMIX_SUCCESS) goto err;
+    nprocs = pval->data.uint32;
+    // PMIx_Fence(pmix_proc, nprocs, NULL, 0);
+    if (myrank != 0) goto finalize;
+
+    usleep(10000);
+    printf("job size = %d\n", nprocs); fflush(stdout);
     rc = PMIx_Get(pmix_proc, FJPMIX_RANKMAP, NULL, 0, &pval);
     if (rc != PMIX_SUCCESS | pval->type != PMIX_BYTE_OBJECT) {
-	printf("rc = %d pval->type = %d mustbe 27\n", rc, pval->type);
-	exit(-1);
+	printf("pval->type = %d mustbe 27\n", pval->type); goto err;
     }
-    pmix_proc->rank= myrank; 
     printf("pval->data.bo.bytes(%p) pval->data.bo.size(%ld)\n",
 	   pval->data.bo.bytes, pval->data.bo.size);
     minfo = (struct tlib_process_mapinfo*) pval->data.bo.bytes;
+
 
     printf("ver_major=%d ver_minor=%d\n", minfo->ver_major, minfo->ver_minor);
     printf("system_size=%x %s\n", minfo->system_size, string_8bit(minfo->system_size, buf1));
@@ -112,7 +122,47 @@ main(int argc, char **argv)
     printf("system_torus3d=%s\n", string_tofu3d(minfo->system_torus3d, buf1));
 
 finalize:
-    PMIx_Fence(pmix_proc, 1, NULL, 0);
+    pmix_proc->rank= myrank; 
+    // PMIx_Fence(pmix_proc, nprocs, NULL, 0);
+    goto ext;
+err:
+    printf("rc = %d\n", rc); fflush(stdout);
+ext:
     PMIx_Finalize(NULL, 0);
     return 0;
+}
+
+#define CONF_TOFU_CMPID         0x7
+void
+utofu_addr(int rank)
+{
+    int			uc;
+    utofu_vcq_hdl_t     vcqh;
+    utofu_tni_id_t      tni_id;
+    const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
+    const unsigned long     flags;
+
+    uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
+    {
+	utofu_vcq_id_t vcqi = -1UL;
+	uint8_t abcxyz[8];
+	uint16_t tni[1], tcq[1], cid[1];
+
+	uc = utofu_query_vcq_id(vcqh, &vcqi);
+	if (uc != UTOFU_SUCCESS) {
+	    fprintf(stderr, "%s: utofu_query_vcq_id error (%d)\n", __func__, uc);
+	    goto bad;
+	}
+	uc = utofu_query_vcq_info(vcqi, abcxyz, tni, tcq, cid);
+	if (uc != UTOFU_SUCCESS) {
+	    fprintf(stderr, "%s: utofu_query_vcq_id error (%d)\n", __func__, uc);
+	    goto bad;
+	}
+	printf("[%d] xyzabc(%d:%d:%d:%d:%d:%d), tni(%d), cqid(%d), cid(0x%x)\n",
+	       rank, abcxyz[0], abcxyz[1], abcxyz[2], abcxyz[3], abcxyz[4], abcxyz[5],
+	       tni[0], tcq[0], cid[0]); fflush(stdout);
+bad:
+	;
+    }
+    return;
 }

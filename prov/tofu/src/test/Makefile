@@ -12,7 +12,7 @@ $(PROGS): $(OBJS)
 	$(CC) -g -o $@ $@.o
 procmap: procmap.o
 #	 $(MPICC) -g -o $@ $@.o -L$(PMIXLIBDIR) -lpmix
-	 $(MPICC) -g -o $@ $@.o $(HOME)/riken-mpich/lib/libpmix.so
+	 $(MPICC) -g -o $@ $@.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom
 clean:
 	rm -f $(PROGS) $(OBJS)
 run-clean:

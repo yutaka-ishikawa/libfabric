@@ -1,5 +1,51 @@
-rc = 0
-rc = 0
+[1] xyzabc(11:19:23:0:0:0), tni(0), cqid(3), cid(0xf)
+[2] xyzabc(11:19:23:0:0:0), tni(0), cqid(6), cid(0xf)
+[0] xyzabc(11:19:23:0:0:0), tni(0), cqid(0), cid(0xf)
+[3] xyzabc(11:19:23:0:0:0), tni(0), cqid(9), cid(0xf)
+[4] xyzabc(11:19:23:0:2:0), tni(0), cqid(0), cid(0xf)
+[7] xyzabc(11:19:23:0:2:0), tni(0), cqid(9), cid(0xf)
+[5] xyzabc(11:19:23:0:2:0), tni(0), cqid(3), cid(0xf)
+[6] xyzabc(11:19:23:0:2:0), tni(0), cqid(6), cid(0xf)
+[46] xyzabc(11:19:23:1:0:0), tni(0), cqid(6), cid(0xf)
+[45] xyzabc(11:19:23:1:0:0), tni(0), cqid(3), cid(0xf)
+[44] xyzabc(11:19:23:1:0:0), tni(0), cqid(0), cid(0xf)
+[47] xyzabc(11:19:23:1:0:0), tni(0), cqid(9), cid(0xf)
+[16] xyzabc(11:19:23:0:2:1), tni(0), cqid(0), cid(0xf)
+[19] xyzabc(11:19:23:0:2:1), tni(0), cqid(9), cid(0xf)
+[18] xyzabc(11:19:23:0:2:1), tni(0), cqid(6), cid(0xf)
+[17] xyzabc(11:19:23:0:2:1), tni(0), cqid(3), cid(0xf)
+[24] xyzabc(11:19:23:1:0:1), tni(0), cqid(0), cid(0xf)
+[26] xyzabc(11:19:23:1:0:1), tni(0), cqid(6), cid(0xf)
+[27] xyzabc(11:19:23:1:0:1), tni(0), cqid(9), cid(0xf)
+[25] xyzabc(11:19:23:1:0:1), tni(0), cqid(3), cid(0xf)
+[28] xyzabc(11:19:23:1:2:1), tni(0), cqid(0), cid(0xf)
+[29] xyzabc(11:19:23:1:2:1), tni(0), cqid(3), cid(0xf)
+[31] xyzabc(11:19:23:1:2:1), tni(0), cqid(9), cid(0xf)
+[30] xyzabc(11:19:23:1:2:1), tni(0), cqid(6), cid(0xf)
+[20] xyzabc(11:19:23:0:0:1), tni(0), cqid(0), cid(0xf)
+[21] xyzabc(11:19:23:0:0:1), tni(0), cqid(3), cid(0xf)
+[23] xyzabc(11:19:23:0:0:1), tni(0), cqid(9), cid(0xf)
+[22] xyzabc(11:19:23:0:0:1), tni(0), cqid(6), cid(0xf)
+[8] xyzabc(11:19:23:0:1:0), tni(0), cqid(0), cid(0xf)
+[9] xyzabc(11:19:23:0:1:0), tni(0), cqid(3), cid(0xf)
+[11] xyzabc(11:19:23:0:1:0), tni(0), cqid(9), cid(0xf)
+[10] xyzabc(11:19:23:0:1:0), tni(0), cqid(6), cid(0xf)
+[32] xyzabc(11:19:23:1:1:1), tni(0), cqid(0), cid(0xf)
+[35] xyzabc(11:19:23:1:1:1), tni(0), cqid(9), cid(0xf)
+[34] xyzabc(11:19:23:1:1:1), tni(0), cqid(6), cid(0xf)
+[33] xyzabc(11:19:23:1:1:1), tni(0), cqid(3), cid(0xf)
+[36] xyzabc(11:19:23:1:1:0), tni(0), cqid(0), cid(0xf)
+[37] xyzabc(11:19:23:1:1:0), tni(0), cqid(3), cid(0xf)
+[39] xyzabc(11:19:23:1:1:0), tni(0), cqid(9), cid(0xf)
+[38] xyzabc(11:19:23:1:1:0), tni(0), cqid(6), cid(0xf)
+[14] xyzabc(11:19:23:0:1:1), tni(0), cqid(6), cid(0xf)
+[13] xyzabc(11:19:23:0:1:1), tni(0), cqid(3), cid(0xf)
+[15] xyzabc(11:19:23:0:1:1), tni(0), cqid(9), cid(0xf)
+[12] xyzabc(11:19:23:0:1:1), tni(0), cqid(0), cid(0xf)
+[40] xyzabc(11:19:23:1:2:0), tni(0), cqid(0), cid(0xf)
+[41] xyzabc(11:19:23:1:2:0), tni(0), cqid(3), cid(0xf)
+[42] xyzabc(11:19:23:1:2:0), tni(0), cqid(6), cid(0xf)
+[43] xyzabc(11:19:23:1:2:0), tni(0), cqid(9), cid(0xf)
 pval->data.bo.bytes(0x400004003490) pval->data.bo.size(1240)
 job size = 48
 ver_major=3 ver_minor=0
@@ -8,7 +54,7 @@ system_size=1817188e 18:17:18:8e
 system_torus=x(01) y(00) z(01) a(00) b(01) c(00)
 dimension=0x1
 logical_size=x(12) y(00) z(00)
-ref_addr=x(23) y(19) z(23) a(00) b(00) c(00)
+ref_addr=x(11) y(19) z(23) a(00) b(00) c(00)
 max_size=x(01) y(01) z(01) a(02) b(03) c(02)
 broken_icc=0
 broken_node=0
@@ -28,49 +74,3 @@ total_size=0x4d8
 allocation_mode=0
 system_size3d=x(48) y(69) z(48)
 system_torus3d=x(01) y(00) z(01)
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
-rc = 0
