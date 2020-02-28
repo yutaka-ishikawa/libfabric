@@ -87,6 +87,7 @@ main(int argc, char **argv)
     printf("broken_icc=%d\n", minfo->broken_icc);
     printf("broken_node=%d\n", minfo->broken_node);
     printf("universe_size=%d\n", minfo->universe_size);
+    printf("num_node_assign_list=%d\n", minfo->num_node_assign_list);
     printf("num_node_assign_bulk=%d\n", minfo->num_node_assign_bulk);
     printf("max_proc_per_node=%d\n", minfo->max_proc_per_node);
     printf("proc_per_node=%d\n", minfo->proc_per_node);
