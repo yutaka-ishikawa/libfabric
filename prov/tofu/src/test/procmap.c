@@ -45,6 +45,7 @@ string_tofu3d(tlib_tofu3d host, char *buf)
 }
 
 extern void utofu_addr(int rank);
+extern void show_ranklist(off_t*, int rank);
 
 int
 main(int argc, char **argv)
@@ -56,7 +57,6 @@ main(int argc, char **argv)
 	printf("rc = %d\n", rc); fflush(stdout);
 	exit(-1);
     }
-    utofu_addr(pmix_proc->rank);
     myrank = pmix_proc->rank;
     pmix_proc->rank= PMIX_RANK_WILDCARD;
     rc = PMIx_Get(pmix_proc, PMIX_JOB_SIZE, NULL, 0, &pval);
@@ -86,8 +86,20 @@ main(int argc, char **argv)
     printf("max_size=%s\n", string_tofu6d(minfo->max_size, buf1));
     printf("broken_icc=%d\n", minfo->broken_icc);
     printf("broken_node=%d\n", minfo->broken_node);
+    printf("\toffset_broken_node_list=0x%lx\n", minfo->offset_broken_node_list);
     printf("universe_size=%d\n", minfo->universe_size);
+    printf("num_node_assign_list=%d\n", minfo->num_node_assign_list);
     printf("num_node_assign_bulk=%d\n", minfo->num_node_assign_bulk);
+    printf("\toffset_node_assign_list=0x%lx\n", minfo->offset_node_assign_list);
+    if (minfo->num_node_assign_list > 0) {
+	struct tlib_ranklist *ranklst = (struct tlib_ranklist*) TLIB_OFFSET2PTR(minfo->offset_node_assign_list);
+	int	i;
+	for (i = 0; i < minfo->num_node_assign_list; i++) {
+	    string_tofu6d(ranklst[i].physical_addr, buf1);
+	    string_tofu3d(ranklst[i].virtual_addr, buf2);
+	    printf("\tphysical : %s, virtual : %s\n", buf1, buf2);
+	}
+    }
     printf("max_proc_per_node=%d\n", minfo->max_proc_per_node);
     printf("proc_per_node=%d\n", minfo->proc_per_node);
     printf("stack_sort=%d\n", minfo->stack_sort);
@@ -96,32 +108,44 @@ main(int argc, char **argv)
     printf("order=0x%x\n", minfo->order);
 
     printf("num_hostlist=%d\n",  minfo->num_hostlist);
-    printf("offset_hostlist=0x%lx\n",  minfo->offset_hostlist);
+    printf("offset_hostlist=0x%lx entries=%ld\n",
+	   minfo->offset_hostlist,
+	   (minfo->offset_node_list - minfo->offset_hostlist)/ sizeof(tlib_tofu3d));
+#if 0
     {
 	tlib_tofu3d	*hostp = (tlib_tofu3d*) TLIB_OFFSET2PTR(minfo->offset_hostlist);
 	int	i;
-	for (i = 0; i < minfo->num_hostlist; i++) {
+	for (i = 0; i < nprocs; i++) {
 	    printf("\thost=%s\n", string_tofu3d(*(hostp + i), buf1));
 	}
     }
+#endif
     printf("num_proc=%d\n",  minfo->num_proc);
-    {
-	struct tlib_ranklist	*rankp = (struct tlib_ranklist*) TLIB_OFFSET2PTR(minfo->offset_node_list);
-	int	i;
-	for(i = 0; i < minfo->num_proc; i++) {
-	    printf("\tphys=%s virt=%s\n",
-		   string_tofu6d((rankp + i)->physical_addr, buf1),
-		   string_tofu3d((rankp + i)->virtual_addr, buf2));
-	}
-    }
+    /* node list */
+    printf("offset_node_list=0x%lx entries=%ld\n",
+	   minfo->offset_node_list,
+	   (TLIB_OFFSET2PTR(minfo->offset_logical_node_list)
+	    - TLIB_OFFSET2PTR(minfo->offset_node_list))/sizeof(struct tlib_ranklist));
+    show_ranklist(&minfo->offset_node_list, nprocs);
+    /* logical node list */
+    printf("offset_logical_node_list=0x%lx entries=%ld\n",
+	   minfo->offset_logical_node_list,
+	   (TLIB_OFFSET2PTR(minfo->offset_logical_node_proc)
+	    - TLIB_OFFSET2PTR(minfo->offset_logical_node_list))/sizeof(struct tlib_ranklist));
+    show_ranklist(&minfo->offset_logical_node_list, nprocs);
+    /* logical node proc */
+    printf("offset_logical_node_proc=0x%lx\n", minfo->offset_logical_node_proc);
+    // show_ranklist(&minfo->offset_logical_node_proc, nprocs);
 
     printf("mapinfo_size=0x%lx\n", minfo->mapinfo_size);
     printf("total_size=0x%lx\n", minfo->total_size);
     printf("allocation_mode=%d\n", minfo->allocation_mode);
     printf("system_size3d=%s\n", string_tofu3d(minfo->system_size3d, buf1));
     printf("system_torus3d=%s\n", string_tofu3d(minfo->system_torus3d, buf1));
+    printf("offset_nranklist=0x%lx\n", minfo->offset_nranklist);
 
 finalize:
+    utofu_addr(myrank);
     pmix_proc->rank= myrank; 
     // PMIx_Fence(pmix_proc, nprocs, NULL, 0);
     goto ext;
@@ -165,4 +189,16 @@ bad:
 	;
     }
     return;
+}
+
+void
+show_ranklist(off_t *offset, int nprocs)
+{
+    struct tlib_ranklist	*rankp = (struct tlib_ranklist*) TLIB_OFFSET2PTR(*offset);
+    int	i;
+    for(i = 0; i < nprocs; i++) {
+	printf("\tphys=%s virt=%s\n",
+	       string_tofu6d((rankp + i)->physical_addr, buf1),
+	       string_tofu3d((rankp + i)->virtual_addr, buf2));
+    }
 }
