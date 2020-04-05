@@ -130,7 +130,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     ofi_cirque_commit(cq->cq_ccq);
 bad:
     fastlock_release(&cq->cq_lck);
-    utf_printf("%s: YI**** 2 return\n", __func__);
+    utf_printf("%s: YI**** 2 cq(%p)->cq_ccq(%p) return\n", __func__, cq, cq->cq_ccq);
     return fc;
 }
 
@@ -172,8 +172,8 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     cq_e->buf		= 0;
     cq_e->data		= data;
     cq_e->tag		= tag;
-    utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx)\n",
-	       __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag);
+    utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx) cq(%p)->cq_ccq(%p)\n",
+	       __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag, cq, cq->cq_ccq);
     if (flags & FI_INJECT
 	|| (cq->cq_ssel && !(flags & FI_COMPLETION))) {
 	utf_printf("%s: no send completion is generated\n",  __func__);
@@ -416,6 +416,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 #endif
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
+    usp->dst = dst;
     if (ohead == NULL) { /* this is the first entry */
 	rc = utf_send_start(ctx->ctx_sep->sep_myvcqh, usp);
 	if (rc != 0) {
@@ -474,12 +475,16 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 		       " previous context(%p) now context(%p)\n",
 		       __func__, req->fi_ucontext, msg->context);
 	}
+	/*
+	 * how we should handle flags specified by Receve post and message's flags specified by sender
+	 *	2020/04/05
+	 */
 	if (sz != req->rsize) {
-	    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, flags, sz,
+	    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, req->hdr.flgs, sz,
 			   req->rsize, -1, -1,
 			   0, req->hdr.data, tag);
 	} else {
-	    tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, flags, sz,
+	    tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, req->hdr.flgs, sz,
 			   0, req->hdr.data, tag);
 	}
 	if (peek == 0) { /* reclaim unexpected resources */
@@ -496,13 +501,14 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	} else if (~(flags & FI_CLAIM)) {
 	    req->fi_ucontext = msg->context;
 	}
+	goto ext;
     }
     if (peek == 0) { /* register this request to the expected queue */
 	utfslist *explst;
 	struct utf_msglst *mlst;
 	size_t	i;
 	if ((req = utf_msgreq_alloc()) == NULL) {
-	    fc = -FI_ENOMEM; goto err;
+	    fc = -FI_ENOMEM; goto ext;
 	}
 	req->hdr.src = src;
 	req->hdr.data = msg->data;
@@ -527,6 +533,6 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	mlst->fi_context = msg->context;
 	utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
     }
-err:
+ext:
     return fc;
 }

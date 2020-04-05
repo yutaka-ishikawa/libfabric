@@ -276,10 +276,10 @@ void
 utf_scntr_free(int idx)
 {
     struct utf_send_cntr *head;
-    int	headpos;
+    uint16_t	headpos;
 
     headpos = rank2scntridx[idx];
-    if (headpos != 65535) {
+    if (headpos != (uint16_t) -1) {
 	head = &utf_scntrp[headpos];
 	utfslist_insert(&utf_scntrfree, &head->slst);
 	rank2scntridx[idx] = -1;
@@ -337,9 +337,9 @@ struct utf_send_cntr *
 utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 {
     struct utf_send_cntr *scp;
-    int	headpos;
+    uint16_t	headpos;
     headpos = rank2scntridx[dst];
-    if (headpos != 65535) {
+    if (headpos != (uint16_t)-1) {
 	scp = &utf_scntrp[headpos];
     } else {
 	/* No head */
@@ -359,6 +359,7 @@ utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 	}
     }
 err:
+    utf_printf("%s: dst(%d) scp(%p) headpos(0x%x) -1(0x%x)\n", __func__, dst, scp, headpos, (uint16_t)-1);
     return scp;
 }
 

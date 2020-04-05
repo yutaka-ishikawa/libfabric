@@ -120,8 +120,11 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_NONE: /* Begin receiving message */
     {
 	int	idx;
-	utf_printf("%s: begin receiving src(%d) tag(0x%lx) data(0x%ld)\n",
-		   __func__, pkt->hdr.src, pkt->hdr.tag, pkt->hdr.data);
+	{
+	    extern char	*tofu_fi_flags_string(uint64_t flags);
+	    utf_printf("%s: begin receiving src(%d) tag(0x%lx) data(0x%ld) flags(%s)\n",
+		       __func__, pkt->hdr.src, pkt->hdr.tag, pkt->hdr.data, tofu_fi_flags_string(pkt->hdr.flgs));
+	}
 #ifndef UTF_NATIVE
         utfslist *explst
 	    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
@@ -252,7 +255,7 @@ calc_recvstadd(struct utf_send_cntr *usp, uint64_t ridx, size_t ssize)
     utofu_stadd_t	recvstadd = 0;
     if ((usp->recvoff + ssize) > MSGBUF_SIZE) {
 	/* buffer full */
-	//utf_printf("%s: YI**** WAIT usp->rcvreset(%d) usp->recvoff(%d)\n",
+	//utf_printf("%s: YI** WAIT usp->rcvreset(%d) usp->recvoff(%d)\n",
 	//__func__, usp->rcvreset, usp->recvoff);
 	usp->state = S_WAIT_BUFREADY;
     } else {
@@ -317,6 +320,7 @@ progress:
 	break;
     case S_REQ_ROOM:
 	if ((int64_t)rslt >= 0) {
+	    utf_printf("%s: YI*** set sendok for dst(%d) and index(%d))\n",  __func__, usp->dst, (unsigned)rslt);
 	    sndmgt_set_sndok(usp->dst, egrmgt);
 	    sndmgt_set_index(usp->dst, egrmgt, rslt);
 	    usp->state = S_HAS_ROOM;
@@ -530,6 +534,9 @@ utf_send_start(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp)
 	 * checking availability
 	 *   edata: usp->mypos for mrqprogress
 	 */
+	utf_printf("%s: Request a room to rank %d: send control(%d) <- edata\n"
+		   "\trvcqid(%lx) remote stadd(%lx)\n",
+		   __func__, dst, usp->mypos, usp->rvcqid, erbstadd);
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: Request a room to rank %d: send control(%d)\n"
 		     "\trvcqid(%lx) remote stadd(%lx)\n",
@@ -537,11 +544,13 @@ utf_send_start(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp)
 	}
 	utf_remote_add(vcqh, usp->rvcqid,
 		       UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE,
-		       -1, erbstadd, 0, 0);
+		       -1, erbstadd, usp->mypos, 0);
 	usp->state = S_REQ_ROOM;
 	sndmgt_set_examed(dst, egrmgt);
 	return 0;
     } else if (sndmgt_isset_sndok(dst, egrmgt) != 0) {
+	utf_printf("%s: YI** Has a received room in rank %d: send control(%d)\n",
+		   __func__, dst, usp->mypos);
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: Has a received room in rank %d: send control(%d)\n",
 		     __func__, dst, usp->mypos);
@@ -550,8 +559,8 @@ utf_send_start(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp)
 	utf_sendengine(vcqh, usp, 0, EVT_START);
 	return 0;
     } else {
-	utf_printf("%s: ERROR!!!!\n", __func__);
-	return -1;
+	utf_printf("%s: ERROR!!!! dst(%d)\n", __func__, dst);
+	abort();
     }
 }
 
@@ -596,7 +605,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 
 	DEBUG(DLEVEL_UTOFU) {
 	    utf_printf("%s: MRQ_TYPE_RMT_PUT: edat(%ld) rmtval(%lx) "
-		     "rmt_stadd(%lx) vcqid(%lx) entry(%d)",
+		     "rmt_stadd(%lx) vcqid(%lx) entry(%d)\n",
 		     __func__, mrq_notice.edata, mrq_notice.rmt_value,
 		     mrq_notice.rmt_stadd,
 		     mrq_notice.vcq_id, entry);
@@ -611,6 +620,11 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	}
 	msgp = utf_recvbuf_get(entry);
 	msgp = (struct utf_msgbdy *) ((char*)msgp + ursp->recvoff);
+	utf_printf("%s: MRQ_TYPE_RMT_PUT: edat(%ld) rmtval(%lx) "
+		   "rmt_stadd(%lx) vcqid(%lx) entry(%d) msgp(%p)\n",
+		   __func__, mrq_notice.edata, mrq_notice.rmt_value,
+		   mrq_notice.rmt_stadd,
+		   mrq_notice.vcq_id, entry, msgp);
 	utf_recvengine(av, vcqh, ursp, msgp, sidx);
 	ursp->recvoff += msgp->psize;
 	if (ursp->rst_sent == 0 && ursp->recvoff > MSGBUF_THR) {
@@ -678,6 +692,8 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	int	evtype;
 	int	sidx = mrq_notice.edata;
 	usp = utf_idx2scntr(sidx);
+	utf_printf("%s: MRQ_LCL_ARM: edata(%d) rmt_val(%ld) usp(%p)\n",
+		   __func__, mrq_notice.edata, mrq_notice.rmt_value, usp);
 	DEBUG(DLEVEL_UTOFU) {
 	    utf_printf("%s: MRQ_LCL_ARM: edata(%d) rmt_val(%ld) usp(%p)\n",
 		     __func__, mrq_notice.edata, mrq_notice.rmt_value, usp);

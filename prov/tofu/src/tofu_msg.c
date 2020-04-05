@@ -19,11 +19,23 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
     struct tofu_ctx *ctx_priv;
     struct tofu_av *av_priv;
     utofu_vcq_id_t vcqi;
+    uint8_t xyz[8];
+    uint16_t tni[1], tcq[1], cid[1];
+    int uc;
 
     ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     av_priv = ctx_priv->ctx_sep->sep_av_;
     tofu_av_lookup_vcqid_by_fia(av_priv, fi_addr, &vcqi, 0);
-    return tank2string(buf, sz, vcqi);
+    uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
+    if (uc == UTOFU_SUCCESS) {
+        snprintf(buf, sz, "xyzabc(%02x:%02x:%02x:%02x:%02x:%02x), "
+                 "tni(%d), tcq(%d), cid(0x%x)",
+		 xyz[0], xyz[1], xyz[2], xyz[3], xyz[4], xyz[5],
+		 tni[0], tcq[0], cid[0]);
+    } else {
+        snprintf(buf, sz, "fi_addr_unspec");
+    }
+    return buf;
 }
 
 
@@ -380,9 +392,9 @@ tofu_ctx_tag_recv(struct fid_ep *fid_ep,
     tmsg.data	    = 0;
     flags = FI_TAGGED;
 
-    R_DBG1(RDBG_LEVEL3, "fi_trecv src(%s) len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(0x%lx)",
-           fi_addr2string(buf1, 128, src_addr, fid_ep),
-           len, buf, tag, ignore, flags);
+    R_DBG1(RDBG_LEVEL3, "fi_trecv src(%ld: %s) len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(%s)",
+           src_addr, fi_addr2string(buf1, 128, src_addr, fid_ep),
+           len, buf, tag, ignore, tofu_fi_flags_string(flags));
     ret = tofu_ctx_msg_recv_common(fid_ep, &tmsg, flags);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
     return ret;
@@ -558,8 +570,8 @@ tofu_ctx_tag_injectdata(struct fid_ep *fid_ep,
 	   dest_addr, len, data, tofu_fi_flags_string(flags));
     
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%s) len(%ld) data(%ld) flags(%lx)",
-          fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data,flags);
+    R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%ld: %s) len(%ld) data(%ld) flags(%lx)",
+	   dest_addr, fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data,flags);
 
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;

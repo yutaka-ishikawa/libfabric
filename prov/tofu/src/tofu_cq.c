@@ -64,6 +64,16 @@ tofu_progress(struct tofu_cq *cq)
         }
         ment = ofi_cirque_usedcnt(cq->cq_ccq);
     }
+    {
+        extern int	utf_printf(const char *fmt, ...);
+        static ssize_t  oment = -1;
+
+        if(ment > 0
+           || (ment == 0 && oment != 0)) {
+            utf_printf("%s: YI********* cq(%p) ment(%ld)\n", __func__, cq, ment);
+        }
+        oment = ment;
+    }
     return ment;
 }
 

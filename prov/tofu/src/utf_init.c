@@ -18,6 +18,7 @@ utf_printf(const char *fmt, ...)
     va_list	ap;
     int		rc;
     va_start(ap, fmt);
+    fprintf(stderr, "[%d] ", myrank);
     rc = vfprintf(stderr, fmt, ap);
     va_end(ap);
     fflush(stderr);

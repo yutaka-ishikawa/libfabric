@@ -116,13 +116,19 @@ static void
 redirect()
 {
     if (stderr != logfp) {
-        sprintf(logname, "tofulog-%d", mypid);
+        char    *cp = getenv("TOFULOG_DIR");
+        if (cp) {
+            sprintf(logname, "%s/tofulog-%d", cp, myrank);
+        } else {
+            sprintf(logname, "tofulog-%d", myrank);
+        }
         if ((logfp = fopen(logname, "w")) == NULL) {
             /* where we have to print ? /dev/console ? */
             fprintf(stderr, "Cannot create the logfile: %s\n", logname);
+        } else {
+            fclose(stderr);
+            stderr = logfp;
         }
-        fclose(stderr);
-        stderr = logfp;
    }
  }
 

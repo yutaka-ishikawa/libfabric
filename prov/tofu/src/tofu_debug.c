@@ -6,7 +6,7 @@
 char *
 tofu_fi_flags_string(uint64_t flags)
 {
-    static char	buf[B_SIZE];
+    static char	buf[B_SIZE + 1];
     buf[0] = 0;
     if (flags & FI_MSG) strncat(buf, "FI_MSG", B_SIZE);
     if (flags & FI_RMA) strncat(buf, ", FI_RMA", B_SIZE);
