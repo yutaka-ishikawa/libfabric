@@ -32,6 +32,7 @@ remote_piggysend(utofu_vcq_hdl_t vcqh,
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
     UTOFU_CALL(utofu_prepare_put_piggyback,
 	       vcqh, rvcqid, data, rstadd, len, edata, flgs, desc, &sz);
+    assert(sz <= 128);
     UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_piggyback: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
@@ -54,6 +55,7 @@ remote_put(utofu_vcq_hdl_t vcqh,
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
     UTOFU_CALL(utofu_prepare_put,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
+    assert(sz <= 128);
     UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_put: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
@@ -75,6 +77,7 @@ remote_get(utofu_vcq_hdl_t vcqh,
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
     UTOFU_CALL(utofu_prepare_get,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
+    assert(sz <= 128);
     UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_get: desc size(%ld) cbdata(%ld)\n", sz, cbdata);

@@ -248,13 +248,17 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 	}
 	/* completion */
 	/* generating completion event to receiver CQ  */
+	/*
+	 * how we should handle flags specified by Receve post and message's flags specified by sender
+	 *	2020/04/06
+	 */
 	if (req->expsize < sndsz) {  /* overrun, error cq */
 	    tofu_reg_rcveq(req->fi_ctx, req->fi_ucontext,
 			   req->fi_flgs, sndsz,
 			   sndsz, -1, -1, 0, req->hdr.data, tag);
 	} else {
 	    tofu_reg_rcvcq(req->fi_ctx, req->fi_ucontext,
-			   req->fi_flgs, req->expsize, 0, req->hdr.data, tag);
+			   req->hdr.flgs, req->expsize, 0, req->hdr.data, tag);
 	}
 	/* generating completion event to sender CQ  */
 	tofu_reg_sndcq(ctx->ctx_send_cq, msg->context, flags, sndsz,
@@ -466,6 +470,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
 				 req->buf, req->rsize);
+	utf_printf("%s: YIxxxxx copy: req->buf[%ld]\n", __func__, (unsigned int)req->buf[0]);
 	/* NO FI_MULTI_RECV is supported */
 	/* CQ is immediately generated */
 	if (peek == 1 && (flags & FI_CLAIM)

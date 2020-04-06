@@ -62,8 +62,8 @@ tofu_progress(struct tofu_cq *cq)
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
             uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_myvcqh);
         }
-        ment = ofi_cirque_usedcnt(cq->cq_ccq);
     }
+    ment = ofi_cirque_usedcnt(cq->cq_ccq);
     {
         extern int	utf_printf(const char *fmt, ...);
         static ssize_t  oment = -1;

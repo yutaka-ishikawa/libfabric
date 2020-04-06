@@ -81,10 +81,19 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
     }  else {
 	if (req->buf) { /* enough buffer area has been allocated */
 	    bcopy(EMSG_DATA(msgp), &req->buf[req->rsize], cpysz);
+	    utf_printf("%s: YIxxxxx copy: req->buf[%ld]\n", __func__, (unsigned int)req->buf[req->rsize]);
 	} else {
 #ifndef UTF_NATIVE /* for Fabric */
-	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, req->rsize,
+	    /* ofi_copy_to_iov(const struct iovec *iov, size_t iov_count, uint64_t iov_offset,
+	       void *buf, uint64_t bufsize) */
+	    uint64_t	sz;
+	    sz = ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, req->rsize,
 			    EMSG_DATA(msgp), cpysz);
+	    if (cpysz > 0) {
+		utf_printf("%s: YIxxxxx copy: iov_count(%d)\n", __func__, req->fi_iov_count);
+		utf_printf("%s: YIxxxxx copy: ofi_cpy_to_iov size(%ld) cpysz(%ld) copied(%ld)\n", __func__, req->rsize, cpysz, sz);
+		utf_printf("%s: msg=%d copied data = %d\n", __func__, *((int*)EMSG_DATA(msgp)), *(int*)req->fi_msg[0].iov_base);
+	    }
 #else
 	utf_printf("%s: Something wrong in utf native mode\n", __func__);
 #endif
@@ -280,6 +289,9 @@ utf_sendengine(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp, uint64_t rslt, in
     utfslist_entry		*slst;
     struct utf_send_msginfo	*minfo;
 
+    utf_printf("%s: usp(%p)->state(%s), evt(%d) rcvreset(%d) recvoff(%d)\n",
+	       __func__, usp, sstate_symbol[usp->state],
+	       evt, usp->rcvreset, usp->recvoff);
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("%s: usp(%p)->state(%s), evt(%d) rcvreset(%d) recvoff(%d)\n",
 		 __func__, usp, sstate_symbol[usp->state],
@@ -356,6 +368,9 @@ progress:
 	    }
 	    break;
 	}
+	utf_printf("%s: Going to send rvcqid(%lx) size(%ld) "
+		   "type(%d) sidx(%d) ridx(%d) recvstadd(%lx) minfo->cntrtype(%d)\n",
+		   __func__, rvcqid, ssize, minfo->cntrtype, usp->mypos, ridx, recvstadd, minfo->cntrtype);
 	switch (minfo->cntrtype) {
 	case SNDCNTR_BUFFERED_EAGER:
 	    if (ssize <= utf_pig_size) {
@@ -372,6 +387,7 @@ progress:
 	    usp->psize = ssize; /* packet level */
 	    usp->usize = MSG_CALC_EAGER_USIZE(ssize);
 	    usp->state = S_DONE_EGR;
+	    utf_printf("%s: next usp(%p)->state = %s\n", __func__, usp, sstate_symbol[usp->state]);
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_showpacket("sender packet buffer", &minfo->sndbuf->msgbdy);
 		utf_printf("%s: next usp(%p)->state = %d\n",
@@ -403,6 +419,8 @@ progress:
 			 minfo->sndbuf->msgbdy.rndz);
 	    }
 	    break;
+	default:
+	    utf_printf("%s: BUG!!! Unknown ctrltype(%d)\n", __func__, minfo->cntrtype);
 	}
 	break;
     }
@@ -523,6 +541,7 @@ progress:
 	}
 	break;
     }
+    utf_printf("%s: return\n", __func__);
 }
 
 int
