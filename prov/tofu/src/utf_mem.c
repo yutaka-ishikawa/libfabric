@@ -226,7 +226,7 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs, int entries)
     UTOFU_CALL(utofu_reg_mem_with_stag, vcqh, (void*) utf_scntrp,
 	       sizeof(struct utf_send_cntr)*entries,
 	       TAG_SNDCTR, 0, &sndctrstadd);
-    utf_printf("YI****** sndctrstadd(%lx)\n", sndctrstadd);
+    // utf_printf("YI****** sndctrstadd(%lx)\n", sndctrstadd);
     utf_scntrsize = entries;
     sndctrstaddend = sndctrstadd + sizeof(struct utf_send_cntr)*entries;
     memset(utf_scntrp, 0, sizeof(struct utf_send_cntr)*entries);
@@ -364,7 +364,7 @@ utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 	}
     }
 err:
-    utf_printf("%s: dst(%d) scp(%p) headpos(0x%x) -1(0x%x)\n", __func__, dst, scp, headpos, (uint16_t)-1);
+    // utf_printf("%s: dst(%d) scp(%p) headpos(0x%x) -1(0x%x)\n", __func__, dst, scp, headpos, (uint16_t)-1);
     return scp;
 }
 

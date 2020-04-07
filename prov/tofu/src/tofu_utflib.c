@@ -57,8 +57,8 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     int fc = FI_SUCCESS;
     struct fi_cq_err_entry cq_e[1], *comp;
 
-    utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
-	       __func__, context, tofu_fi_flags_string(flags), len, data, tag);
+    //utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
+    //__func__, context, tofu_fi_flags_string(flags), len, data, tag);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no receive completion is generated\n",  __func__);
@@ -101,7 +101,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     int fc = FI_SUCCESS;
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
-    utf_printf("%s: flags = %s\n", __func__, tofu_fi_flags_string(flags));
+    // utf_printf("%s: flags = %s\n", __func__, tofu_fi_flags_string(flags));
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no completion is generated\n",  __func__);
@@ -120,8 +120,8 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     cq_e->buf		= bufp;
     cq_e->data		= data;
     cq_e->tag		= tag;
-    utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx)\n",
-	       __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag);
+    //utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx)\n",
+    //__func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag);
     /* get an entry pointed by w.p. */
     comp = ofi_cirque_tail(cq->cq_ccq);
     assert(comp != 0);
@@ -130,7 +130,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     ofi_cirque_commit(cq->cq_ccq);
 bad:
     fastlock_release(&cq->cq_lck);
-    utf_printf("%s: YI**** 2 cq(%p)->cq_ccq(%p) return\n", __func__, cq, cq->cq_ccq);
+    // utf_printf("%s: YI**** 2 cq(%p)->cq_ccq(%p) return\n", __func__, cq, cq->cq_ccq);
     return fc;
 }
 
@@ -140,9 +140,9 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 {
     struct tofu_ctx *ctx;
 
-    utf_printf("%s: notification received req(%p)\n", __func__, req);
-    utf_printf("%s:\t msg=%s\n", __func__,
-	       utf_msghdr_string(&req->hdr, req->buf));
+    //utf_printf("%s: notification received req(%p)\n", __func__, req);
+    //utf_printf("%s:\t msg=%s\n", __func__,
+    //utf_msghdr_string(&req->hdr, req->buf));
     assert(req->type == REQ_RECV_EXPECTED);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
@@ -172,11 +172,15 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     cq_e->buf		= 0;
     cq_e->data		= data;
     cq_e->tag		= tag;
-    utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx) cq(%p)->cq_ccq(%p)\n",
-	       __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag, cq, cq->cq_ccq);
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx) cq(%p)->cq_ccq(%p)\n",
+		   __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag, cq, cq->cq_ccq);
+    }
     if (flags & FI_INJECT
 	|| (cq->cq_ssel && !(flags & FI_COMPLETION))) {
-	utf_printf("%s: no send completion is generated\n",  __func__);
+	DEBUG(DLEVEL_PROTOCOL) {
+	    utf_printf("%s: no send completion is generated\n",  __func__);
+	}
 	goto skip;
     }
     fastlock_acquire(&cq->cq_lck);
@@ -188,7 +192,10 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     ofi_cirque_commit(cq->cq_ccq);
     fastlock_release(&cq->cq_lck);
 skip:
-    utf_printf("%s: YI***** 3\n", __func__);
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("%s: return\n", __func__);
+    }
+    return;
 }
 
 static void
@@ -197,8 +204,8 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     struct tofu_ctx *ctx;
     struct tofu_cq  *cq;
 
-    utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
-	       __func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
+    //utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
+    //__func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
     assert(req->type == REQ_SND_REQ);
     ctx = req->fi_ctx;
     assert(ctx != 0);
@@ -207,7 +214,7 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     tofu_reg_sndcq(cq, req->fi_ucontext, req->fi_flgs, req->hdr.size,
 		   req->hdr.data, req->hdr.tag);
     utf_msgreq_free(req);
-    utf_printf("%s: YI***** 3\n", __func__);
+    //utf_printf("%s: YI***** 3\n", __func__);
 }
 
 int
@@ -222,7 +229,7 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
     int	idx;
     int fc = FI_SUCCESS;
 
-    utf_printf("%s: YI***** \n", __func__);
+    //utf_printf("%s: YI***** \n", __func__);
     explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
     sndsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     if ((idx = tofu_utf_explst_match(explst, src, tag, 0)) != -1) {/* found */
@@ -309,11 +316,11 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     utfslist_entry	*ohead;
 
     INITCHECK();
-    utf_printf("%s: msghdr(%s) flags(%s)\n",  __func__, tofu_fi_msg_string(msg), tofu_fi_flags_string(flags));
-    if (msg->msg_iov[0].iov_base) {
-	rdbg_iovec(__func__, __LINE__, msg->iov_count, msg->msg_iov);
-        rdbg_mpich_cntrl(__func__, __LINE__, msg->msg_iov[0].iov_base);
-    }
+    //utf_printf("%s: msghdr(%s) flags(%s)\n",  __func__, tofu_fi_msg_string(msg), tofu_fi_flags_string(flags));
+    //if (msg->msg_iov[0].iov_base) {
+    //rdbg_iovec(__func__, __LINE__, msg->iov_count, msg->msg_iov);
+    //rdbg_mpich_cntrl(__func__, __LINE__, msg->msg_iov[0].iov_base);
+    //}
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     if (msgsize > CONF_TOFU_INJECTSIZE && FI_INJECT) {
 	fc = FI_EIO;
@@ -325,6 +332,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     av = ctx->ctx_sep->sep_av_;
     fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
     if (fc != FI_SUCCESS) { rc = fc; goto err1; }
+#if 0
     {
 	char	buf1[128], buf2[128];
 	R_DBG("YI********* src(%d) = %s dest(%ld) = %s flgs(%ld)",
@@ -332,6 +340,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	      vcqid2string(buf1, 128, ctx->ctx_sep->sep_myvcqid),
 	      dst, vcqid2string(buf2, 128, r_vcqid), flgs);
     }
+#endif
     /* sender control structure is allocated for the destination */
     usp = utf_scntr_alloc(dst, r_vcqid, flgs);
     if (usp == NULL) {
@@ -386,8 +395,8 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	if (msg->iov_count > 0) {
 	    ofi_copy_from_iov(sbufp->msgbdy.payload.h_pkt.msgdata,
 			      msgsize, msg->msg_iov, msg->iov_count, 0);
-	    utf_printf("%s: YIxxxx msg->iov_count(%d) data(%d)\n", __func__, msg->iov_count,
-		       *(int*) sbufp->msgbdy.payload.h_pkt.msgdata);
+	    //utf_printf("%s: YIxxxx msg->iov_count(%d) data(%d)\n", __func__, msg->iov_count,
+	    //*(int*) sbufp->msgbdy.payload.h_pkt.msgdata);
 	} else { /* null message ? */
 
 	}
@@ -429,7 +438,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	    fc = FI_EIO;
 	}
     }
-    utf_printf("%s: YI***** return FI_SUCESS\n", __func__);
+    //utf_printf("%s: YI***** return FI_SUCESS\n", __func__);
     return fc;
 err4:
     utf_msgreq_free(req);
@@ -454,8 +463,8 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	ignore = msg->ignore;
     utfslist *uexplst;
 
-    R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
-	  ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
+    //R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
+    //ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
     if (flags & FI_TAGGED) {
 	uexplst =  &utf_fitag_uexplst;
 	if ((flags & FI_PEEK) && ~(flags & FI_CLAIM)) {
@@ -472,7 +481,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
 				 req->buf, req->rsize);
-	utf_printf("%s: YIxxxxx copy: req(%p)->buf[0]=%d\n", __func__, req, *(unsigned int*)req->buf);
+	//utf_printf("%s: YIxxxxx copy: req(%p)->buf[0]=%d\n", __func__, req, *(unsigned int*)req->buf);
 	/* NO FI_MULTI_RECV is supported */
 	/* CQ is immediately generated */
 	if (peek == 1 && (flags & FI_CLAIM)
@@ -538,7 +547,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	mlst = utf_msglst_insert(explst, req);
 	mlst->fi_ignore = ignore;
 	mlst->fi_context = msg->context;
-	utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
+	//utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
     }
 ext:
     return fc;

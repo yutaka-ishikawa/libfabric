@@ -244,10 +244,10 @@ tofu_utf_uexplst_match(utfslist *uexplst, uint64_t src, uint64_t tag, uint64_t i
     utfslist_entry	*cur, *prev;
     uint32_t		idx;
 
-    utf_printf("tofu_utf_uexplst_match: uexplst(%p) src(%ld) tag(%lx) ignore(%lx) peek(%d)\n",
-	       uexplst, src, tag, ignore, peek);
+    //utf_printf("tofu_utf_uexplst_match: uexplst(%p) src(%ld) tag(%lx) ignore(%lx) peek(%d)\n",
+    //uexplst, src, tag, ignore, peek);
     if (utfslist_isnull(uexplst)) {
-	utf_printf("\t: list is null\n");
+	//utf_printf("\t: list is null\n");
 	return -1;
     }
     if (src == -1UL) {
@@ -266,11 +266,11 @@ tofu_utf_uexplst_match(utfslist *uexplst, uint64_t src, uint64_t tag, uint64_t i
 	    }
 	}
     } /* not found */
-    utf_printf("\t: not found\n");
+    //utf_printf("\t: not found\n");
     return -1;
 find:
     idx = msl->reqidx;
-    utf_printf("\t: found idx(%d)\n", idx);
+    //utf_printf("\t: found idx(%d)\n", idx);
     if (peek == 0) {
 	utfslist_remove2(uexplst, cur, prev);
 	utf_msglst_free(msl);
@@ -284,9 +284,6 @@ tofu_utf_explst_match(utfslist *explst, uint32_t src, uint64_t tag,  int peek)
     struct utf_msglst	*mlst;
     utfslist_entry	*cur, *prev;
     uint32_t		idx;
-
-    utf_printf("tofu_utf_explst_match: explst(%p) src(%d) tag(0x%lx) peek(%d)\n",
-	       explst, src, tag, peek);
 
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("tofu_utf_explst_match: explst(%p) src(%d) tag(%d)\n",
@@ -303,7 +300,6 @@ tofu_utf_explst_match(utfslist *explst, uint32_t src, uint64_t tag,  int peek)
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%x) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
 	}
-	utf_printf("\t mlst(%p) exp_src(%d) exp_tag(%lx) exp_rvignr(%lx)\n", mlst, exp_src, exp_tag, exp_rvignr);
 	if (exp_src == -1 && (tag & exp_rvignr) == (exp_tag & exp_rvignr)) {
 	    goto find;
 	} else if (exp_src == src
@@ -314,7 +310,7 @@ tofu_utf_explst_match(utfslist *explst, uint32_t src, uint64_t tag,  int peek)
     return -1;
 find:
     idx = mlst->reqidx;
-    utf_printf("\t return idx(%d) mlst(%p) exp_src(%ld) exp_tag(0x%lx) exp_ignore(0x%lx)\n", idx, mlst, mlst->hdr.src, mlst->hdr.tag, mlst->fi_ignore);
+    //utf_printf("\t return idx(%d) mlst(%p) exp_src(%ld) exp_tag(0x%lx) exp_ignore(0x%lx)\n", idx, mlst, mlst->hdr.src, mlst->hdr.tag, mlst->fi_ignore);
     if (peek == 0) {
 	utfslist_remove2(explst, cur, prev);
 	utf_msglst_free(mlst);

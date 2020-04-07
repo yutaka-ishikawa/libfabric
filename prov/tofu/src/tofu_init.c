@@ -136,7 +136,7 @@ TOFU_INI
 {
     FI_INFO(&tofu_prov, FI_LOG_DEBUG, "\n**** TOFU INIT ****\n");
 #ifndef NDEBUG
-    fprintf(stderr, "**** Debug option is enable\n"); fflush(stderr);
+    // fprintf(stderr, "**** Debug option is enable\n"); fflush(stderr);
 #endif /* ~NDEBUG */
     mypid = getpid();
     myrank = -1; /* will be initialized later */

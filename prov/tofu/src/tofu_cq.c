@@ -70,6 +70,7 @@ tofu_progress(struct tofu_cq *cq)
         }
         ment = ofi_cirque_usedcnt(cq->cq_ccq);
     }
+#if 0
     {
         extern int	utf_printf(const char *fmt, ...);
         static ssize_t  oment = -1;
@@ -80,6 +81,7 @@ tofu_progress(struct tofu_cq *cq)
         }
         oment = ment;
     }
+#endif
     return ment;
 }
 
@@ -205,7 +207,7 @@ int tofu_cq_open(struct fid_domain *fid_dom, struct fi_cq_attr *attr,
     /* initialize cq_priv */
     cq_priv->cq_dom = dom_priv;
     ofi_atomic_initialize32(&cq_priv->cq_ref, 0);
-    R_DBG("cq_priv->cq_lck(%p)\n", &cq_priv->cq_lck);
+    //R_DBG("cq_priv->cq_lck(%p)\n", &cq_priv->cq_lck);
     fastlock_init(&cq_priv->cq_lck);
     cq_priv->cq_fid.fid.fclass    = FI_CLASS_CQ;
     cq_priv->cq_fid.fid.context   = context;

@@ -13,7 +13,7 @@ static int tofu_sep_close(struct fid *fid)
     int fc = FI_SUCCESS;
 //    struct tofu_sep *sep;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
     /*
      * man fi_endpoint(3)
@@ -49,8 +49,8 @@ static int tofu_sep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	 */
 	av = container_of(bfid, struct tofu_av, av_fid.fid);
 	if (sep->sep_dom != av->av_dom) {
-            R_DBG("sep->sep_dom(%p) != av->av_dom(%p)",
-                  sep->sep_dom, av->av_dom);
+            //R_DBG("sep->sep_dom(%p) != av->av_dom(%p)",
+            //    sep->sep_dom, av->av_dom);
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
         if (av->av_sep) {
@@ -77,13 +77,13 @@ static int tofu_sep_ctrl(struct fid *fid, int command, void *arg)
     int fc = FI_SUCCESS;
     struct tofu_sep *sep;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
     sep = container_of(fid, struct tofu_sep, sep_fid.fid);
 
     switch (command) {
     case FI_ENABLE:
-        R_DBG("YI***** FI_ENABLE arg(%p)", arg);
+        // R_DBG("YI***** FI_ENABLE arg(%p)", arg);
 	break;
     default:
 	fc = -FI_ENOSYS; goto bad;
@@ -119,11 +119,11 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
     struct tofu_domain *dom;
     struct tofu_sep *sep = 0;
 
-    R_DBG("YI**** fid_dom(%p)", fid_dom);
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    //R_DBG("YI**** fid_dom(%p)", fid_dom);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid_dom != 0);
     dom = container_of(fid_dom, struct tofu_domain, dom_fid);
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "api_version %08x\n",
              dom->dom_fab->fab_fid.api_version);
     if (dom->dom_sep) {
         R_DBG("%s: More than one SEP is created\n", __func__);
@@ -178,7 +178,7 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
     /* return fid_sep */
     fid_sep[0] = &sep->sep_fid;
 bad:
-    R_DBG("YI**** fc(%d)", fc);
+    //R_DBG("YI**** fc(%d)", fc);
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "return %d in %s\n", fc, __FILE__);
     return fc;
 }

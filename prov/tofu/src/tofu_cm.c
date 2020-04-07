@@ -55,7 +55,7 @@ tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 	fc = -FI_EINVAL; goto bad;
     }
     blen = addrlen[0];
-    fprintf(stderr, "%s(,,%ld):%d\n", __func__, blen, __LINE__); fflush(stderr);
+    // fprintf(stderr, "%s(,,%ld):%d\n", __func__, blen, __LINE__); fflush(stderr);
 
     assert(fid != 0);
     switch (fid->fclass) {

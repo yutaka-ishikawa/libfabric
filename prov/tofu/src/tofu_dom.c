@@ -105,7 +105,7 @@ int tofu_domain_open(
 
     FI_INFO(&tofu_prov, FI_LOG_DOMAIN, "in %s\n", __FILE__);
     assert(fid_fab != 0);
-    R_DBG("DOM OPEN fid_fab(%p)", fid_fab);
+    //R_DBG("DOM OPEN fid_fab(%p)", fid_fab);
     fab = container_of(fid_fab, struct tofu_fabric, fab_fid );
     FI_INFO(&tofu_prov, FI_LOG_DOMAIN, "api_version %08x\n",
 	fab->fab_fid.api_version);
@@ -146,7 +146,7 @@ int tofu_domain_open(
         const size_t mtni = sizeof (dom->tnis) / sizeof (dom->tnis[0]);
 
         uc = utofu_get_onesided_tnis(&tnis, &ntni);
-        R_DBG("rdbgf(%x) rdbgl(%x) uc(%d) ntni(%ld)", rdbgf, rdbgl, uc, ntni);
+        //R_DBG("rdbgf(%x) rdbgl(%x) uc(%d) ntni(%ld)", rdbgf, rdbgl, uc, ntni);
         R_DBG0(RDBG_LEVEL1, "uc(%d) ntni(%ld)", uc, ntni);
         if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
         if (ntni > mtni) {
@@ -178,6 +178,6 @@ bad:
     if (dom != 0) {
 	tofu_domain_close(&dom->dom_fid.fid );
     }
-    fprintf(stderr, "%s: YI*** 2 return fc(%d)\n", __func__, fc); fflush(stderr);
+    //fprintf(stderr, "%s: YI*** 2 return fc(%d)\n", __func__, fc); fflush(stderr);
     return fc;
 }

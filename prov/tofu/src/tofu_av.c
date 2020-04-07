@@ -113,7 +113,7 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
 	vnam->vpid = index;
         VNAME_TO_VCQID(vnam, vcqid);
         vnam->vcqid = vcqid;
-        R_DBG("fi_addr[%ld] = %ld ==> vcaqid(%lx)", ic, fi_addr[ic], vcqid);
+        // R_DBG("fi_addr[%ld] = %ld ==> vcaqid(%lx)", ic, fi_addr[ic], vcqid);
     }
     /* My rank must be resolved here */
     av->av_sep->sep_myrank
@@ -217,13 +217,21 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
     /* tofu_chck_av_attr */
     if (attr != 0) {
         /* av_type: 1 FI_AV_TABLE
-         * name: FI_NAMED_AV_0 
-         */
-        fprintf(stderr,
-                "%s():%d\tav_type(%d) bits(%d) count(%ld) e/n(%ld) name(%s)\n",
-                __func__, __LINE__,
-                attr->type, attr->rx_ctx_bits, attr->count,
-                attr->ep_per_node, attr->name == 0 ? "NULL": attr->name);
+         * name: FI_NAMED_AV_0 */
+#if 0 
+        { /* av_type(1) bits(8) count(0) e/n(0) name={"FI_NAMED_AV_0\n" or NULL} */
+            char *cp;
+            if (attr->name != NULL
+                && (cp = index(attr->name, '\n')) != NULL) {
+                *cp = 0;
+            }
+            fprintf(stderr,
+                    "%s():%d\tav_type(%d) bits(%d) count(%ld) e/n(%ld) name=%s\n",
+                    __func__, __LINE__,
+                    attr->type, attr->rx_ctx_bits, attr->count,
+                    attr->ep_per_node, attr->name == 0 ? "NULL": attr->name);
+        }
+#endif
 	fc = tofu_chck_av_attr(attr);
 	if (fc != FI_SUCCESS) { goto bad; }
     }
@@ -252,7 +260,7 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
     fid_av_[0] = &av->av_fid;
     av = 0; /* clear for success */
 bad:
-    R_DBG("YI fc(%d)", fc);
+    // R_DBG("YI fc(%d)", fc);
     if (av != 0) {
 	tofu_av_close(&av->av_fid.fid);
     }

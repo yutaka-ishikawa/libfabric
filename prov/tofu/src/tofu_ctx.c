@@ -210,7 +210,10 @@ tofu_ictx_close(struct tofu_ctx *ctx)
                 ctx, ctx->ctx_sep); fflush(stderr);
 	uc = UTOFU_ERR_INVALID_ARG; goto bad;
     }
-    R_DBG("%s: NEEDS TO IMPLEMENT\n", __func__);
+    if (myrank == 0) {
+        static int nfst = 0;
+        if (nfst == 0) { R_DBG("%s: NEEDS TO IMPLEMENT", __func__); nfst = 1; }
+    }
 #if 0
     if (ctx->ctx_enb != 0) {
 	assert(ctx->vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
@@ -258,7 +261,10 @@ static int tofu_ctx_close(struct fid *fid)
 	    tofu_sep_rem_ctx_rx( ctx_priv->ctx_sep, ctx_priv );
 	}
     }
-    R_DBG("%s: NEEDS TO IMPLEMENT\n", __func__);
+    if (myrank == 0) {
+        static int nfst = 0;
+        if (nfst == 0) { R_DBG("%s: NEEDS TO IMPLEMENT", __func__); nfst = 1; }
+    }
 #if 0
     if (ctx_priv->ctx_trx != 0) {
 	if (ctx_priv->ctx_trx->ctx_trx != 0) {
@@ -326,7 +332,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
-            R_DBG("YI******bind: TX cq_priv(%p) flags(%s)\n", cq_priv, tofu_fi_flags_string(flags));
+            // R_DBG("YI******bind: TX cq_priv(%p) flags(%s)\n", cq_priv, tofu_fi_flags_string(flags));
             R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) TX_CTX(%p)", cq_priv, ctx_priv);
 	    if (flags & FI_SEND) {
 		/*
@@ -345,7 +351,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    }
 	    break;
 	case FI_CLASS_RX_CTX:
-            R_DBG("YI******bind: RX cq_priv(%p) flags(%s)\n", cq_priv, tofu_fi_flags_string(flags));
+            // R_DBG("YI******bind: RX cq_priv(%p) flags(%s)\n", cq_priv, tofu_fi_flags_string(flags));
             R_DBG0(RDBG_LEVEL1, "fi_ep_bind: CQ(%p) RX_CTX(%p)", cq_priv, ctx_priv);
 	    if (flags & FI_RECV) {
 		if (ctx_priv->ctx_recv_cq != 0) {
@@ -425,7 +431,7 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
 	uc = UTOFU_ERR_BUSY; goto bad;
     }
     dom = sep->sep_dom;
-    R_DBG("ctx->index(%d) dom->ntni(%ld)", ctx->ctx_idx, dom->ntni);
+    // R_DBG("ctx->index(%d) dom->ntni(%ld)", ctx->ctx_idx, dom->ntni);
     if ((ctx->ctx_idx < 0) || (ctx->ctx_idx >= dom->ntni)) {
         uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
     }
@@ -448,10 +454,10 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
                                         ;
                 tni_id = dom->tnis[i];
                 uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
-                R_DBG("tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx",
-                      tni_id, c_id, flags, uc, vcqh);
+                //R_DBG("tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx",
+                //    tni_id, c_id, flags, uc, vcqh);
                 if (uc != UTOFU_SUCCESS) { goto bad; }
-                dbg_show_utof_vcqh(vcqh);
+                // dbg_show_utof_vcqh(vcqh);
                 assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
                 dom->vcqh[i] = vcqh;
                 sep->sep_myvcqidx = i;
@@ -487,7 +493,7 @@ tofu_ctx_ctrl(struct fid *fid, int command, void *arg)
     assert(fid != 0);
     ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
 
-    R_DBG("ctx_priv->ctx_enb(%d)", ctx_priv->ctx_enb);
+    // R_DBG("ctx_priv->ctx_enb(%d)", ctx_priv->ctx_enb);
     switch (command) {
     case FI_ENABLE:
 	switch (fid->fclass) {
@@ -515,7 +521,7 @@ tofu_ctx_ctrl(struct fid *fid, int command, void *arg)
     }
 
 bad:
-    R_DBG("fc(%d)", fc);
+    // R_DBG("fc(%d)", fc);
     return fc;
 }
 
@@ -558,7 +564,7 @@ tofu_ctx_setopt(fid_t fid, int level,  int optname,
 	    fc = -FI_EINVAL; goto bad;
 	}
 	/* ctx_priv->min_multi_recv = ((size_t *)optval)[0]; */
-        R_DBG("%s: FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
+        // R_DBG("%s: FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
 	break;
     default:
 	fc = -FI_ENOPROTOOPT; goto bad;
