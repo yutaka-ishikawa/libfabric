@@ -45,7 +45,13 @@ tofu_progress(struct tofu_cq *cq)
     int uc;
     int ment = 0;
 
-    if (ofi_cirque_isempty(cq->cq_ccq)) {
+    /* 
+     * cq->cq_ccq keeps CQ list. A CQ is inserted into this list
+     * when some posted send/receive operation is completed. It happens
+     * inside the utf_progress function or the send/receive functions.
+     */
+    ment = ofi_cirque_usedcnt(cq->cq_ccq);
+    if (ment == 0) {
         /* transmit progress */
         head = &cq->cq_htx;
         dlist_foreach_safe(head, curr, next) {
@@ -62,8 +68,8 @@ tofu_progress(struct tofu_cq *cq)
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
             uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_myvcqh);
         }
+        ment = ofi_cirque_usedcnt(cq->cq_ccq);
     }
-    ment = ofi_cirque_usedcnt(cq->cq_ccq);
     {
         extern int	utf_printf(const char *fmt, ...);
         static ssize_t  oment = -1;

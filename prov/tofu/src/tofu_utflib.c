@@ -386,6 +386,8 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	if (msg->iov_count > 0) {
 	    ofi_copy_from_iov(sbufp->msgbdy.payload.h_pkt.msgdata,
 			      msgsize, msg->msg_iov, msg->iov_count, 0);
+	    utf_printf("%s: YIxxxx msg->iov_count(%d) data(%d)\n", __func__, msg->iov_count,
+		       *(int*) sbufp->msgbdy.payload.h_pkt.msgdata);
 	} else { /* null message ? */
 
 	}
@@ -470,7 +472,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
 				 req->buf, req->rsize);
-	utf_printf("%s: YIxxxxx copy: req->buf[%ld]\n", __func__, (unsigned int)req->buf[0]);
+	utf_printf("%s: YIxxxxx copy: req(%p)->buf[0]=%d\n", __func__, req, *(unsigned int*)req->buf);
 	/* NO FI_MULTI_RECV is supported */
 	/* CQ is immediately generated */
 	if (peek == 1 && (flags & FI_CLAIM)

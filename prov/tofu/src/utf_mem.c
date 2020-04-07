@@ -166,6 +166,7 @@ utf_egrsbuf_init(utofu_vcq_hdl_t vcqh, int entries)
     rc = posix_memalign((void*) &utf_egsbuf, 256,
 			sizeof(struct utf_egr_sbuf)*entries);
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
+    memset(utf_egsbuf, 0, sizeof(struct utf_egr_sbuf)*entries);
 
     UTOFU_CALL(utofu_reg_mem, vcqh, (void *)utf_egsbuf,
 	       sizeof(struct utf_egr_sbuf)*entries, 0, &egsbfstadd);
@@ -220,6 +221,8 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs, int entries)
     rc = posix_memalign((void*) &utf_scntrp, 256,
 			sizeof(struct utf_send_cntr)*entries);
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enoguh memory");
+    memset(utf_scntrp, 0, sizeof(struct utf_send_cntr)*entries);
+
     UTOFU_CALL(utofu_reg_mem_with_stag, vcqh, (void*) utf_scntrp,
 	       sizeof(struct utf_send_cntr)*entries,
 	       TAG_SNDCTR, 0, &sndctrstadd);
@@ -303,6 +306,8 @@ utf_sndminfo_init(utofu_vcq_hdl_t vcqh, int entries)
     rc = posix_memalign((void*) &utf_sndminfo_pool, 256,
 			sizeof(struct utf_send_msginfo)*entries);
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
+    memset(utf_sndminfo_pool, 0, sizeof(struct utf_send_msginfo)*entries);
+
     UTOFU_CALL(utofu_reg_mem, vcqh, (void *)utf_sndminfo_pool,
 	       sizeof(struct utf_send_msginfo)*entries, 0, &sndminfostadd);
     utf_sndminfosize = entries;
@@ -379,6 +384,8 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
     long algn = sysconf(_SC_PAGESIZE);
     rc = posix_memalign((void*) &erbuf, algn, sizeof(struct erecv_buf));
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
+    memset(erbuf, 0, sizeof(struct erecv_buf));
+
     UTOFU_CALL(utofu_reg_mem_with_stag,
 	       vcqh, (void *)erbuf, sizeof(struct erecv_buf),
 	       TAG_ERBUF, 0, &erbstadd);
@@ -386,6 +393,8 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
 
     rc = posix_memalign((void*) &egrmgt, 256, sizeof(sndmgt)*nprocs);
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
+    memset(egrmgt, 0, sizeof(sndmgt)*nprocs);
+
     UTOFU_CALL(utofu_reg_mem_with_stag,
 	       vcqh, (void *)egrmgt, sizeof(sndmgt)*nprocs,
 	       TAG_EGRMGT, 0, &egrmgtstadd);

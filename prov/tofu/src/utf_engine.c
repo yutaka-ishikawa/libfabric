@@ -72,9 +72,9 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
     // req->rsize + EMSG_SIZE(msgp) : req->hdr.size;
     cpysz = EMSG_SIZE(msgp);
     DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("%s: req->rsize(%ld) req->hdr.size(%ld) cpysz(%ld) "
-		 "EMSG_SIZE(msgp)=%ld\n",
-		 __func__, req->rsize, req->hdr.size, cpysz, EMSG_SIZE(msgp));
+	utf_printf("%s: req->rsize(%ld) req->hdr.size(%ld) cpysz(%ld) expsize(%ld) "
+		   "EMSG_SIZE(msgp)=%ld\n",
+		   __func__, req->rsize, req->hdr.size, cpysz, req->expsize, EMSG_SIZE(msgp));
     }
     if ((req->rsize + cpysz) > req->expsize) { /* overrun */
 	req->ustatus = REQ_OVERRUN;
@@ -157,10 +157,12 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    req->hdr = pkt->hdr;
 	    req->rsize = 0; req->ustatus = 0; req->type = REQ_RECV_UNEXPECTED;
 	    req->rndz = msgp->rndz;
+	    utf_printf("%s: new unexpected message arrives. new req(%p)->rndz=%d\n", __func__, req, req->rndz);
 	    if (req->rndz == MSG_RENDEZOUS) {
 		req->rmtstadd = (utofu_stadd_t) pkt->msgdata;
 		goto rendezous;
 	    } else {/* eager */
+		req->expsize = pkt->hdr.size;
 		req->buf = malloc(pkt->hdr.size);
 		if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
 	    }
@@ -226,7 +228,6 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_DONE: done:
 	if (req->type == REQ_RECV_UNEXPECTED) {
 	    /* Regiger it to unexpected queue */
-	    utf_printf("%s: register req(%p) to unexpected queue\n", __func__, req);
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: register it to unexpected queue\n", __func__);
 	    }
@@ -235,6 +236,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		utfslist *uexplst
 		  = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
 		utf_msglst_insert(uexplst, req);
+		utf_printf("%s: register req(%p) to unexpected queue(%p)\n", __func__, req, uexplst);
 	    }
 #else
 	    utf_msglst_insert(&utf_uexplst, req);
