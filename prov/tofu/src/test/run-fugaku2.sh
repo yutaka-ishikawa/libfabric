@@ -4,7 +4,7 @@
 #	#PJM -L "node=144"
 #	#PJM --mpi "proc=576"
 #	#PJM -L "node=12"
-#PJM -L "node=48"
+#PJM -L "node=1"
 #	PJM --mpi "proc=192"
 #	PJM -L "node=192"
 #	PJM --mpi "proc=48"
@@ -19,7 +19,5 @@
 #PJM -L proc-core=unlimited
 #------- Program execution -------#
 
-#module load lang
-mpiexec ./procmap
-#./size_exam
-#./size_exam2
+./size_exam
+./size_exam2
