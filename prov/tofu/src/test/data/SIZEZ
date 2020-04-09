@@ -1,0 +1,25 @@
+sizeof(struct tofu_fabric) = 64
+sizeof(struct tofu_domain) = 192
+sizeof(struct tofu_ctx) = 208
+sizeof(struct tofu_sep) = 208
+sizeof(struct tofu_cq) = 120
+sizeof(struct tofu_cntr) = 136
+sizeof(struct tofu_cntr) = 136
+sizeof(struct MPIDI_OFI_am_header) = 24
+sizeof(struct tofu_vname) = 27
+MSG_EAGER_SIZE = 1878
+MSG_PAYLOAD_SIZE = 1918
+sizeof(struct utf_msghdr) = 40
+sizeof(struct utf_hpacket) = 1918
+sizeof(struct utf_msgbdy) = 1920
+flags:			 3
+armw_ops:		 3f
+num_cmp_ids:		 8
+cache_line_size:	256 B
+stag_address_alignment: 256 B
+max_toq_desc_size:	 64 B
+max_putget_size:	 15 MiB (16777215 B)
+max_piggyback_size:	 32 B
+max_edata_size:		 1
+max_mtu:		 1920 B
+max_gap:		 255 B
