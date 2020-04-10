@@ -47,6 +47,8 @@ extern int	utf_progress();
 extern utofu_stadd_t	utf_mem_reg(utofu_vcq_id_t, void *buf, size_t size);
 extern void		utf_mem_dereg(utofu_vcq_id_t, utofu_stadd_t stadd);
 extern void	utf_stadd_free();
+extern void	utf_setmsgmode(int mode);
+extern int	utf_getenvint(char *);
 
 /* for debugging */
 extern int	utf_printf(const char *fmt, ...);

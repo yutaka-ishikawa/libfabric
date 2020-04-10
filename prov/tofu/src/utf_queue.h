@@ -385,7 +385,8 @@ struct utf_send_cntr {	/* 92 Byte */
     uint32_t		rgetdone:1,	/* ready for resetting recv offset */
 			ineager: 1,	/* */
 			rgetwait:2,	/* */
-			state: 8,	/* upto 15 states */
+			state: 4,	/* upto 15 states */
+			ostate: 4,
 			mypos: 20;	/* */
 					/*  +4 =  4 Byte */
     uint32_t		rcvreset: 1,

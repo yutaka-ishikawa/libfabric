@@ -12,6 +12,7 @@
 
 #define REQ_SELFSEND	1
 
+extern int			utf_msgmode;
 extern struct utf_msgreq	*utf_msgreq_alloc();
 extern void			utf_msgreq_free(struct utf_msgreq *req);
 extern struct utf_msglst	*utf_msglst_insert(utfslist *head,
@@ -306,6 +307,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     int	rc = 0;
     fi_addr_t        dst = msg->addr;
     size_t	     msgsize;
+    struct tofu_sep  *sep;
     struct tofu_av   *av;
     utofu_vcq_id_t   r_vcqid;
     uint64_t	     flgs;
@@ -316,20 +318,10 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     utfslist_entry	*ohead;
 
     INITCHECK();
-    //utf_printf("%s: msghdr(%s) flags(%s)\n",  __func__, tofu_fi_msg_string(msg), tofu_fi_flags_string(flags));
-    //if (msg->msg_iov[0].iov_base) {
-    //rdbg_iovec(__func__, __LINE__, msg->iov_count, msg->msg_iov);
-    //rdbg_mpich_cntrl(__func__, __LINE__, msg->msg_iov[0].iov_base);
-    //}
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
-    if (msgsize > CONF_TOFU_INJECTSIZE && FI_INJECT) {
-	fc = FI_EIO;
-	utf_printf("%s: message size(%ld) exceeds in the FI_INJECT option\n",
-		   __func__, msgsize);
-	goto err1;
-    }
     /* convert destination fi_addr to utofu_vcq_id_t: r_vcqid */
-    av = ctx->ctx_sep->sep_av_;
+    sep = ctx->ctx_sep;
+    av = sep->sep_av_;
     fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
     if (fc != FI_SUCCESS) { rc = fc; goto err1; }
 #if 0
@@ -384,53 +376,50 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     req->fi_ctx = ctx;
     req->fi_flgs = flags;
     req->fi_ucontext = msg->context;
-    if (msgsize <= MSG_EAGER_SIZE) {
+    /* header copy */
+    bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
+	  sizeof(struct utf_msghdr));
+    if (msgsize <= CONF_TOFU_INJECTSIZE) {
 	minfo->usrstadd = 0;
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
 	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(msgsize);
-	/* header copy */
-	bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
-	      sizeof(struct utf_msghdr));
 	/* message copy */
-	if (msg->iov_count > 0) {
+	if (msg->iov_count > 0) { /* if 0, null message */
 	    ofi_copy_from_iov(sbufp->msgbdy.payload.h_pkt.msgdata,
 			      msgsize, msg->msg_iov, msg->iov_count, 0);
-	    //utf_printf("%s: YIxxxx msg->iov_count(%d) data(%d)\n", __func__, msg->iov_count,
-	    //*(int*) sbufp->msgbdy.payload.h_pkt.msgdata);
-	} else { /* null message ? */
-
 	}
     } else {
-	utf_printf("%s: YI**** NEEDS to implement\n", __func__);
-	fc = FI_EIO;
-	goto err4;
-    }
-#if 0
-    else if (utf_msgmode != MSG_RENDEZOUS) {
-	/* Eager in-place*/
-	DEBUG(DLEVEL_PROTO_EAGER) {
-	    utf_printf("EAGER INPLACE\n");
+	void	*msgdtp = msg->msg_iov[0].iov_base;
+	utofu_vcq_id_t	vcqh = sep->sep_myvcqh;
+	/* We only handle one vector length so far ! */
+	if (msg->iov_count != 1) {
+	    utf_printf("%s: cannot handle message vector\n", __func__);
+	    fc = FI_EIO;
+	    goto err4;
 	}
-	minfo->usrbuf = msagdata;
-	minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
-	bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
-	      sizeof(struct utf_msghdr));
-	bcopy(msgdtp, sbufp->msgbdy.payload.h_pkt.msgdata, MSG_EAGER_SIZE);
-	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(MSG_EAGER_SIZE);
-    } else {
-	/* Rendezvous */
-	minfo->usrstadd = utf_mem_reg(vcqh, msgdtp, size);
-	minfo->cntrtype = SNDCNTR_RENDEZOUS;
-	bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
-	      sizeof(struct utf_msghdr));
-	bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
-	      sizeof(utofu_stadd_t));
-	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
-	sbufp->msgbdy.rndz = MSG_RENDEZOUS;
+	if (utf_msgmode != MSG_RENDEZOUS) { /* Eager in-place*/
+	    DEBUG(DLEVEL_PROTO_EAGER) {
+		utf_printf("EAGER INPLACE\n");
+	    }
+	    minfo->usrbuf = msgdtp;
+	    bcopy(minfo->usrbuf, sbufp->msgbdy.payload.h_pkt.msgdata, MSG_EAGER_SIZE);
+	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(MSG_EAGER_SIZE);
+	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
+	} else { /* Rendezvous */
+	    DEBUG(DLEVEL_PROTO_EAGER) {
+		utf_printf("RENDEZOUS\n");
+	    }
+	    minfo->usrstadd = utf_mem_reg(vcqh, msgdtp, msgsize);
+	    bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
+		  sizeof(utofu_stadd_t));
+	    minfo->cntrtype = SNDCNTR_RENDEZOUS;
+	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
+	    sbufp->msgbdy.rndz = MSG_RENDEZOUS;
+	}
     }
-#endif
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
+    // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     usp->dst = dst;
     if (ohead == NULL) { /* this is the first entry */
 	rc = utf_send_start(ctx->ctx_sep->sep_myvcqh, usp);
@@ -478,6 +467,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	/* found in unexpected queue */
 	size_t	sz;
 	req = utf_idx2msgreq(idx);
+	// utf_printf("%s: YI!!!! message has already arrived\n");
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
 				 req->buf, req->rsize);
@@ -547,6 +537,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	mlst = utf_msglst_insert(explst, req);
 	mlst->fi_ignore = ignore;
 	mlst->fi_context = msg->context;
+	// utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to expected queue\n", __func__, req->expsize);
 	//utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
     }
 ext:

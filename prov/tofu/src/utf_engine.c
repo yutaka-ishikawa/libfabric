@@ -77,6 +77,7 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 		   __func__, req->rsize, req->hdr.size, cpysz, req->expsize, EMSG_SIZE(msgp));
     }
     if ((req->rsize + cpysz) > req->expsize) { /* overrun */
+	// utf_printf("%s: YI!!!!! OVERRUN\n", __func__); abort();
 	req->ustatus = REQ_OVERRUN;
     }  else {
 	if (req->buf) { /* enough buffer area has been allocated */
@@ -84,8 +85,6 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 	    // utf_printf("%s: YIxxxxx copy: req->buf[%ld]\n", __func__, (unsigned int)req->buf[req->rsize]);
 	} else {
 #ifndef UTF_NATIVE /* for Fabric */
-	    /* ofi_copy_to_iov(const struct iovec *iov, size_t iov_count, uint64_t iov_offset,
-	       void *buf, uint64_t bufsize) */
 	    uint64_t	sz;
 	    sz = ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, req->rsize,
 			    EMSG_DATA(msgp), cpysz);
@@ -138,6 +137,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 #else
 	if ((idx = utf_explst_match(pkt->hdr.src, pkt->hdr.tag, 0)) != -1) {
 #endif
+	    //utf_printf("%s: new expected message arrives. idx(%d)\n", __func__, idx);
 	    req = utf_idx2msgreq(idx);
 	    req->rndz = msgp->rndz;
 	    if (req->rndz == MSG_RENDEZOUS) goto rendezous;
@@ -154,7 +154,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    req->hdr = pkt->hdr;
 	    req->rsize = 0; req->ustatus = 0; req->type = REQ_RECV_UNEXPECTED;
 	    req->rndz = msgp->rndz;
-	    // utf_printf("%s: new unexpected message arrives. new req(%p)->rndz=%d\n", __func__, req, req->rndz);
+	    //utf_printf("%s: new unexpected message arrives. new req(%p)->rndz=%d\n", __func__, req, req->rndz);
 	    if (req->rndz == MSG_RENDEZOUS) {
 		req->rmtstadd = (utofu_stadd_t) pkt->msgdata;
 		goto rendezous;
@@ -246,7 +246,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    if (req->notify) req->notify(req);
 	}
 	/* reset the state */
-	ursp->state = R_NONE;
+	ursp->state = R_NONE; ursp->recvoff = 0; ursp->rst_sent = 0;
 	break;
     case R_HEAD:
     default:
@@ -263,6 +263,7 @@ calc_recvstadd(struct utf_send_cntr *usp, uint64_t ridx, size_t ssize)
 	/* buffer full */
 	//utf_printf("%s: YI** WAIT usp->rcvreset(%d) usp->recvoff(%d)\n",
 	//__func__, usp->rcvreset, usp->recvoff);
+	usp->ostate = usp->state;
 	usp->state = S_WAIT_BUFREADY;
     } else {
 	recvstadd  = erbstadd
@@ -292,13 +293,13 @@ utf_sendengine(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp, uint64_t rslt, in
 		 evt, usp->rcvreset, usp->recvoff);
     }
     if (evt == EVT_RMT_RECVRST) {
-	if (usp->rcvreset) {
-	    usp->rcvreset = 0;  usp->recvoff = 0;
-	    if (usp->state == S_WAIT_BUFREADY) {
-		usp->state = S_HAS_ROOM;
-		goto progress0;
-	    }
+	if (usp->rcvreset && usp->state == S_WAIT_BUFREADY) {
+	    goto progress0;
 	}
+	/* In other usp->state, this event makes just rcvreset, 
+	 * and should not do progress because the progress is 
+	 * driven by receivng the MRQ_TYPE_LCL_PUT event */
+	usp->rcvreset = 0; usp->recvoff = 0;
 	return;
     } else if (usp->state == S_REQ_RDVR
 	       && (evt == EVT_RMT_RGETDON || evt == EVT_RMT_GET)) {
@@ -313,7 +314,8 @@ progress0:
     slst = utfslist_head(&usp->smsginfo);
     minfo = container_of(slst, struct utf_send_msginfo, slst);
     if (slst == NULL) {
-	utf_printf("%s: why ? slst == NULL\n", __func__);
+	utf_printf("%s: why ? slst == NULL usp->state(%s)\n", __func__, sstate_symbol[usp->state]);
+	abort();
 	return;
     }
 progress:
@@ -350,21 +352,20 @@ progress:
 	size_t		ssize = minfo->sndbuf->msgbdy.psize;
 	utofu_stadd_t	recvstadd;
 
+	recvstadd = calc_recvstadd(usp, ridx, ssize);
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: Going to send rvcqid(%lx) size(%ld) "
-		     "type(%d) sidx(%d) ridx(%d)\n",
-		     __func__, rvcqid, ssize, minfo->cntrtype, usp->mypos, ridx);
+		       "type(%d) sidx(%d) ridx(%d) "
+		       " recvstadd(%lx) usp->recvoff(%ld)\n",
+		       __func__, rvcqid, ssize, minfo->cntrtype, usp->mypos, ridx,
+		       recvstadd, usp->recvoff);
 	}
-	recvstadd = calc_recvstadd(usp, ridx, ssize);
 	if (recvstadd == 0) {
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: going to sleep\n", __func__);
 	    }
 	    break;
 	}
-	//utf_printf("%s: Going to send rvcqid(%lx) size(%ld) "
-	//"type(%d) sidx(%d) ridx(%d) recvstadd(%lx) minfo->cntrtype(%d)\n",
-	//__func__, rvcqid, ssize, minfo->cntrtype, usp->mypos, ridx, recvstadd, minfo->cntrtype);
 	switch (minfo->cntrtype) {
 	case SNDCNTR_BUFFERED_EAGER:
 	    if (ssize <= utf_pig_size) {
@@ -381,6 +382,7 @@ progress:
 	    usp->psize = ssize; /* packet level */
 	    usp->usize = MSG_CALC_EAGER_USIZE(ssize);
 	    usp->state = S_DONE_EGR;
+	    /* this state must be kept until receiving local put event */
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_showpacket("sender packet buffer", &minfo->sndbuf->msgbdy);
 		utf_printf("%s: next usp(%p)->state = %d\n",
@@ -426,7 +428,6 @@ progress:
 	    return;
 	}
 #endif
-	//usleep(1000);
 	if (minfo->cntrtype == SNDCNTR_INPLACE_EAGER) {
 	    utofu_stadd_t recvstadd;
 	    size_t	rest, usize, ssize;
@@ -442,22 +443,15 @@ progress:
 		  minfo->sndbuf->msgbdy.payload.h_pkt.msgdata, usize);
 	    minfo->sndbuf->msgbdy.psize = ssize = MSG_MAKE_PSIZE(usize);
 	    recvstadd = calc_recvstadd(usp, ridx, ssize);
-	    if (recvstadd == 0) {
-		DEBUG(DLEVEL_PROTOCOL) {
-		    utf_printf("%s: S_DO_EGR, mreq(%p) msgsize(%ld) sentsize(%ld)"
-			     " rest(%ld) sending usize(%ld) ssize(%ld) "
-			     "recvstadd(0x%lx) going to sleep\n",
-			     __func__, minfo->mreq, minfo->msghdr.size,
-			     usp->usize, rest, usize, ssize, recvstadd);
-		}
-		break;
-	    }
 	    DEBUG(DLEVEL_PROTO_EAGER) {
 		utf_printf("%s: S_DO_EGR, mreq(%p) msgsize(%ld) sentsize(%ld) "
 			 "rest(%ld) sending usize(%ld) packet ssize(%ld) "
 			 "recvstadd(0x%lx) usp->recvoff(%d)\n",
 			 __func__, minfo->mreq, minfo->msghdr.size, usp->usize,
 			 rest, usize, ssize, recvstadd, usp->recvoff);
+	    }
+	    if (recvstadd == 0) {
+		break;
 	    }
 	    remote_put(vcqh, rvcqid, minfo->sndstadd,
 		       recvstadd, ssize, usp->mypos, flgs, 0);
@@ -466,6 +460,7 @@ progress:
 	    usp->recvoff += ssize;
 	    if (minfo->msghdr.size == usp->usize) {
 		usp->state = S_DONE_EGR;
+		/* this state must be kept until receiving local put event */
 	    }
 	} else { /* Something wrong */
 	    utf_printf("%s: protocol error\n", __func__); exit(-1);
@@ -506,6 +501,8 @@ progress:
     case S_DONE_EGR:
     {
 	struct utf_msgreq	*req = minfo->mreq;
+
+	//utf_printf("%s: YI!!!! S_DONE_EGR\n", __func__);
 	req->status = REQ_DONE;
 	minfo->mreq = NULL;
 	utfslist_remove(&usp->smsginfo);
@@ -514,10 +511,12 @@ progress:
 	if (req->notify) req->notify(req);
 	if (slst != NULL) {
 	    minfo = container_of(slst, struct utf_send_msginfo, slst);
-	    usp->state = S_HAS_ROOM;
+	    usp->state = S_HAS_ROOM; usp->recvoff = 0;
 	    evt = EVT_CONT;
+	    //utf_printf("%s: YI!!!! S_DON_EGR and next slst(%p) usp(%p)\n", __func__, slst, usp);
 	    goto progress;
 	}
+	//utf_printf("%s: YI!!!! S_DONE_EGR slst(%p) usp(%p)\n", __func__, slst, usp);
 	break;
     }
     case S_DONE:
@@ -526,9 +525,9 @@ progress:
 	if (usp->rcvreset) {
 	    usp->rcvreset = 0;
 	    usp->recvoff = 0;
-	    usp->state = S_HAS_ROOM;
-	    //utf_printf("%s: YI*** Sender rcvreset during wait\n", __func__);
-	    goto s_has_room;
+	    usp->state = usp->ostate; /* change to the previous status */
+	    // utf_printf("%s: YI*** Sender rcvreset during wait now state(%s)\n", __func__, sstate_symbol[usp->state]);
+	    goto progress;
 	} else {
 	    utf_printf("%s: protocol error in S_WAIT_BUFREADY\n", __func__);
 	}
@@ -541,6 +540,7 @@ int
 utf_send_start(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp)
 {
     int	dst = usp->dst;
+    usp->rcvreset = 0; usp->recvoff = 0;
     if (sndmgt_isset_examed(dst, egrmgt) == 0) {
 	/*
 	 * checking availability
@@ -630,6 +630,10 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	msgp = utf_recvbuf_get(entry);
 	msgp = (struct utf_msgbdy *) ((char*)msgp + ursp->recvoff);
 	utf_recvengine(av, vcqh, ursp, msgp, sidx);
+	if (ursp->state == R_NONE) {
+	    // utf_printf("%s: YI!!!!  receive done\n", __func__);
+	    break;
+	}
 	ursp->recvoff += msgp->psize;
 	if (ursp->rst_sent == 0 && ursp->recvoff > MSGBUF_THR) {
 	    utofu_stadd_t	stadd = SCNTR_ADDR_CNTR_FIELD(sidx);

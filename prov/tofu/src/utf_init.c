@@ -13,6 +13,16 @@ int	utf_dflag;
 int	utf_initialized;
 
 int
+utf_getenvint(char *envp)
+{
+    char	*cp = getenv(envp);
+    if (cp) {
+	return atoi(cp);
+    }
+    return 0;
+}
+
+int
 utf_printf(const char *fmt, ...)
 {
     va_list	ap;
@@ -28,21 +38,20 @@ utf_printf(const char *fmt, ...)
 int
 utf_init_1(utofu_vcq_hdl_t vcqh, size_t pigsz)
 {
-    char	*cp;
+    int	i;
     if (utf_initialized) {
 	return 0;
     }
-    cp = getenv("UTF_DEBUG");
-    if (cp) {
-	utf_dflag = atoi(cp);
-	utf_printf("%s: UTF_DEBUG=%s utf_dflag=%d\n", __func__, cp, utf_dflag);
-    }
+    utf_dflag = utf_getenvint("UTF_DEBUG");
+    if (utf_dflag > 0) utf_printf("%s: utf_dflag=%d\n", __func__, utf_dflag);
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: vcqh(%lx) pigsz(%ld)\n", __func__, vcqh, pigsz);
     }
     utf_initialized = 1;
     utf_pig_size = pigsz;
 
+    i = utf_getenvint("UTF_MSGMODE");
+    utf_setmsgmode(i);
     /* sender control structure, eager buffer, and protocol engine */
     utf_egrsbuf_init(vcqh, SND_EGR_BUFENT);
     utf_sndminfo_init(vcqh, SND_EGR_BUFENT);

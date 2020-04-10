@@ -52,7 +52,8 @@ extern int rdbgf, rdbgl;
 		   printf("\t%d: " format " in %s:%d\n",		\
 			  mypid, __VA_ARGS__, __func__, __LINE__);	\
 		   fflush(stdout);					\
-	   } else if (rdbgf & 0x02 && level & rdbgl) {                  \
+           }                                                            \
+	   if (rdbgf & 0x02 && level & rdbgl) {                         \
 		   fprintf(stderr, "%d: " format " in %s:%d\n",		\
 			   mypid, __VA_ARGS__, __func__, __LINE__);	\
 		   fflush(stderr);					\
@@ -66,7 +67,8 @@ extern int rdbgf, rdbgl;
 		    printf("\t%d: " format " in %s:%d\n",		\
 			   mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stdout);					\
-            } else if (rdbgf & 0x02 && level & rdbgl) {                 \
+            }                                                           \
+            if (rdbgf & 0x02 && level & rdbgl) {                        \
 	    fprintf(stderr, "%d: " format " in %s:%d\n",		\
 			    mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stderr);					\
@@ -80,7 +82,8 @@ extern int rdbgf, rdbgl;
 		   printf("\t%d:" format " in %s:%d\n",			\
 			  mypid, __VA_ARGS__, __func__, __LINE__);	\
 		   fflush(stdout);					\
-           } else if (rdbgf & 0x02 && level & rdbgl) {                  \
+           }                                                            \
+           if (rdbgf & 0x02 && level & rdbgl) {                         \
 		   fprintf(stderr, "%d:" format " in %s:%d\n",		\
 			  mypid, __VA_ARGS__, __func__, __LINE__);	\
 		   fflush(stderr);					\
