@@ -105,32 +105,11 @@ struct fi_provider *fi_prov_ini(void)
 }
 
 /**************************************************************************/
+extern void utf_redirect();
+extern int utf_dbg_progress();
 int mypid, myrank;
 int rdbgf;
 int rdbgl;
-
-static FILE	*logfp;
-static char	logname[PATH_MAX];
-
-static void
-redirect()
-{
-    if (stderr != logfp) {
-        char    *cp = getenv("TOFULOG_DIR");
-        if (cp) {
-            sprintf(logname, "%s/tofulog-%d", cp, myrank);
-        } else {
-            sprintf(logname, "tofulog-%d", myrank);
-        }
-        if ((logfp = fopen(logname, "w")) == NULL) {
-            /* where we have to print ? /dev/console ? */
-            fprintf(stderr, "Cannot create the logfile: %s\n", logname);
-        } else {
-            fclose(stderr);
-            stderr = logfp;
-        }
-   }
- }
 
 TOFU_INI
 {
@@ -149,7 +128,7 @@ TOFU_INI
         cp = getenv("TOFU_DEBUG_FD");
         if (cp) {
             rdbgf = atoi(cp);
-            redirect();
+            utf_redirect();
         }
     }
 #if 0
@@ -180,5 +159,20 @@ void fi_tofu_setdopt(int flg, int lvl)
     rdbgf = flg;
     rdbgl = lvl;
     R_DBG("fi_tofu_setdopt is called with %x %x", flg, lvl);
-    redirect();
+    utf_redirect();
+}
+
+__attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
+int fi_tofu_cntrl(int cmd, ...)
+{
+    va_list	ap;
+    int		rc = 0;
+    va_start(ap, cmd);
+    switch (cmd) {
+    case 0:
+        rc = utf_dbg_progress();
+        break;
+    }
+    va_end(ap);
+    return rc;
 }

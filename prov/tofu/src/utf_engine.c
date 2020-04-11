@@ -26,12 +26,17 @@ static char *notice_symbol[] =
 };
 
 static char *rstate_symbol[] =
-{	"R_FREE", "R_NONE", "R_HEAD", "R_BODY",	"R_DO_RNDZ", "R_DONE" };
+{	"R_FREE", "R_NONE", "R_HEAD", "R_BODY",	"R_WAIT_RNDZ", "R_DO_RNDZ", "R_DONE" };
 
 static char *sstate_symbol[] =
 {	"S_FREE", "S_NONE", "S_REQ_ROOM", "S_HAS_ROOM",
 	"S_DO_EGR", "S_DO_EGR_WAITCMPL", "S_DONE_EGR",
-	"S_REQ_RDVR", "S_RDVDON", "S_DONE", "S_WAIT_BUFREADY" };
+	"S_REQ_RDVR", "S_RDVDONE", "S_DONE", "S_WAIT_BUFREADY" };
+
+static char *evnt_symbol[] = {
+    "EVT_START", "EVT_LCL", "EVT_RMT_RGETDON", "EVT_RMT_RECVRST",
+    "EVT_RMT_GET", "EVT_CONT", "EVT_END"
+};
 
 static inline utofu_stadd_t utf_sndctr_stadd()
 {
@@ -82,7 +87,6 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
     }  else {
 	if (req->buf) { /* enough buffer area has been allocated */
 	    bcopy(EMSG_DATA(msgp), &req->buf[req->rsize], cpysz);
-	    // utf_printf("%s: YIxxxxx copy: req->buf[%ld]\n", __func__, (unsigned int)req->buf[req->rsize]);
 	} else {
 #ifndef UTF_NATIVE /* for Fabric */
 	    uint64_t	sz;
@@ -140,26 +144,27 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    //utf_printf("%s: new expected message arrives. idx(%d)\n", __func__, idx);
 	    req = utf_idx2msgreq(idx);
 	    req->rndz = msgp->rndz;
-	    if (req->rndz == MSG_RENDEZOUS) goto rendezous;
+	    req->hdr = pkt->hdr; /* src, tag, size, data, flgs */
+	    if (req->rndz == MSG_RENDEZOUS) {
+		req->rmtstadd = (utofu_stadd_t) pkt->msgdata;
+		goto rendezous;
+	    }
 	    /* eager */
-	    req->hdr.size = pkt->hdr.size;
-#ifndef UTF_NATIVE
-	    req->hdr.tag = pkt->hdr.tag;
-	    req->hdr.data = pkt->hdr.data;
-	    req->hdr.flgs = pkt->hdr.flgs;
-#endif
 	    if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
 	} else { /* New Unexpected message */
+	    //utf_printf("%s: new unexpected message arrives. new req(%p)->rndz=%d\n",
+	    //__func__, req, req->rndz);
 	    req = utf_msgreq_alloc();
 	    req->hdr = pkt->hdr;
 	    req->rsize = 0; req->ustatus = 0; req->type = REQ_RECV_UNEXPECTED;
 	    req->rndz = msgp->rndz;
-	    //utf_printf("%s: new unexpected message arrives. new req(%p)->rndz=%d\n", __func__, req, req->rndz);
-	    if (req->rndz == MSG_RENDEZOUS) {
+	    req->expsize = pkt->hdr.size;
+	    if (msgp->rndz == MSG_RENDEZOUS) {
 		req->rmtstadd = (utofu_stadd_t) pkt->msgdata;
-		goto rendezous;
+		req->rcntr = ursp;
+		ursp->state = R_WAIT_RNDZ;
+		goto done;
 	    } else {/* eager */
-		req->expsize = pkt->hdr.size;
 		req->buf = malloc(pkt->hdr.size);
 		if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
 	    }
@@ -168,23 +173,22 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	goto exiting;
     rendezous:
 	{
+	    /* how we handle ursp->hrd in this case ? */
 	    size_t		reqsize = req->hdr.size;
 	    utofu_stadd_t	rmtstadd = *(utofu_stadd_t*) &pkt->msgdata;
 	    if (ursp->initialized == 0) {
-		ursp->hdr = req->hdr;
-		ursp->req = req;
-		tofufab_resolve_addrinfo(av, ursp->hdr.src, &ursp->svcqid,
+		tofufab_resolve_addrinfo(av, req->hdr.src, &ursp->svcqid,
 					 &ursp->flags);
+		ursp->sidx = sidx;
 		ursp->initialized = 1;
 	    }
-	    ursp->hdr = req->hdr;
 	    ursp->req = req;
 	    ursp->state = R_DO_RNDZ;
-	    req->bufstadd = utf_mem_reg(vcqh, req->buf, reqsize);
-	    /* req->hdr.size is defined by the receiver
+	    /* req->bufstadd is assigned by tofu_utf_recv_post
+	     * req->hdr.size is defined by the receiver
 	     * pkt->hdr.size is defined by the sender */
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		utf_printf("%s: Receiving Rendezous reqsize(0x%lx) "
+		utf_printf("%s: issuing remote_get --  rendezous reqsize(0x%lx) "
 			 "local stadd(0x%lx) remote stadd(0x%lx) "
 			 "edata(%d) mypos(%d)\n",
 			 __func__, reqsize, req->bufstadd,
@@ -222,7 +226,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	req->rsize = req->hdr.size;
 	req->status = REQ_DONE;
     }	/* Falls through. */
-    case R_DONE: done:
+    case R_DONE: done: /* or R_WAIT_RNDZ state */
 	if (req->type == REQ_RECV_UNEXPECTED) {
 	    /* Regiger it to unexpected queue */
 	    DEBUG(DLEVEL_PROTOCOL) {
@@ -273,10 +277,6 @@ calc_recvstadd(struct utf_send_cntr *usp, uint64_t ridx, size_t ssize)
     return recvstadd;
 }
 
-char *str_evnt[EVT_END] = {
-    "EVT_START", "EVT_LCL", "EVT_RMT", "EVT_CONT"
-};
-
 /*
  * sender engine
  *		
@@ -303,6 +303,14 @@ utf_sendengine(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp, uint64_t rslt, in
 	return;
     } else if (usp->state == S_REQ_RDVR
 	       && (evt == EVT_RMT_RGETDON || evt == EVT_RMT_GET)) {
+	/*
+	 * EVT_RMT_GET is generated as a result of receiver's get operation.
+	 * EVT_RMT_RGETDON is generated as a result of receiver's ack operation.
+	 */
+	DEBUG(DLEVEL_PROTO_RENDEZOUS) {
+	    utf_printf("%s: usp->state(%s) usp->rgetwait(%d) evt(%s)\n",
+		       __func__, sstate_symbol[usp->state], usp->rgetwait, evnt_symbol[evt]);
+	}
 	usp->rgetwait++;
 	if (usp->rgetwait == 2) { /* remote completion from the receiver */
 	    usp->state = S_RDVDONE;
@@ -407,10 +415,11 @@ progress:
 	    usp->rgetwait = 0; usp->rgetdone = 0;
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 		utf_printf("%s: rendezous send size(%ld) minfo->sndstadd(%lx) "
-			 "src(%d) tag(%d) rndz(%d)\n", __func__,
+			 "src(%d) tag(%d) msgsize(%ld) rndz(%d)\n", __func__,
 			 ssize, minfo->sndstadd,
 			 minfo->sndbuf->msgbdy.payload.h_pkt.hdr.src,
 			 minfo->sndbuf->msgbdy.payload.h_pkt.hdr.tag,
+			 minfo->sndbuf->msgbdy.payload.h_pkt.hdr.size,
 			 minfo->sndbuf->msgbdy.rndz);
 	    }
 	    break;
@@ -469,7 +478,7 @@ progress:
     }
     case S_REQ_RDVR:
 	DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-	    utf_printf("%s: S_REQ_RDVR evt(%s)\n", __func__, str_evnt[evt]);
+	    utf_printf("%s: S_REQ_RDVR evt(%s)\n", __func__, evnt_symbol[evt]);
 	}
 	if (evt == EVT_LCL) { /* completion of the remote put */
 	    /* nothing */
@@ -496,7 +505,6 @@ progress:
 	    utf_mem_dereg(vcqh, minfo->mreq->bufstadd);
 	    minfo->mreq->bufstadd = 0;
 	}
-	//usleep(10000);
 	/* Falls through. */
     case S_DONE_EGR:
     {
@@ -661,7 +669,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
     {
 	int	sidx = mrq_notice.edata;
 	struct utf_recv_cntr	*ursp = vcqid2recvcntr(mrq_notice.vcq_id);
-	DEBUG(DLEVEL_UTOFU) {
+	DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS) {
 	    utf_printf("%s: MRQ_TYPE_LCL_GET: vcq_id(%lx) edata(%d) "
 		     "lcl_stadd(%lx) rmt_stadd(%lx)\n",
 		     __func__, mrq_notice.vcq_id, mrq_notice.edata,
@@ -682,7 +690,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
     {	/* Sender side: edata is index of sender engine */
 	struct utf_send_cntr *usp;
 	int	sidx = mrq_notice.edata;
-	DEBUG(DLEVEL_UTOFU) {
+	DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS) {
 	    utf_printf("%s: MRQ_TYPE_RMT_GET: edata(%d) "
 		     "lcl_stadd(%lx) rmt_stadd(%lx)\n",
 		     __func__, mrq_notice.edata,
@@ -761,13 +769,32 @@ utf_tcqprogress(utofu_vcq_hdl_t vcqh)
     return rc;
 }
 
+static int dbg_prog1st = 0;
+static void *dbg_av;
+static utofu_vcq_hdl_t dbg_vcqh;
+
 int
 utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 {
     int rc1, rc2;
 
+    if (dbg_prog1st == 0) {
+	dbg_av = av;
+	dbg_vcqh = vcqh;
+	dbg_prog1st = 1;
+    }
     rc1 = utf_tcqprogress(vcqh);
     rc2 = utf_mrqprogress(av, vcqh);
     /* NEEDS to check return value if error occurs YI */
     return rc2;
+}
+
+int
+utf_dbg_progress()
+{
+    int	rc;
+    if (dbg_prog1st == 0) return 0;
+    utf_printf("%s: progress\n", __func__);
+    rc = utf_progress(dbg_av, dbg_vcqh);
+    return rc;
 }

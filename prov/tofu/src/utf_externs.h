@@ -49,8 +49,10 @@ extern void		utf_mem_dereg(utofu_vcq_id_t, utofu_stadd_t stadd);
 extern void	utf_stadd_free();
 extern void	utf_setmsgmode(int mode);
 extern int	utf_getenvint(char *);
+void		utf_show_msgmode(FILE *fp);
 
 /* for debugging */
+extern void	utf_redirect();
 extern int	utf_printf(const char *fmt, ...);
 extern void	mrq_notice_show(struct utofu_mrq_notice *ntcp);
 extern void	erecvbuf_dump(int, int);

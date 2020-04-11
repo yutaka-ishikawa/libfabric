@@ -35,6 +35,10 @@ utf_printf(const char *fmt, ...)
     return rc;
 }
 
+/*
+ * utf_init_1:  The first step of the Tofu initialization
+ *		We do not know myrank during this phase
+ */
 int
 utf_init_1(utofu_vcq_hdl_t vcqh, size_t pigsz)
 {
@@ -43,7 +47,9 @@ utf_init_1(utofu_vcq_hdl_t vcqh, size_t pigsz)
 	return 0;
     }
     utf_dflag = utf_getenvint("UTF_DEBUG");
-    if (utf_dflag > 0) utf_printf("%s: utf_dflag=%d\n", __func__, utf_dflag);
+    if (utf_dflag > 0) {
+	utf_printf("%s: utf_dflag=%d\n", __func__, utf_dflag);
+    }
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: vcqh(%lx) pigsz(%ld)\n", __func__, vcqh, pigsz);
     }
@@ -61,11 +67,21 @@ utf_init_1(utofu_vcq_hdl_t vcqh, size_t pigsz)
     return 0;
 }
 
+/*
+ * utf_init_2:  The second step of the Tofu initializatoin
+ *		We know myrank now
+ */
 int
 utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
 {
+    if (utf_dflag > 0) {
+	utf_redirect();
+    }
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: vcqh(%lx) nprocs(%d)\n", __func__, vcqh, nprocs);
+    }
+    if (myrank == 0) {
+	utf_show_msgmode(stderr);
     }
     /* receive buffer is allocated */
     utf_recvbuf_init(vcqh, nprocs);

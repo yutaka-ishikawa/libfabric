@@ -467,6 +467,40 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	/* found in unexpected queue */
 	size_t	sz;
 	req = utf_idx2msgreq(idx);
+	if (req->rndz) { /* rendezous */
+	    utofu_vcq_id_t vcqh;
+	    size_t	   msgsize;
+	    struct utf_recv_cntr *ursp = req->rcntr;
+	    if (peek == 1) {
+		/* A control message has arrived in the unexpected queue,
+		 * but not yet receiving the data at this moment.
+		 * Thus, just return with FI_ENOMSG for FI_PEEK */
+		fc = -FI_ENOMSG;
+		goto ext;
+	    }
+	    // req->expsize is declared by the sender
+	    vcqh = ctx->ctx_sep->sep_myvcqh;
+	    msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+	    ursp = req->rcntr;
+	    assert(ursp->req == req);
+	    req->bufstadd = utf_mem_reg(vcqh, req->fi_msg[0].iov_base, msgsize);
+	    ursp->state = R_DO_RNDZ;
+	    req->fi_ctx = ctx;
+	    req->fi_flgs = flags;
+	    req->fi_ucontext = msg->context;
+	    req->notify = tofu_catch_rcvnotify;
+	    req->type = REQ_RECV_UNEXP_RND_DONE;
+	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
+		utf_printf("%s: issuing remote_get -- rendezous msgsize(0x%lx) "
+			 "local stadd(0x%lx) remote stadd(0x%lx) "
+			 "edata(%d) mypos(%d)\n",
+			 __func__, msgsize, req->bufstadd,
+			   req->rmtstadd, ursp->sidx, ursp->mypos);
+	    }
+	    remote_get(vcqh, ursp->svcqid, req->bufstadd,
+		       req->rmtstadd, msgsize, ursp->sidx, ursp->flags, 0);
+	    goto ext;
+	}
 	// utf_printf("%s: YI!!!! message has already arrived\n");
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
@@ -509,7 +543,9 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	}
 	goto ext;
     }
-    if (peek == 0) { /* register this request to the expected queue */
+    if (peek == 1) {
+	fc = -FI_ENOMSG;
+    } else { /* register this request to the expected queue */
 	utfslist *explst;
 	struct utf_msglst *mlst;
 	size_t	i;
@@ -524,6 +560,15 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	for (i = 0; i < msg->iov_count; i++) {
 	    req->fi_msg[i].iov_base = msg->msg_iov[i].iov_base;
 	    req->fi_msg[i].iov_len = msg->msg_iov[i].iov_len;
+	}
+	if (req->expsize > CONF_TOFU_INJECTSIZE) {
+	    /* rendezous */
+	    if (msg->iov_count > 1) {
+		utf_printf("%s: iov is not supported now\n", __func__);
+		fc = -FI_EAGAIN; goto ext;
+	    }
+	    utofu_vcq_id_t vcqh = ctx->ctx_sep->sep_myvcqh;
+	    req->bufstadd = utf_mem_reg(vcqh, req->fi_msg[0].iov_base, req->expsize);
 	}
 	req->type = REQ_RECV_EXPECTED;	req->rsize = 0;
 	req->status = R_NONE;

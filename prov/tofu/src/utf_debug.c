@@ -1,7 +1,31 @@
 #include <utofu.h>
+#include <limits.h>
 #include "utf_conf.h"
 #include "utf_externs.h"
 #include "utf_queue.h"
+
+static FILE	*logfp;
+static char	logname[PATH_MAX];
+
+void
+utf_redirect()
+{
+    if (stderr != logfp) {
+        char    *cp = getenv("TOFULOG_DIR");
+        if (cp) {
+            sprintf(logname, "%s/tofulog-%d", cp, myrank);
+        } else {
+            sprintf(logname, "tofulog-%d", myrank);
+        }
+        if ((logfp = fopen(logname, "w")) == NULL) {
+            /* where we have to print ? /dev/console ? */
+            fprintf(stderr, "Cannot create the logfile: %s\n", logname);
+        } else {
+            fclose(stderr);
+            stderr = logfp;
+        }
+    }
+}
 
 char *
 utf_msghdr_string(struct utf_msghdr *hdrp, void *bp)

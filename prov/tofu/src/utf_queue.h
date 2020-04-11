@@ -80,23 +80,25 @@ enum utq_reqstatus {
 enum {
     REQ_RECV_EXPECTED,
     REQ_RECV_UNEXPECTED,
+    REQ_RECV_UNEXP_RND_DONE,
     REQ_SND_REQ,
 };
 
 struct utf_msgreq {
     struct utf_msghdr hdr;	/* 16: message header */
     uint8_t	*buf;		/* 24: buffer address */
-    utofu_stadd_t bufstadd;	/*   : stadd of the buffer address */
-    utofu_stadd_t rmtstadd;	/**/
-    uint8_t	ustatus;	/* 26: user-level status */
-    uint8_t	fistatus;	/* 26: fabric-level status */
-    uint8_t	status;		/* 27: utf-level  status */
-    uint8_t	type:4,		/* 28: EXPECTED or UNEXPECTED or SENDREQ */
+    utofu_stadd_t bufstadd;	/* 32: stadd of the buffer address */
+    utofu_stadd_t rmtstadd;	/* 40: stadd of the remote address */
+    uint8_t	ustatus;	/* 41: user-level status */
+    uint8_t	fistatus;	/* 42: fabric-level status */
+    uint8_t	status;		/* 43: utf-level  status */
+    uint8_t	type:4,		/* 44: EXPECTED or UNEXPECTED or SENDREQ */
 		rndz:4;		/* RENDEZOUS or not */
-    size_t	rsize;		/* 36: utf received size */
-    size_t	expsize;	/* 40: expected size in expected queue */
-    utfslist_entry slst;	/* 44: list */
+    size_t	rsize;		/* 52: utf received size */
+    size_t	expsize;	/* 60: expected size in expected queue */
+    utfslist_entry slst;	/* 68: list */
     void	(*notify)(struct utf_msgreq*);
+    struct utf_recv_cntr *rcntr; /* point to utf_recv_cntr */
 #ifndef UTF_NATIVE
     /* for Fabric and expected message */
     void	*fi_ctx;
@@ -333,21 +335,26 @@ typedef enum rstate {
     R_NONE		= 1,
     R_HEAD		= 2,
     R_BODY		= 3,
-    R_DO_RNDZ		= 4,
-    R_DONE		= 5,
+    R_WAIT_RNDZ		= 4,
+    R_DO_RNDZ		= 5,
+    R_DONE		= 6,
 } rstate;
 	
 
+/*
+ * one utf_recv_cntr is reserved for one sender
+ */
 struct utf_recv_cntr {
-    uint8_t	state;
-    uint8_t	initialized;
+    uint8_t	state;		/* rstate */
+    uint8_t	initialized;	/* flag for sender's rendezous info  */
     uint8_t	rst_sent;	/* reset request is sent to the sender */
-    uint8_t	mypos;
-    uint32_t	recvoff;
-    struct utf_msghdr	hdr;
-    struct utf_msgreq	*req;
-    utofu_vcq_id_t	svcqid;
-    uint64_t		flags;
+    uint8_t	mypos;		/* my position of recv_cntr pool */
+    uint32_t	recvoff;	/* for eager message */
+    struct utf_msghdr	hdr;	/* received header */
+    struct utf_msgreq	*req;	/* The current handle message request */
+    utofu_vcq_id_t	svcqid;	/* rendezous: sender's vcqid */
+    uint64_t		flags;	/* rendezous: sender's flags */
+    int		sidx;		/* rendezous: sender's sidx */
 };
 
 typedef enum sstate {

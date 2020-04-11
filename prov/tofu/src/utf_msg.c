@@ -18,6 +18,18 @@ utf_setmsgmode(int mode)
     utf_msgmode = mode;
 }
 
+void
+utf_show_msgmode(FILE *fp)
+{
+    char *md;
+    switch (utf_msgmode) {
+    case MSG_EAGERONLY:	md = "EARGER ONLY"; break;
+    case MSG_RENDEZOUS:	md = "RENDEZOUS"; break;
+    default: md = "UNKNOWN"; break;
+    }
+    fprintf(fp, "MSGMODE is %s\n", md);
+}
+
 int
 remote_piggysend(utofu_vcq_hdl_t vcqh,
 		 utofu_vcq_id_t rvcqid, void *data,  utofu_stadd_t rstadd,
@@ -79,8 +91,9 @@ remote_get(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
-    DEBUG(DLEVEL_UTOFU) {
-	utf_printf("remote_get: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
+    DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS) {
+	utf_printf("remote_get: desc size(%ld) cbdata(%ld) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		   sz, cbdata, lstadd, rstadd);
     }
     return 0;
 }
