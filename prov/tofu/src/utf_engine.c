@@ -146,7 +146,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    req->rndz = msgp->rndz;
 	    req->hdr = pkt->hdr; /* src, tag, size, data, flgs */
 	    if (req->rndz == MSG_RENDEZOUS) {
-		req->rmtstadd = (utofu_stadd_t) pkt->msgdata;
+		req->rmtstadd = *(utofu_stadd_t*) pkt->msgdata;
 		goto rendezous;
 	    }
 	    /* eager */
@@ -160,7 +160,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    req->rndz = msgp->rndz;
 	    req->expsize = pkt->hdr.size;
 	    if (msgp->rndz == MSG_RENDEZOUS) {
-		req->rmtstadd = (utofu_stadd_t) pkt->msgdata;
+		req->rmtstadd = *(utofu_stadd_t*) pkt->msgdata;
 		req->rcntr = ursp;
 		ursp->state = R_WAIT_RNDZ;
 		goto done;
@@ -790,11 +790,13 @@ utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 }
 
 int
-utf_dbg_progress()
+utf_dbg_progress(int mode)
 {
     int	rc;
     if (dbg_prog1st == 0) return 0;
-    utf_printf("%s: progress\n", __func__);
+    if (mode) {
+	utf_printf("%s: progress\n", __func__);
+    }
     rc = utf_progress(dbg_av, dbg_vcqh);
     return rc;
 }

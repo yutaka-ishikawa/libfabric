@@ -144,7 +144,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     //utf_printf("%s: notification received req(%p)\n", __func__, req);
     //utf_printf("%s:\t msg=%s\n", __func__,
     //utf_msghdr_string(&req->hdr, req->buf));
-    assert(req->type == REQ_RECV_EXPECTED);
+    assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_UNEXP_RND_DONE);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
     if (req->ustatus == REQ_OVERRUN) {
@@ -406,12 +406,12 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(MSG_EAGER_SIZE);
 	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
 	} else { /* Rendezvous */
-	    DEBUG(DLEVEL_PROTO_EAGER) {
+	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 		utf_printf("RENDEZOUS\n");
 	    }
 	    minfo->usrstadd = utf_mem_reg(vcqh, msgdtp, msgsize);
 	    bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
-		  sizeof(utofu_stadd_t));
+	          sizeof(utofu_stadd_t));
 	    minfo->cntrtype = SNDCNTR_RENDEZOUS;
 	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
 	    sbufp->msgbdy.rndz = MSG_RENDEZOUS;
@@ -483,7 +483,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 	    ursp = req->rcntr;
 	    assert(ursp->req == req);
-	    req->bufstadd = utf_mem_reg(vcqh, req->fi_msg[0].iov_base, msgsize);
+	    req->bufstadd = utf_mem_reg(vcqh, msg->msg_iov[0].iov_base, msgsize);
 	    ursp->state = R_DO_RNDZ;
 	    req->fi_ctx = ctx;
 	    req->fi_flgs = flags;
