@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <assert.h>
 #include "utf_list.h"
 
 #ifdef DEBUG
@@ -353,18 +354,27 @@ int MPI_Group_excl(MPI_Group group, int n, const int ranks[], MPI_Group *newgrou
 {
     int rc;
     struct grpinfo_ent	*ent = grpinfo_get(group);
-    struct grpinfo_ent	*newent;
+    int	*newranks;
 
     MPICALL_CHECK(rc, PMPI_Group_excl(group, n, ranks, newgroup));
-    newent = grpinfo_dup(ent);
-    newent->grp = *newgroup;
+    newranks = malloc(sizeof(int)*ent->size);
+    memcpy(newranks, ent->ranks, sizeof(int)*ent->size);
     if (n == 0) {
-	??? grpinfo_reg(*newgroup, ent->size, newranks);
+	grpinfo_reg(*newgroup, ent->size, newranks);
+	// utfslist_append(&grpinfo_lst, &newent->slst);
     } else {
-	for (i = 0, np = newranks; i < n; i++) {
-	    assert(ranks[i] <= grpent->size);
-	    newent->[ranks[i]];
+	int	*cp, i;
+	int	newsize = 0;
+	for (i = 0; i < n; i++) {
+	    assert(ranks[i] <= ent->size);
+	    newranks[ranks[i]] = -1;
 	}
+	for (i = 0, cp = newranks; i < ent->size; i++) {
+	    if (newranks[i] != -1) {
+		*cp++ = newranks[i]; newsize++;
+	    }
+	}
+	grpinfo_reg(*newgroup, newsize, newranks);
     }
     return rc;
 }
