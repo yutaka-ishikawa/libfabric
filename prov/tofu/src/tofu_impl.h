@@ -156,19 +156,19 @@ struct tofu_av {
 };
 
 struct tofu_mr {
-    struct fid_mr	mr__fid;
-    struct tofu_domain *mr__dom;
-    ofi_atomic32_t	mr__ref;
-    fastlock_t		mr__lck;
-/*  struct dlist_entry	mr__ent; */
-    struct fi_mr_attr	mr__att;
-    uint64_t		mr__flg;
-    struct iovec	mr__iov;
+    struct fid_mr	mr_fid;
+    struct tofu_domain *mr_dom;
+    ofi_atomic32_t	mr_ref;
+    fastlock_t		mr_lck;
+/*  struct dlist_entry	mr_ent; */
+    struct fi_mr_attr	mr_att;
+    uint64_t		mr_flg;
+    struct iovec	mr_iov;
 };
 
 
 extern struct fi_provider		tofu_prov;
-extern struct fi_ops_mr			tofu_mr__ops;
+extern struct fi_ops_mr			tofu_mr_ops;
 extern struct fi_ops_cm			tofu_sep_ops_cm;
 extern struct fi_ops_cm			tofu_ctx_ops_cm;
 extern struct fi_ops_msg		tofu_ctx_ops_msg;

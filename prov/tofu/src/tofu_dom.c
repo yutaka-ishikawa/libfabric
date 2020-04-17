@@ -131,7 +131,7 @@ int tofu_domain_open(
     dom->dom_fid.fid.context   = context;
     dom->dom_fid.fid.ops       = &tofu_dom_fi_ops;
     dom->dom_fid.ops           = &tofu_dom_ops;
-    dom->dom_fid.mr            = &tofu_mr__ops;
+    dom->dom_fid.mr            = &tofu_mr_ops;
 
     /* dlist_init( &dom_priv->dom_ent ); */
     /* dom_priv */
@@ -176,7 +176,7 @@ int tofu_domain_open(
 
 bad:
     if (dom != 0) {
-	tofu_domain_close(&dom->dom_fid.fid );
+	tofu_domain_close(&dom->dom_fid.fid);
     }
     //fprintf(stderr, "%s: YI*** 2 return fc(%d)\n", __func__, fc); fflush(stderr);
     return fc;

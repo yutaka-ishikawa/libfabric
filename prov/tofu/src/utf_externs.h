@@ -49,7 +49,8 @@ extern void		utf_mem_dereg(utofu_vcq_id_t, utofu_stadd_t stadd);
 extern void	utf_stadd_free();
 extern void	utf_setmsgmode(int mode);
 extern int	utf_getenvint(char *);
-void		utf_show_msgmode(FILE *fp);
+extern void	utf_show_msgmode(FILE *fp);
+extern void	utf_show_data(char *msg, char *data, size_t len);
 
 /* for debugging */
 extern void	utf_redirect();

@@ -3,6 +3,9 @@
 #include "utf_conf.h"
 #include "utf_externs.h"
 #include "utf_queue.h"
+#ifndef UTF_NATIVE
+#include "tofu_debug.h"
+#endif
 
 static FILE	*logfp;
 static char	logname[PATH_MAX];
@@ -48,8 +51,22 @@ mrq_notice_show(struct utofu_mrq_notice *ntcp)
 }
 
 #define DSIZE 10
-#define SHOWLEN 16
+#define SHOWLEN 200
 #define BSIZE (DSIZE*SHOWLEN)
+
+void
+utf_show_data(char *msg, char *data, size_t len)
+{
+    size_t	i, sz;
+    char	buf[BSIZE], *bp;
+    bp = buf;
+    *bp = 0;
+    for (i = 0; i < len && i < SHOWLEN; i++) {
+	sz = snprintf(bp, DSIZE, "%02x ", data[i]);
+	bp += sz;
+    }
+    utf_printf("%s %s\n", msg, buf);
+}
 
 void
 utf_showpacket(char *msg, struct utf_msgbdy *mbp)
@@ -58,17 +75,31 @@ utf_showpacket(char *msg, struct utf_msgbdy *mbp)
     size_t	sz;
     char	buf[BSIZE], *bp;
     bp = buf;
+    *bp = 0;
     for (i = 0; i < mbp->payload.h_pkt.hdr.size && i < SHOWLEN; i++) {
 	sz = snprintf(bp, DSIZE, "%02x ", mbp->payload.h_pkt.msgdata[i]);
 	bp += sz;
     }
+#ifdef UTF_NATIVE
     utf_printf("*** %s ***\n"
-	     "psize: %d, src: %d, tag: %d, size: %ld\n" "data: %s\n",
-	     msg,
-	     mbp->psize,
-	     mbp->payload.h_pkt.hdr.src,
-	     mbp->payload.h_pkt.hdr.tag,
-	     mbp->payload.h_pkt.hdr.size, buf);
+	       "psize: %d, src: %d, tag: %x, size: %ld\n" "data: %s\n",
+	       msg, mbp->psize,
+	       mbp->payload.h_pkt.hdr.src,
+	       mbp->payload.h_pkt.hdr.tag,
+	       mbp->payload.h_pkt.hdr.size, buf);
+#else
+    utf_printf("*** %s ***\n"
+	       "psize: %d, src: %d, tag: %x, size: %ld data: 0x%lx flgs: (0x%lx: %s)\n"
+	       "data: %s\n",
+	       msg, mbp->psize,
+	       mbp->payload.h_pkt.hdr.src,
+	       mbp->payload.h_pkt.hdr.tag,
+	       mbp->payload.h_pkt.hdr.size,
+	       mbp->payload.h_pkt.hdr.data,
+	       mbp->payload.h_pkt.hdr.flgs,
+	       tofu_fi_flags_string(mbp->payload.h_pkt.hdr.flgs),
+	       buf);
+#endif /* UTF_NATIVE */
 #if 0
     utf_printf("\t psize might be %d\n",
 		 (uint64_t) ((struct utf_msgbdy*)(0))->payload.h_pkt.msgdata

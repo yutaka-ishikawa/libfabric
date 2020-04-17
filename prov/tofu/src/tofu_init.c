@@ -106,7 +106,7 @@ struct fi_provider *fi_prov_ini(void)
 
 /**************************************************************************/
 extern void utf_redirect();
-extern int utf_dbg_progress();
+extern int utf_dbg_progress(int);
 int mypid, myrank;
 int rdbgf;
 int rdbgl;
@@ -169,9 +169,11 @@ int fi_tofu_cntrl(int cmd, ...)
     int		rc = 0;
     va_start(ap, cmd);
     switch (cmd) {
-    case 0:
-        rc = utf_dbg_progress();
-        break;
+    case 0: {
+        int     mode;
+        mode = va_arg(ap, int);
+        rc = utf_dbg_progress(mode);
+        break;  }
     }
     va_end(ap);
     return rc;

@@ -7,6 +7,7 @@
 #include "utf_sndmgt.h"
 #ifndef UTF_NATIVE
 #include <ofi_iov.h>
+#include "tofu_debug.h"
 #endif
 
 extern void	tofufab_resolve_addrinfo(void *, int rank,
@@ -90,8 +91,13 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 	} else {
 #ifndef UTF_NATIVE /* for Fabric */
 	    uint64_t	sz;
+	    utf_printf("%s: req->fi_iov_count(%ld) req->rsize(%ld), cpysz(%ld)\n",
+		       __func__, req->fi_iov_count, req->rsize, cpysz);
+	    utf_showpacket("incoming packet:", msgp);
 	    sz = ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, req->rsize,
 			    EMSG_DATA(msgp), cpysz);
+	    /* Assume the iocount == 1 */
+	    req->buf = req->fi_msg[0].iov_base;
 #else
 	utf_printf("%s: Something wrong in utf native mode\n", __func__);
 #endif
@@ -127,13 +133,13 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_NONE: /* Begin receiving message */
     {
 	int	idx;
-#if 0
+//#if 0
 	{
 	    extern char	*tofu_fi_flags_string(uint64_t flags);
 	    utf_printf("%s: begin receiving src(%d) tag(0x%lx) data(0x%ld) flags(%s)\n",
 		       __func__, pkt->hdr.src, pkt->hdr.tag, pkt->hdr.data, tofu_fi_flags_string(pkt->hdr.flgs));
 	}
-#endif
+//#endif
 #ifndef UTF_NATIVE
         utfslist *explst
 	    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
@@ -328,8 +334,8 @@ progress0:
     }
 progress:
     DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("%s: usp(%p)->state(%d), evt(%d) minfo(%p)\n",
-		 __func__, usp, usp->state, evt, minfo);
+	utf_printf("%s: usp(%p)->state(%s), evt(%d) minfo(%p)\n",
+		   __func__, usp, sstate_symbol[usp->state], evt, minfo);
     }
     switch(usp->state) {
     case S_NONE: /* never comes */
@@ -342,7 +348,7 @@ progress:
 	    usp->state = S_HAS_ROOM;
 	    usp->recvoff = 0;
 	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("\tRoom is available in remote rank\n");
+		utf_printf("\tRoom is available in remote rank. usp(%p)->recvoff(%d)\n", usp, usp->recvoff);
 	    }
 	    goto s_has_room;
 	} else {
@@ -364,9 +370,11 @@ progress:
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: Going to send rvcqid(%lx) size(%ld) "
 		       "type(%d) sidx(%d) ridx(%d) "
-		       " recvstadd(%lx) usp->recvoff(%ld)\n",
-		       __func__, rvcqid, ssize, minfo->cntrtype, usp->mypos, ridx,
-		       recvstadd, usp->recvoff);
+		       " recvstadd(%lx) usp(%p)->recvoff(%d)\n",
+		       __func__, rvcqid,
+		       ssize, minfo->cntrtype, usp->mypos, ridx,
+		       recvstadd, usp, usp->recvoff);
+	    utf_showpacket("\t", &minfo->sndbuf->msgbdy);
 	}
 	if (recvstadd == 0) {
 	    DEBUG(DLEVEL_PROTOCOL) {
@@ -545,7 +553,7 @@ progress:
 }
 
 int
-utf_send_start(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp)
+utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 {
     int	dst = usp->dst;
     usp->rcvreset = 0; usp->recvoff = 0;
@@ -556,8 +564,8 @@ utf_send_start(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp)
 	 */
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: Request a room to rank %d: send control(%d)\n"
-		     "\trvcqid(%lx) remote stadd(%lx)\n",
-		     __func__, dst, usp->mypos, usp->rvcqid, erbstadd);
+		       "\trvcqid(%lx) remote stadd(%lx)\n",
+		       __func__, dst, usp->mypos, usp->rvcqid, erbstadd);
 	}
 	utf_remote_add(vcqh, usp->rvcqid,
 		       UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE,

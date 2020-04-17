@@ -11,24 +11,24 @@ static int
 tofu_mr_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
-    struct tofu_mr *mr__priv;
+    struct tofu_mr *mr_priv;
 
     FI_INFO( &tofu_prov, FI_LOG_MR, "in %s\n", __FILE__);
     assert(fid != 0);
-    mr__priv = container_of(fid, struct tofu_mr, mr__fid.fid);
+    mr_priv = container_of(fid, struct tofu_mr, mr_fid.fid);
 
-    if (ofi_atomic_get32( &mr__priv->mr__ref ) != 0) {
+    if (ofi_atomic_get32( &mr_priv->mr_ref ) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
-    fastlock_destroy( &mr__priv->mr__lck );
+    fastlock_destroy( &mr_priv->mr_lck );
 
-    free(mr__priv);
+    free(mr_priv);
 
 bad:
     return fc;
 }
 
-static struct fi_ops tofu_mr__fi_ops = {
+static struct fi_ops tofu_mr_fi_ops = {
     .size	    = sizeof (struct fi_ops),
     .close	    = tofu_mr_close,
     .bind	    = fi_no_bind,
@@ -51,13 +51,10 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
                        uint64_t requested_key,  uint64_t flags,
                        struct fid_mr **fid_mr_, void *context)
 {
-    R_DBG("tofu_mr_reg how we will implement. fid(%p)\n", fid);
-    return -1;
-#if 0
     int fc = FI_SUCCESS;
     int uc;
     struct tofu_domain *dom_priv;
-    struct tofu_mr     *mr__priv = 0;
+    struct tofu_mr     *mr_priv = 0;
     utofu_stadd_t      stadd;
     uint64_t           utofu_flg = 0;
 
@@ -68,8 +65,8 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     }
     dom_priv = container_of(fid, struct tofu_domain, dom_fid.fid );
 
-    mr__priv = calloc(1, sizeof (mr__priv[0]));
-    if (mr__priv == 0) {
+    mr_priv = calloc(1, sizeof (mr_priv[0]));
+    if (mr_priv == 0) {
 	fc = -FI_ENOMEM; goto bad;
     }
 
@@ -79,7 +76,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
      * the area are accessed by any vcqh.
      * The current implementation, only one vcqh and thus it is much easy.
      */
-    uc = utofu_reg_mem((utofu_vcq_hdl_t )dom_priv->dom_vcqh[0],
+    uc = utofu_reg_mem((utofu_vcq_hdl_t )dom_priv->vcqh[0],
                        (void*) buf, len, utofu_flg, &stadd);
     if (uc != UTOFU_SUCCESS) {
         fprintf(stderr, "%s: utofu_reg_mem error uc(%d)\n", __func__, uc);
@@ -90,7 +87,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
         unsigned int    stag = 20; /* temporal hack */
         fprintf(stderr, "YIRMA***: %s:%d vcqh(%p)\n");
         uc = utofu_reg_mem_with_stag(
-                (utofu_vcq_hdl_t )dom_priv->dom_vcqh[i],
+                (utofu_vcq_hdl_t )dom_priv->vcqh[i],
                 buf, len, stag, utofu_flg, &stadd);
         if (uc != 0) {
             fc = -FI_ENOMEM; goto bad;
@@ -98,23 +95,22 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     }
 #endif /* 0 */
     
-    /* initialize mr__priv */
+    /* initialize mr_priv */
     {
-	mr__priv->mr__dom = dom_priv;
-	ofi_atomic_initialize32( &mr__priv->mr__ref, 0 );
-	fastlock_init( &mr__priv->mr__lck );
-
-	mr__priv->mr__fid.fid.fclass    = FI_CLASS_MR;
-	mr__priv->mr__fid.fid.context   = context;
-	mr__priv->mr__fid.fid.ops       = &tofu_mr__fi_ops;
-	mr__priv->mr__fid.mem_desc      = mr__priv; /* YYY */
-	mr__priv->mr__fid.key           = (uintptr_t) stadd;
-	/* dlist_init( &mr__priv->mr__ent ); */
+	mr_priv->mr_dom = dom_priv;
+	ofi_atomic_initialize32( &mr_priv->mr_ref, 0 );
+	fastlock_init( &mr_priv->mr_lck );
+	mr_priv->mr_fid.fid.fclass  = FI_CLASS_MR;
+	mr_priv->mr_fid.fid.context = context;
+	mr_priv->mr_fid.fid.ops     = &tofu_mr_fi_ops;
+	mr_priv->mr_fid.mem_desc    = mr_priv; /* YYY */
+	mr_priv->mr_fid.key         = (uintptr_t) stadd;
+	/* dlist_init( &mr_priv->mr_ent ); */
     }
     /* fi_mr_attr */
     {
-	struct fi_mr_attr *attr = &mr__priv->mr__att;
-	struct iovec *vecs = &mr__priv->mr__iov;
+	struct fi_mr_attr *attr = &mr_priv->mr_att;
+	struct iovec *vecs = &mr_priv->mr_iov;
 
 	vecs->iov_base = (void *)buf;
 	vecs->iov_len = len;
@@ -128,26 +124,24 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
 	attr->auth_key_size = 0;
 	attr->auth_key = 0;
 
-	mr__priv->mr__flg = flags;
+	mr_priv->mr_flg = flags;
     }
     FI_DBG(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) registered key(0x%lx)\n",
-           buf, len, mr__priv->mr__fid.key);
+           buf, len, mr_priv->mr_fid.key);
     /*printf("%d:YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n",
-      mypid, buf, len, mr__priv->mr__fid.key); fflush(stdout);*/
+      mypid, buf, len, mr_priv->mr_fid.key); fflush(stdout);*/
 
     /* return fid_dom */
-    fid_mr_[0] = &mr__priv->mr__fid;
-    mr__priv = 0; /* ZZZ */
+    fid_mr_[0] = &mr_priv->mr_fid;
+    mr_priv = 0; /* ZZZ */
 bad:
-    if (mr__priv != 0) {
-	tofu_mr_close( &mr__priv->mr__fid.fid );
+    if (mr_priv != 0) {
+	tofu_mr_close( &mr_priv->mr_fid.fid );
     }
-
     return fc;
-#endif
 }
 
-struct fi_ops_mr tofu_mr__ops = {
+struct fi_ops_mr tofu_mr_ops = {
     .size	    = sizeof (struct fi_ops_mr),
 #ifdef	notdef
     .reg	    = fi_no_mr_reg,
