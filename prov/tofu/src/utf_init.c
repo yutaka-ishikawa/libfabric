@@ -78,7 +78,7 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
 	utf_redirect();
     }
     DEBUG(DLEVEL_ALL) {
-	utf_printf("%s: vcqh(%lx) nprocs(%d)\n", __func__, vcqh, nprocs);
+	utf_printf("%s: pid(%d) vcqh(%lx) nprocs(%d)\n", __func__, mypid, vcqh, nprocs);
     }
     if (myrank == 0) {
 	utf_show_msgmode(stderr);

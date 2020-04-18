@@ -79,8 +79,10 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
     cpysz = EMSG_SIZE(msgp);
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("%s: req->rsize(%ld) req->hdr.size(%ld) cpysz(%ld) expsize(%ld) "
-		   "EMSG_SIZE(msgp)=%ld\n",
-		   __func__, req->rsize, req->hdr.size, cpysz, req->expsize, EMSG_SIZE(msgp));
+		   "EMSG_SIZE(msgp)=%ld req->fi_iov_count(%ld)\n",
+		   __func__, req->rsize, req->hdr.size, cpysz, req->expsize, EMSG_SIZE(msgp),
+		   req->fi_iov_count);
+	utf_showpacket("incoming packet:", msgp);
     }
     if ((req->rsize + cpysz) > req->expsize) { /* overrun */
 	// utf_printf("%s: YI!!!!! OVERRUN\n", __func__); abort();
@@ -91,13 +93,8 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 	} else {
 #ifndef UTF_NATIVE /* for Fabric */
 	    uint64_t	sz;
-	    utf_printf("%s: req->fi_iov_count(%ld) req->rsize(%ld), cpysz(%ld)\n",
-		       __func__, req->fi_iov_count, req->rsize, cpysz);
-	    utf_showpacket("incoming packet:", msgp);
 	    sz = ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, req->rsize,
 			    EMSG_DATA(msgp), cpysz);
-	    /* Assume the iocount == 1 */
-	    req->buf = req->fi_msg[0].iov_base;
 #else
 	utf_printf("%s: Something wrong in utf native mode\n", __func__);
 #endif
@@ -133,13 +130,13 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_NONE: /* Begin receiving message */
     {
 	int	idx;
-//#if 0
+#if 0
 	{
 	    extern char	*tofu_fi_flags_string(uint64_t flags);
 	    utf_printf("%s: begin receiving src(%d) tag(0x%lx) data(0x%ld) flags(%s)\n",
 		       __func__, pkt->hdr.src, pkt->hdr.tag, pkt->hdr.data, tofu_fi_flags_string(pkt->hdr.flgs));
 	}
-//#endif
+#endif
 #ifndef UTF_NATIVE
         utfslist *explst
 	    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
@@ -164,15 +161,23 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    req->hdr = pkt->hdr;
 	    req->rsize = 0; req->ustatus = 0; req->type = REQ_RECV_UNEXPECTED;
 	    req->rndz = msgp->rndz;
-	    req->expsize = pkt->hdr.size;
+	    req->expsize = pkt->hdr.size;   /* from sender side */
 	    if (msgp->rndz == MSG_RENDEZOUS) {
 		req->rmtstadd = *(utofu_stadd_t*) pkt->msgdata;
 		req->rcntr = ursp;
 		ursp->state = R_WAIT_RNDZ;
 		goto done;
-	    } else {/* eager */
-		req->buf = malloc(pkt->hdr.size);
-		if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
+	    }
+	    /* eager */
+	    req->buf = malloc(pkt->hdr.size);
+	    if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
+	    {
+		/* Here is the case that still under the transfer.
+		 * This is enqueued into unexpected queue, but not yet
+		 * completed. The user must check if req->status == REQ_DONE */
+		utfslist *uexplst
+		    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
+		utf_msglst_insert(uexplst, req);
 	    }
 	}
 	ursp->req = req;
