@@ -2,6 +2,7 @@
 extern void	utf_engine_init();
 extern void	utf_egrsbuf_init(utofu_vcq_hdl_t, int);
 extern struct utf_egr_sbuf *utf_egrsbuf_alloc();
+extern void	utf_egrsbuf_free(struct utf_egr_sbuf *);
 struct utf_send_cntr;
 extern struct utf_send_cntr *utf_scntr_alloc(int dst, utofu_vcq_id_t rvcid,
 					     uint64_t flgs);

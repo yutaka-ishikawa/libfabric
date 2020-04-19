@@ -91,7 +91,8 @@ utf_msglst_alloc()
 	mp = container_of(slst, struct utf_msglst, slst);
 	return mp;
     } else {
-	utf_printf("%s: No more eager sender buffer\n", __func__);
+	utf_printf("%s: No more msglst\n", __func__);
+	abort();
 	return NULL;
     }
 }
@@ -146,7 +147,8 @@ utf_msgreq_alloc()
 	memset(req, 0, sizeof(*req));
 	return req;
     } else {
-	utf_printf("%s No more eager sender buffer\n", __func__);
+	utf_printf("%s No more msgreq buffer\n", __func__);
+	abort();
 	return NULL;
     }
 }

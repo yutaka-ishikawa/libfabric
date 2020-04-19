@@ -295,6 +295,7 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 	    tofu_reg_rcvcq(recv_ctx->ctx_recv_cq, req->fi_ucontext,
 			   cq_flags, sndsz, req->fi_msg[0].iov_base, msg->data, tag);
 	}
+	utf_msgreq_free(req);
 	/* generating completion event to sender CQ  */
 	tofu_reg_sndcq(ctx->ctx_send_cq, msg->context, flags, sndsz,
 		       msg->data, tag);

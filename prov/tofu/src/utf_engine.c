@@ -528,6 +528,9 @@ progress:
 	minfo->mreq = NULL;
 	utfslist_remove(&usp->smsginfo);
 	slst = utfslist_head(&usp->smsginfo);
+	if (minfo->sndbuf) {
+	    utf_egrsbuf_free(minfo->sndbuf);
+	}
 	utf_sndminfo_free(minfo);
 	if (req->notify) req->notify(req);
 	if (slst != NULL) {

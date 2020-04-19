@@ -247,6 +247,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	rc = ERR_NOMORE_MINFO;
 	goto err2;
     }
+    memset(minfo, 0, sizeof(*minfo));
     minfo->msghdr.src = utf_rank;
     minfo->msghdr.tag = tag;
     minfo->msghdr.size = size;
