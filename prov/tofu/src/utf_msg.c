@@ -9,7 +9,7 @@
 int	utf_msgmode;
 extern struct utf_msgreq	*utf_msgreq_alloc();
 extern void	utf_msgreq_free(struct utf_msgreq *req);
-extern struct utf_msglst	*utf_msglst_insert(utfslist *head,
+extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
 
 void
@@ -123,7 +123,7 @@ utf_recv(int src, size_t size, int tag, void *buf, int *ridx)
 	req->buf = buf;
 	req->ustatus = REQ_NONE; req->status = REQ_NONE;
 	req->type = REQ_RECV_EXPECTED;	req->rsize = 0;
-	utf_msglst_insert(&utf_explst, req);
+	utf_msglst_append(&utf_explst, req);
 	*ridx = utf_msgreq2idx(req);
 	return 1;
     }

@@ -19,7 +19,7 @@ utfslist *dbg_uexplst;
 extern int			utf_msgmode;
 extern struct utf_msgreq	*utf_msgreq_alloc();
 extern void			utf_msgreq_free(struct utf_msgreq *req);
-extern struct utf_msglst	*utf_msglst_insert(utfslist *head,
+extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
 extern char     *tofu_fi_msg_string(const struct fi_msg_tagged *msgp);
 extern char	*utf_msghdr_string(struct utf_msghdr *hdrp, void *bp);
@@ -318,7 +318,7 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 	req->fi_flgs = flags;
 	req->fi_ucontext = msg->context;
 	explst = flags & FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
-	utf_msglst_insert(explst, req);
+	utf_msglst_append(explst, req);
     }
 err:
     return fc;
@@ -586,7 +586,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 re_enqueue:
     if (peek == 1) {
 	utf_printf("%s: peek no\n", __func__);
-	utf_msglst_insert(uexplst, req);
+	utf_msglst_append(uexplst, req);
 	fc = -FI_ENOMSG;
     } else { /* register this request to the expected queue */
 	utfslist *explst;
@@ -641,7 +641,7 @@ re_enqueue:
 	req->fistatus = 0;
 	req->fi_ucontext = msg->context;
 	explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
-	mlst = utf_msglst_insert(explst, req);
+	mlst = utf_msglst_append(explst, req);
 	mlst->fi_ignore = ignore;
 	mlst->fi_context = msg->context;
 	DEBUG(DLEVEL_PROTOCOL) {

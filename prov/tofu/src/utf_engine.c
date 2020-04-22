@@ -14,7 +14,7 @@ extern void	tofufab_resolve_addrinfo(void *, int rank,
 					 utofu_vcq_id_t *vcqid, uint64_t *flgs);
 extern sndmgt	*egrmgt;
 extern struct utf_msgreq	*utf_msgreq_alloc();
-extern struct utf_msglst	*utf_msglst_insert(utfslist *head,
+extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
     
 extern int scntr2idx(struct utf_send_cntr *scp);
@@ -219,7 +219,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		 * completed. The user must check if req->status == REQ_DONE */
 		utfslist *uexplst
 		    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
-		utf_msglst_insert(uexplst, req);
+		utf_msglst_append(uexplst, req);
 	    }
 	}
 	ursp->req = req;
@@ -292,11 +292,11 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    {
 		utfslist *uexplst
 		  = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
-		utf_msglst_insert(uexplst, req);
+		utf_msglst_append(uexplst, req);
 		// utf_printf("%s: register req(%p) to unexpected queue(%p)\n", __func__, req, uexplst);
 	    }
 #else
-	    utf_msglst_insert(&utf_uexplst, req);
+	    utf_msglst_append(&utf_uexplst, req);
 #endif
 	} else {
 	    DEBUG(DLEVEL_PROTOCOL) {

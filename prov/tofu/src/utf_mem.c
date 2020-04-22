@@ -107,7 +107,7 @@ utf_msglst_free(struct utf_msglst *msl)
 
 
 struct utf_msglst *
-utf_msglst_insert(struct utfslist *head, struct utf_msgreq *req)
+utf_msglst_append(struct utfslist *head, struct utf_msgreq *req)
 {
     struct utf_msglst	*mlst;
 

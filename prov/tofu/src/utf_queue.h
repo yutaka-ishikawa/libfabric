@@ -205,7 +205,7 @@ static inline int
 utf_explst_match(uint32_t src, uint32_t tag, int flg)
 {
     struct utf_msglst	*msl;
-    utfslist_entry		*cur;
+    utfslist_entry	*cur, *prev;
     uint32_t		idx;
 
     DEBUG(DLEVEL_PROTOCOL) {
@@ -215,7 +215,7 @@ utf_explst_match(uint32_t src, uint32_t tag, int flg)
     if (utfslist_isnull(&utf_explst)) {
 	return -1;
     }
-    utfslist_foreach(&utf_explst, cur) {
+    utfslist_foreach2(&utf_explst, cur, prev) {
 	msl = container_of(cur, struct utf_msglst, slst);
 	uint32_t exp_src = msl->hdr.src;
 	uint32_t exp_tag = msl->hdr.tag;
@@ -236,6 +236,7 @@ utf_explst_match(uint32_t src, uint32_t tag, int flg)
 find:
     idx = msl->reqidx;
     if (flg) {
+	utfslist_remove2(&utf_explst, cur, prev);
 	utf_msglst_free(msl);
     }
     DEBUG(DLEVEL_PROTOCOL) {
