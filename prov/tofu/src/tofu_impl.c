@@ -46,6 +46,7 @@ tofu_impl_uri_param2long(const char *pparm, long *tniq)
 	    const char *pv = pq + 3;
 
 	    if (nv > 0) { /* duplicate ? */
+		R_DBG("violarion nv(%d) pparm=%s\n",  nv, pparm);
 		ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	    }
 	    while ((pv[0] != '\0') && (pv[0] != ';')) {
@@ -54,6 +55,7 @@ tofu_impl_uri_param2long(const char *pparm, long *tniq)
 
 		new_pv = tofu_impl_str_tniq2long(pv, lv);
 		if (new_pv == 0) {
+		    R_DBG("violation pv=%s lv=%ld\n", pv, *lv);
 		    ret = -FI_EINVAL; /* -__LINE__ */; goto bad;
 		}
 		nv++;
@@ -74,9 +76,11 @@ tofu_impl_uri_param2long(const char *pparm, long *tniq)
 
 	    if (iv >= CONF_TOFU_CTXC) { continue; }
 	    if ((lv[0] < 0) || (lv[0] >= 8  /* XXX */ )) { /* max # of tni */
+		R_DBG("violation lv[0]=(%ld) must be 0-7\n", lv[0]);
 		ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	    }
 	    if ((lv[1] < 0) || (lv[1] >= 32 /* XXX */ )) { /* max # of tcq */
+		R_DBG("violation lv[1]=(%ld) must be 0-7\n", lv[1]);
 		ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	    }
 	}
@@ -101,9 +105,11 @@ tofu_imp_uri2long(const char *uri, uint8_t *xyzabc,  uint16_t *cid, long *tniq)
                     &xyzabc[3], &xyzabc[4], &xyzabc[5], &cid32);
         *cid = cid32;
 	if (rc != 7) {
+	    R_DBG("# of entries != 7 uri=%s\n", uri);
 	    ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	}
 	if (xyzabc[3] >= 2 || xyzabc[4] >= 3  || xyzabc[5] >= 2) {
+	    R_DBG("xyzabc violarion uri=%s\n", uri);
 	    ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	}
     }
@@ -157,8 +163,10 @@ tofu_impl_uri2name(const void *vuri, size_t index,  struct tofu_vname *vnam)
     }
     vnam->vpid = -1U; /* YYY */
 bad:
-    R_DBG0(RDBG_LEVEL1, "%u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
+#if 0
+    R_DBG0(RDBG_LEVEL1, "%u.%u.%u.%u.%u.%u cid(%u) return fc=%d",
             vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
             vnam->xyzabc[3], vnam->xyzabc[4], vnam->xyzabc[5], vnam->cid, fc);
+#endif
     return fc;
 }

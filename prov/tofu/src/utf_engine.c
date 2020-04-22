@@ -45,6 +45,7 @@ static inline utofu_stadd_t utf_sndctr_stadd()
     return sndctrstadd;
 }
 
+
 void
 utf_engine_init()
 {
@@ -53,6 +54,7 @@ utf_engine_init()
 	rcntr[i].state = R_NONE;
 	rcntr[i].mypos = i;
 	vcqrcntr[i] = 0;
+	utfslist_init(&rcntr[i].rget_cqlst, NULL);
     }
 }
 
@@ -66,6 +68,17 @@ vcqid2recvcntr(utofu_vcq_id_t vcqid)
 	}
     }
     return NULL;
+}
+
+static inline void
+init_recv_cntr_remote_info(struct utf_recv_cntr *ursp, void *av, int src, int sidx)
+{
+    if (ursp->initialized == 0) {
+	tofufab_resolve_addrinfo(av, src, &ursp->svcqid, &ursp->flags);
+	ursp->sidx = sidx;
+	vcqrcntr[ursp->mypos] = ursp->svcqid;
+	ursp->initialized = 1;
+    }
 }
 
 static inline int
@@ -110,6 +123,32 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 	ursp->state = R_BODY;
     }
     return ursp->state;
+}
+
+inline static void
+utf_done_rndz(utofu_vcq_id_t vcqh, struct utf_msgreq *req)
+{
+    struct utf_recv_cntr *ursp = req->rcntr;
+    int sidx = ursp->sidx;
+    utofu_stadd_t	stadd = SCNTR_ADDR_CNTR_FIELD(sidx);
+    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
+	utf_printf("%s: R_DO_RNDZ done ursp(%p)\n", __func__, ursp);
+	utf_printf("%s: raise recv notify from req(%p)\n", __func__, req);
+    }
+    /*
+     * notification to the sender: local mrq notification is supressed
+     * currently local notitication is enabled
+     */
+    utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
+		     UTOFU_ARMW_OP_OR, SCNTR_OK,
+		     stadd + SCNTR_RGETDONE_OFFST, sidx, 0);
+    if (req->bufstadd) {
+	utf_mem_dereg(vcqh, req->bufstadd);
+	req->bufstadd = 0;
+    }
+    req->rsize = req->hdr.size;
+    req->status = REQ_DONE;
+    if (req->notify) req->notify(req);
 }
 
 /*
@@ -166,6 +205,9 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		req->rmtstadd = *(utofu_stadd_t*) pkt->msgdata;
 		req->rcntr = ursp;
 		ursp->state = R_WAIT_RNDZ;
+		req->status = REQ_WAIT_RNDZ;
+		init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
+		/* going to insert this request into unexp queue */
 		goto done;
 	    }
 	    /* eager */
@@ -183,21 +225,13 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	ursp->req = req;
 	goto exiting;
     rendezous:
-	{
-	    /* how we handle ursp->hrd in this case ? */
-	    size_t		reqsize = req->hdr.size;
-	    utofu_stadd_t	rmtstadd = *(utofu_stadd_t*) &pkt->msgdata;
-	    if (ursp->initialized == 0) {
-		tofufab_resolve_addrinfo(av, req->hdr.src, &ursp->svcqid,
-					 &ursp->flags);
-		ursp->sidx = sidx;
-		ursp->initialized = 1;
-	    }
-	    ursp->req = req;
-	    ursp->state = R_DO_RNDZ;
-	    /* req->bufstadd is assigned by tofu_utf_recv_post
+	{   /* req->bufstadd is assigned by tofu_utf_recv_post
 	     * req->hdr.size is defined by the receiver
 	     * pkt->hdr.size is defined by the sender */
+	    size_t		reqsize = req->hdr.size;
+	    utofu_stadd_t	rmtstadd = *(utofu_stadd_t*) &pkt->msgdata;
+
+	    init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 		utf_printf("%s: issuing remote_get --  rendezous reqsize(0x%lx) "
 			 "local stadd(0x%lx) remote stadd(0x%lx) "
@@ -205,9 +239,14 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 			 __func__, reqsize, req->bufstadd,
 			 rmtstadd, sidx, ursp->mypos);
 	    }
-	    vcqrcntr[ursp->mypos] = ursp->svcqid;
 	    remote_get(vcqh, ursp->svcqid, req->bufstadd,
 		       rmtstadd, reqsize, sidx, ursp->flags, 0);
+	    /* enter to the rget_cqlst, and reset ursp state */
+	    req->rcntr = ursp;
+	    utfslist_append(&ursp->rget_cqlst, &req->slst);
+	    goto reset_state;
+	    //ursp->req = req;
+	    // ursp->state = R_DO_RNDZ;
 	}
     }
 	break;
@@ -217,7 +256,11 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	/* otherwise, continue to receive message */
 	break;
     case R_DO_RNDZ: /* R_DO_RNDZ --> R_DONE */
-    { /* Be sure no msgp pointer is passed from the mrqprogress engine */
+	/* R_D_RNDZ state is handled by utf_mrqprogress now 2020/04/21 */
+	utf_printf("%s: Something wrong R_DO_RNDZ req(%p)\n", __func__, ursp->req); abort();
+#if 0
+    {   /* */
+	/* Be sure no msgp pointer is passed from the mrqprogress engine */
 	utofu_stadd_t	stadd = SCNTR_ADDR_CNTR_FIELD(sidx);
 	DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 	    utf_printf("%s: R_DO_RNDZ done ursp(%p)\n", __func__, ursp);
@@ -236,7 +279,9 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	}
 	req->rsize = req->hdr.size;
 	req->status = REQ_DONE;
-    }	/* Falls through. */
+	assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_EXPECTED2);
+    } 	/* Falls through. */
+#endif
     case R_DONE: done: /* or R_WAIT_RNDZ state */
 	if (req->type == REQ_RECV_UNEXPECTED) {
 	    /* Regiger it to unexpected queue */
@@ -260,6 +305,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    }
 	    if (req->notify) req->notify(req);
 	}
+    reset_state:
 	/* reset the state */
 	ursp->state = R_NONE; ursp->recvoff = 0; ursp->rst_sent = 0;
 	break;
@@ -353,7 +399,7 @@ progress:
 	    usp->state = S_HAS_ROOM;
 	    usp->recvoff = 0;
 	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("\tRoom is available in remote rank. usp(%p)->recvoff(%d)\n", usp, usp->recvoff);
+		utf_printf("\tRoom is available in remote rank %d. usp(%p)->recvoff(%d)\n", usp->dst, usp, usp->recvoff);
 	    }
 	    goto s_has_room;
 	} else {
@@ -428,7 +474,7 @@ progress:
 	    usp->rgetwait = 0; usp->rgetdone = 0;
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 		utf_printf("%s: rendezous send size(%ld) minfo->sndstadd(%lx) "
-			 "src(%d) tag(%d) msgsize(%ld) rndz(%d)\n", __func__,
+			 "src(%d) tag(0x%lx) msgsize(%ld) rndz(%d)\n", __func__,
 			 ssize, minfo->sndstadd,
 			 minfo->sndbuf->msgbdy.payload.h_pkt.hdr.src,
 			 minfo->sndbuf->msgbdy.payload.h_pkt.hdr.tag,
@@ -662,10 +708,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	if (ursp->rst_sent == 0 && ursp->recvoff > MSGBUF_THR) {
 	    utofu_stadd_t	stadd = SCNTR_ADDR_CNTR_FIELD(sidx);
 	    /* rcvreset field is set */
-	    if (ursp->svcqid == 0) {
-		tofufab_resolve_addrinfo(av, EMSG_HDR(msgp).src,
-					 &ursp->svcqid, &ursp->flags);
-	    }
+	    init_recv_cntr_remote_info(ursp, av, EMSG_HDR(msgp).src, sidx);
 	    DEBUG(DLEVEL_UTOFU) {
 		utf_printf("%s: reset request to sender "
 			 "svcqid(%lx) flags(%lx) stadd(%lx) sidx(%d)\n",
@@ -685,11 +728,22 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
     {
 	int	sidx = mrq_notice.edata;
 	struct utf_recv_cntr	*ursp = vcqid2recvcntr(mrq_notice.vcq_id);
+	utfslist_entry	*slst;
+	struct utf_msgreq *req;
 	DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS) {
 	    utf_printf("%s: MRQ_TYPE_LCL_GET: vcq_id(%lx) edata(%d) "
 		     "lcl_stadd(%lx) rmt_stadd(%lx)\n",
 		     __func__, mrq_notice.vcq_id, mrq_notice.edata,
 		     mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+	}
+	slst = utfslist_remove(&ursp->rget_cqlst);
+	if (slst) {
+	    req = container_of(slst, struct utf_msgreq, slst);
+	    /* req will be freed by the notifier, tofu_catch_rcvnotify */
+	    utf_done_rndz(vcqh, req);
+	    break;
+	} else {
+	    utf_printf("%s: no rget cq list\n", __func__);
 	}
 	if (ursp->state != R_DO_RNDZ) {
 	    utf_printf("%s: protocol error, expecting R_DO_RNDZ but %d\n"
@@ -699,6 +753,8 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		     mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
 	    break;
 	}
+	utf_printf("%s: Should not come here!\n", __func__);
+	abort();
 	utf_recvengine(av, vcqh, ursp, NULL, sidx);
 	break;
     }

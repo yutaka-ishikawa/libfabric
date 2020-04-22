@@ -157,7 +157,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 	utf_printf("%s: notification received req(%p)->buf(%p)\n", __func__, req, req->buf);
 	utf_printf("%s:\t msg=%s\n", __func__, utf_msghdr_string(&req->hdr, req->buf));
     }
-    assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_UNEXP_RND_DONE);
+    assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_EXPECTED2);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
     if (req->ustatus == REQ_OVERRUN) {
@@ -497,7 +497,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	size_t	sz;
 	uint64_t myflags;
 	req = utf_idx2msgreq(idx);
-	if (req->rndz) { /* rendezous */
+	if (req->status == REQ_WAIT_RNDZ && req->rndz) { /* rendezous */
 	    utofu_vcq_id_t vcqh;
 	    size_t	   msgsize;
 	    struct utf_recv_cntr *ursp = req->rcntr;
@@ -508,30 +508,41 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 		fc = -FI_ENOMSG;
 		goto ext;
 	    }
+	    // utf_printf("%s: req->status REQ_WAIT_RNDZ and RENDEZOUS\n", __func__);
 	    // req->expsize is declared by the sender
 	    vcqh = ctx->ctx_sep->sep_myvcqh;
 	    msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
-	    ursp = req->rcntr;
+	    /* ursp->req does not point to my request, but we need information */
+/*
+	    if (ursp->req != req) {
+		utf_printf("%s: ursp(%p) req(%p) req->status(%d)\n", __func__, ursp, req, req->status);
+		if (ursp) { utf_printf("\tursp->state=%d ursp->req(%p)\n", ursp->state, ursp->req); }
+	    } else {
+		ursp->state = R_DO_RNDZ;
+	    }
 	    assert(ursp->req == req);
+*/
 	    req->bufstadd = utf_mem_reg(vcqh, msg->msg_iov[0].iov_base, msgsize);
-	    ursp->state = R_DO_RNDZ;
 	    req->fi_ctx = ctx;
 	    req->fi_flgs = flags;
 	    req->fi_ucontext = msg->context;
 	    req->notify = tofu_catch_rcvnotify;
-	    req->type = REQ_RECV_UNEXP_RND_DONE;
+	    req->type = REQ_RECV_EXPECTED2;
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		utf_printf("%s: issuing remote_get -- rendezous msgsize(0x%lx) "
-			 "local stadd(0x%lx) remote stadd(0x%lx) "
-			 "edata(%d) mypos(%d)\n",
-			 __func__, msgsize, req->bufstadd,
+		utf_printf("%s: issuing remote_get -- to(0x%lx) rendezous msgsize(0x%lx) "
+			   "local stadd(0x%lx) remote stadd(0x%lx) "
+			   "edata(%d) mypos(%d)\n",
+			   __func__, ursp->svcqid, msgsize, req->bufstadd,
 			   req->rmtstadd, ursp->sidx, ursp->mypos);
 	    }
+	    /* enter to the rget_cqlst */
+	    utfslist_append(&ursp->rget_cqlst, &req->slst);
 	    remote_get(vcqh, ursp->svcqid, req->bufstadd,
 		       req->rmtstadd, msgsize, ursp->sidx, ursp->flags, 0);
 	    goto ext;
 	}
 	if (req->status != REQ_DONE) {
+	    utf_printf("%s: must be changed to expected ... req->rndz(%d)...req->status(%d)\n", __func__, req->rndz, req->status);
 	    goto re_enqueue;
 	}
 	/* received data is copied to the specified buffer */

@@ -56,6 +56,7 @@ uint32_t		utf_msgreq_size;
 static utfslist		utf_msgreqfree;
 //static utf_bits		*utf_msgreq_bits;
 
+
 void
 utf_msglst_init()
 {

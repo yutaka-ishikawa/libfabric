@@ -71,16 +71,23 @@ struct utf_egr_sbuf {
     };
 };
 
+/*
+ * req->status
+ */
 enum utq_reqstatus {
     REQ_NONE	= 0,
     REQ_DONE,
     REQ_OVERRUN,
+    REQ_WAIT_RNDZ		/* waiting rendzvous */
 };
 
+/*
+ * recv_ctr state
+ */
 enum {
     REQ_RECV_EXPECTED,
     REQ_RECV_UNEXPECTED,
-    REQ_RECV_UNEXP_RND_DONE,
+    REQ_RECV_EXPECTED2,
     REQ_SND_REQ,
 };
 
@@ -355,6 +362,7 @@ struct utf_recv_cntr {
     utofu_vcq_id_t	svcqid;	/* rendezous: sender's vcqid */
     uint64_t		flags;	/* rendezous: sender's flags */
     int		sidx;		/* rendezous: sender's sidx */
+    utfslist	rget_cqlst;	/* CQ for remote get operation in UTF level */
 };
 
 typedef enum sstate {

@@ -13,6 +13,10 @@ static char	logname[PATH_MAX];
 void
 utf_redirect()
 {
+    if (myrank == -1) {
+	fprintf(stderr, "Too early for calling %s\n", __func__);
+	return;
+    }
     if (stderr != logfp) {
         char    *cp = getenv("TOFULOG_DIR");
         if (cp) {

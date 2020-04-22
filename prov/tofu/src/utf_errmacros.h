@@ -38,7 +38,7 @@ extern void utofu_get_last_error(const char*);
     char msg[256];							\
     int rc;								\
     DEBUG(DLEVEL_UTOFU) {						\
-	snprintf(msg, 256, "calling %s(%s)\n", #func, #__VA_ARGS__);	\
+	snprintf(msg, 256, "%s: calling %s(%s)\n", __func__, #func, #__VA_ARGS__); \
 	utf_printf("%s", msg);						\
     }									\
     rc = func(__VA_ARGS__);						\
