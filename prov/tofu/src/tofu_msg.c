@@ -569,8 +569,8 @@ tofu_ctx_tag_injectdata(struct fid_ep *fid_ep,
     //   dest_addr, len, data, tofu_fi_flags_string(flags));
     
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%ld: %s) len(%ld) data(%ld) flags(%lx)",
-	   dest_addr, fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data,flags);
+    R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%ld: %s) len(%ld) data(%ld) tag(%lx) flags(%lx)",
+	   dest_addr, fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data, tag, flags);
 
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;

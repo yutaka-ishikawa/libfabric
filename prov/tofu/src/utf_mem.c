@@ -358,6 +358,7 @@ utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 	}
 	scp = container_of(slst, struct utf_send_cntr, slst);
 	rank2scntridx[dst]  = scp->mypos;
+	scp->dst = dst;
 	utfslist_init(&scp->smsginfo, NULL);
 	scp->state = S_NONE;
 	scp->flags = UTOFU_ONESIDED_FLAG_PATH(flgs);

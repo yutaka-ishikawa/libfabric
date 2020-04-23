@@ -169,13 +169,13 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     case R_NONE: /* Begin receiving message */
     {
 	int	idx;
-#if 0
+//#if 0
 	{
 	    extern char	*tofu_fi_flags_string(uint64_t flags);
-	    utf_printf("%s: begin receiving src(%d) tag(0x%lx) data(0x%ld) flags(%s)\n",
-		       __func__, pkt->hdr.src, pkt->hdr.tag, pkt->hdr.data, tofu_fi_flags_string(pkt->hdr.flgs));
+	    utf_printf("%s: recvoff(%d) begin receiving src(%d) tag(0x%lx) size(%ld) data(0x%ld) flags(%s)\n",
+		       __func__, ursp->recvoff, pkt->hdr.src, pkt->hdr.tag, pkt->hdr.size, pkt->hdr.data, tofu_fi_flags_string(pkt->hdr.flgs));
 	}
-#endif
+//#endif
 #ifndef UTF_NATIVE
         utfslist *explst
 	    = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
@@ -184,6 +184,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	if ((idx = utf_explst_match(pkt->hdr.src, pkt->hdr.tag, 0)) != -1) {
 #endif
 	    //utf_printf("%s: new expected message arrives. idx(%d)\n", __func__, idx);
+	    utf_printf("%s: YIZ 1\n", __func__);
 	    req = utf_idx2msgreq(idx);
 	    req->rndz = msgp->rndz;
 	    req->hdr = pkt->hdr; /* src, tag, size, data, flgs */
@@ -196,6 +197,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	} else { /* New Unexpected message */
 	    //utf_printf("%s: new unexpected message arrives. new req(%p)->rndz=%d\n",
 	    //__func__, req, req->rndz);
+	    utf_printf("%s: YIZ 2\n", __func__);
 	    req = utf_msgreq_alloc();
 	    req->hdr = pkt->hdr;
 	    req->rsize = 0; req->ustatus = 0; req->type = REQ_RECV_UNEXPECTED;
@@ -214,6 +216,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    req->buf = malloc(pkt->hdr.size);
 	    if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
 	    {
+		utf_printf("%s: YIZ !\n", __func__);
 		/* Here is the case that still under the transfer.
 		 * This is enqueued into unexpected queue, but not yet
 		 * completed. The user must check if req->status == REQ_DONE */
@@ -284,6 +287,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 #endif
     case R_DONE: done: /* or R_WAIT_RNDZ state */
 	if (req->type == REQ_RECV_UNEXPECTED) {
+	    utf_printf("%s: YIZ *\n", __func__);
 	    /* Regiger it to unexpected queue */
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: register it to unexpected queue\n", __func__);
@@ -303,11 +307,23 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		utf_printf("%s: Expected message arrived (idx=%d)\n", __func__,
 			 utf_msgreq2idx(req));
 	    }
-	    if (req->notify) req->notify(req);
+	    /* Expected queue always have notifier */
+	    if (req->notify) {
+		req->notify(req);
+	    } else {
+		utf_printf("%s: Something wrong\n", __func__);
+		abort();
+	    }
 	}
     reset_state:
 	/* reset the state */
-	ursp->state = R_NONE; ursp->recvoff = 0; ursp->rst_sent = 0;
+	ursp->state = R_NONE; ursp->rst_sent = 0;
+	/* 
+	 * recvoff must be setted when a new message is put
+	 * in the head of the receive buffer.
+	 * See utf_mrqprogress()
+	 *		ursp->recvoff = 0; 
+	 */
 	break;
     case R_HEAD:
     default:
@@ -388,6 +404,7 @@ progress:
 	utf_printf("%s: usp(%p)->state(%s), evt(%d) minfo(%p)\n",
 		   __func__, usp, sstate_symbol[usp->state], evt, minfo);
     }
+    utf_printf("%s: usp(%p) recvoff(%d) dst(%d) minfo(%p) tag(%lx) size(%ld) state(%s)\n", __func__, usp, usp->recvoff, usp->dst, minfo, minfo->sndbuf->msgbdy.payload.h_pkt.hdr.tag, minfo->sndbuf->msgbdy.payload.h_pkt.hdr.size, sstate_symbol[usp->state]);
     switch(usp->state) {
     case S_NONE: /* never comes */
 	break;
@@ -427,6 +444,7 @@ progress:
 		       recvstadd, usp, usp->recvoff);
 	    utf_showpacket("\t", &minfo->sndbuf->msgbdy);
 	}
+	utf_printf("%s: HAS_ROOM dst(%d) ridx(%d) minfo(%p) tag(%lx) recvoff(%d) recvstadd(%lx)\n", __func__, usp->dst, ridx, minfo, minfo->sndbuf->msgbdy.payload.h_pkt.hdr.tag, usp->recvoff, recvstadd);
 	if (recvstadd == 0) {
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: going to sleep\n", __func__);
@@ -572,16 +590,21 @@ progress:
 	//utf_printf("%s: YI!!!! S_DONE_EGR\n", __func__);
 	req->status = REQ_DONE;
 	minfo->mreq = NULL;
-	utfslist_remove(&usp->smsginfo);
-	slst = utfslist_head(&usp->smsginfo);
 	if (minfo->sndbuf) {
 	    utf_egrsbuf_free(minfo->sndbuf);
 	}
+	/* usp->smsginfo free first, and then the entry is free.
+	 * This is because the same linked list is used */
+	utfslist_remove(&usp->smsginfo);
 	utf_sndminfo_free(minfo);
 	if (req->notify) req->notify(req);
+
+	/* next waiting message */
+	slst = utfslist_head(&usp->smsginfo);
 	if (slst != NULL) {
 	    minfo = container_of(slst, struct utf_send_msginfo, slst);
-	    usp->state = S_HAS_ROOM; usp->recvoff = 0;
+	    usp->state = S_HAS_ROOM;
+	    // DO NOT RESET: usp->recvoff = 0;
 	    evt = EVT_CONT;
 	    //utf_printf("%s: YI!!!! S_DON_EGR and next slst(%p) usp(%p)\n", __func__, slst, usp);
 	    goto progress;
@@ -610,7 +633,9 @@ int
 utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 {
     int	dst = usp->dst;
-    usp->rcvreset = 0; usp->recvoff = 0;
+    usp->rcvreset = 0;
+    /* DO NOT RESET HERE */
+    // usp->recvoff = 0;
     if (sndmgt_isset_examed(dst, egrmgt) == 0) {
 	/*
 	 * checking availability
@@ -694,16 +719,15 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	    DEBUG(DLEVEL_PROTO_EAGER) {
 		utf_printf("%s: reset recvoff and rst_sent\n", __func__);
 	    }
+	    utf_printf("%s: reset recvoff and rst_sent\n", __func__);
 	    ursp->recvoff = 0;
 	    ursp->rst_sent = 0;
 	}
 	msgp = utf_recvbuf_get(entry);
 	msgp = (struct utf_msgbdy *) ((char*)msgp + ursp->recvoff);
+	utf_printf("%s: RMT_PUT entry(%ld) recvoff(%d) sidx(%d)\n", __func__, entry, ursp->recvoff, sidx);
 	utf_recvengine(av, vcqh, ursp, msgp, sidx);
-	if (ursp->state == R_NONE) {
-	    // utf_printf("%s: YI!!!!  receive done\n", __func__);
-	    break;
-	}
+	/* handling message buffer here in the receiver side */
 	ursp->recvoff += msgp->psize;
 	if (ursp->rst_sent == 0 && ursp->recvoff > MSGBUF_THR) {
 	    utofu_stadd_t	stadd = SCNTR_ADDR_CNTR_FIELD(sidx);

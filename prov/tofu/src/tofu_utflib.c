@@ -62,6 +62,7 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     int fc = FI_SUCCESS;
     struct fi_cq_err_entry cq_e[1], *comp;
 
+    utf_printf("%s: YIZ 3\n", __func__);
     //utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
     //__func__, context, tofu_fi_flags_string(flags), len, data, tag);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
@@ -107,6 +108,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     int fc = FI_SUCCESS;
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
+    utf_printf("%s: YIZ 4\n", __func__);
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("%s: flags = %s bufp(%p) len(%ld)\n",
 		   __func__, tofu_fi_flags_string(flags), bufp, len);
@@ -448,7 +450,6 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
-    usp->dst = dst;
     //fi_tofu_dbgvalue = ohead;
     if (ohead == NULL) { /* this is the first entry */
 	rc = utf_send_start(ctx->ctx_sep->sep_myvcqh, usp);
