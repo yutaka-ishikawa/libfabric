@@ -62,7 +62,6 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     int fc = FI_SUCCESS;
     struct fi_cq_err_entry cq_e[1], *comp;
 
-    utf_printf("%s: YIZ 3\n", __func__);
     //utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
     //__func__, context, tofu_fi_flags_string(flags), len, data, tag);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
@@ -108,7 +107,6 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     int fc = FI_SUCCESS;
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
-    utf_printf("%s: YIZ 4\n", __func__);
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("%s: flags = %s bufp(%p) len(%ld)\n",
 		   __func__, tofu_fi_flags_string(flags), bufp, len);
@@ -543,7 +541,6 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    goto ext;
 	}
 	if (req->status != REQ_DONE) {
-	    utf_printf("%s: must be changed to expected ... req->rndz(%d)...req->status(%d)\n", __func__, req->rndz, req->status);
 	    goto re_enqueue;
 	}
 	/* received data is copied to the specified buffer */
