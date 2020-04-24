@@ -423,7 +423,7 @@ struct utf_send_msginfo { /* msg info */
     struct utf_msghdr	msghdr;		/* message header     +16 = 16 Byte */
     struct utf_egr_sbuf	*sndbuf;	/* send data for eger  +8 = 24 Byte */
     utofu_stadd_t	sndstadd;	/* stadd of sndbuf     +8 = 40 Byte */
-    utofu_stadd_t	usrstadd;	/* stadd of user buf   +8 = 48 Byte */
+    utofu_stadd_t	usrstadd;	/* stadd of user buf for rdma  +8 = 48 Byte */
     void		*usrbuf;	/* stadd of user buf   +8 = 48 Byte */
     struct utf_msgreq	*mreq;		/* request struct      +8 = 32 Byte */
     utfslist_entry		slst;		/* next pointer        +8 = 56 Byte */

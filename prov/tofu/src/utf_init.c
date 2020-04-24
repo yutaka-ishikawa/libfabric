@@ -76,7 +76,13 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
 {
     if (utf_dflag > 0) {
 	utf_redirect();
+    } else {
+	if (getenv("TOFULOG_DIR")) {
+	    utf_redirect();
+	}
     }
+
+    utf_redirect();
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: pid(%d) vcqh(%lx) nprocs(%d)\n", __func__, mypid, vcqh, nprocs);
     }

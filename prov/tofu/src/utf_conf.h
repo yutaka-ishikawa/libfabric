@@ -13,7 +13,9 @@
 #define DLEVEL_UTOFU		0x2
 #define DLEVEL_PROTOCOL		0x4
 #define DLEVEL_PROTO_EAGER	0x8
-#define DLEVEL_PROTO_RENDEZOUS	0x10
+#define DLEVEL_PROTO_RENDEZOUS	0x10	/* 16 */
+#define DLEVEL_PROTO_VBG	0x20	/* 32 */
+#define DLEVEL_ADHOC		0x80	/* 128 */
 #define DLEVEL_ALL		0xffff
 
 /* 

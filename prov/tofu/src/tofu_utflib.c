@@ -157,6 +157,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 	utf_printf("%s: notification received req(%p)->buf(%p)\n", __func__, req, req->buf);
 	utf_printf("%s:\t msg=%s\n", __func__, utf_msghdr_string(&req->hdr, req->buf));
     }
+    utf_printf("%s:rcvnotify\n", __func__);
     assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_EXPECTED2);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
@@ -447,6 +448,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     }
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
+    utf_printf("%s: dst(%d) sz(%ld) hd(%p)\n", __func__, dst, msgsize, ohead);
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     //fi_tofu_dbgvalue = ohead;
     if (ohead == NULL) { /* this is the first entry */
@@ -541,7 +543,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    goto ext;
 	}
 	if (req->status != REQ_DONE) {
-	    goto re_enqueue;
+	    goto req_setup;
 	}
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
@@ -581,12 +583,12 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	}
 	goto ext;
     }
-re_enqueue:
+req_setup:
     if (peek == 1) {
 	utf_printf("%s: peek no\n", __func__);
 	utf_msglst_append(uexplst, req);
 	fc = -FI_ENOMSG;
-    } else { /* register this request to the expected queue */
+    } else { /* register this request to the expected queue if it is new */
 	utfslist *explst;
 	struct utf_msglst *mlst;
 	size_t	i;
@@ -607,17 +609,8 @@ re_enqueue:
 		req->fi_msg[i].iov_base = msg->msg_iov[i].iov_base;
 		req->fi_msg[i].iov_len = msg->msg_iov[i].iov_len;
 	    }
-	    if (req->expsize > CONF_TOFU_INJECTSIZE && utf_msgmode == MSG_RENDEZOUS) {
-		/* rendezous */
-		if (msg->iov_count > 1) {
-		    utf_printf("%s: iov is not supported now\n", __func__);
-		    fc = -FI_EAGAIN; goto ext;
-		}
-		utofu_vcq_id_t vcqh = ctx->ctx_sep->sep_myvcqh;
-		req->bufstadd = utf_mem_reg(vcqh, req->fi_msg[0].iov_base, req->expsize);
-	    }
 	} else {
-	    /* moving unexp to exp queue.
+	    /* moving unexp to exp. but no registration is needed 2020/04/25
 	     * expsize is reset though req was in unexp queue */
 	    req->expsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 	    req->fi_iov_count = msg->iov_count;
@@ -625,11 +618,26 @@ re_enqueue:
 		req->fi_msg[i].iov_base = msg->msg_iov[i].iov_base;
 		req->fi_msg[i].iov_len = msg->msg_iov[i].iov_len;
 	    }
-	    /* copy so far transferred data */
-	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
-			    req->buf, req->rsize);
-	    free(req->buf);
-	    req->buf = 0;
+	    /*
+	     * 2020/04/23: checking
+	     * copy so far transferred data in case of eager
+	     */
+	    if (req->buf) {
+		ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
+				req->buf, req->rsize);
+		free(req->buf);
+		req->buf = 0;
+	    }
+	    utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->status);
+	}
+	if (req->expsize > CONF_TOFU_INJECTSIZE && utf_msgmode == MSG_RENDEZOUS) {
+	    utofu_vcq_id_t vcqh = ctx->ctx_sep->sep_myvcqh;
+	    /* rendezous */
+	    if (msg->iov_count > 1) {
+		utf_printf("%s: iov is not supported now\n", __func__);
+		fc = -FI_EAGAIN; goto ext;
+	    }
+	    req->bufstadd = utf_mem_reg(vcqh, req->fi_msg[0].iov_base, req->expsize);
 	}
 	req->type = REQ_RECV_EXPECTED;	
 	req->fi_ignore = ignore;
@@ -638,14 +646,17 @@ re_enqueue:
 	req->fi_flgs = flags;
 	req->fistatus = 0;
 	req->fi_ucontext = msg->context;
-	explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
-	mlst = utf_msglst_append(explst, req);
-	mlst->fi_ignore = ignore;
-	mlst->fi_context = msg->context;
-	DEBUG(DLEVEL_PROTOCOL) {
-	    utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
-		       __func__, req->expsize, explst == &utf_fitag_explst ? "TAGGED": "REGULAR");
-	    utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
+
+	if (req->status == R_NONE) {
+	    explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
+	    mlst = utf_msglst_append(explst, req);
+	    mlst->fi_ignore = ignore;
+	    mlst->fi_context = msg->context;
+	    DEBUG(DLEVEL_PROTOCOL) {
+		utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
+			   __func__, req->expsize, explst == &utf_fitag_explst ? "TAGGED": "REGULAR");
+		utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
+	    }
 	}
     }
 ext:
