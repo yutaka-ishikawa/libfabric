@@ -10,7 +10,7 @@
 #include "tofu_debug.h"
 #endif
 
-extern void	tofufab_resolve_addrinfo(void *, int rank,
+extern int	tofufab_resolve_addrinfo(void *, int rank,
 					 utofu_vcq_id_t *vcqid, uint64_t *flgs);
 extern sndmgt	*egrmgt;
 extern struct utf_msgreq	*utf_msgreq_alloc();
@@ -53,6 +53,7 @@ utf_engine_init()
     for (i = 0; i < MSG_PEERS; i++) {
 	rcntr[i].state = R_NONE;
 	rcntr[i].mypos = i;
+	rcntr[i].initialized = 0;
 	vcqrcntr[i] = 0;
 	utfslist_init(&rcntr[i].rget_cqlst, NULL);
     }
@@ -70,14 +71,36 @@ vcqid2recvcntr(utofu_vcq_id_t vcqid)
     return NULL;
 }
 
+static void *cur_av;
+
+void
+show_info()
+{
+    int	src, rc;
+    utofu_vcq_id_t svcqid;
+    uint64_t	flags;
+    for (src = 0; src < nprocs; src++) {
+	rc = tofufab_resolve_addrinfo(cur_av, src, &svcqid, &flags);
+	if (rc == 0) {
+	    utf_printf("\t: [%d] vcqid(%lx) flags(%lx)\n", src, svcqid, flags);
+	} else {
+	    utf_printf("\t: [%d] error(%d)\n", src, rc);
+	}
+    }
+}
+
 static inline void
 init_recv_cntr_remote_info(struct utf_recv_cntr *ursp, void *av, int src, int sidx)
 {
     if (ursp->initialized == 0) {
-	tofufab_resolve_addrinfo(av, src, &ursp->svcqid, &ursp->flags);
+	int rc;
+	rc = tofufab_resolve_addrinfo(av, src, &ursp->svcqid, &ursp->flags);
 	ursp->sidx = sidx;
 	vcqrcntr[ursp->mypos] = ursp->svcqid;
 	ursp->initialized = 1;
+	utf_printf("%s: init rc(%d) flgs(%lx)\n", __func__, rc, ursp->flags);
+    } else {
+	utf_printf("%s: flgs(%lx)\n", __func__, ursp->flags);
     }
 }
 
@@ -191,7 +214,10 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		goto rendezous;
 	    }
 	    /* eager */
-	    if (eager_copy_and_check(ursp, req, msgp) == R_DONE) goto done;
+	    if (eager_copy_and_check(ursp, req, msgp) == R_DONE) {
+		utf_printf("%s: expdone\n", __func__);
+		goto done;
+	    }
 	} else { /* New Unexpected message */
 	    //utf_printf("%s: new unexpected message arrives. new req(%p)->rndz=%d\n",
 	    //__func__, req, req->rndz);
@@ -494,7 +520,7 @@ progress:
 	    usp->psize = ssize; /* packet level */
 	    usp->usize = MSG_CALC_EAGER_USIZE(ssize);
 	    usp->state = S_DONE_EGR;
-	    utf_printf("%s: BUF done\n", __func__);
+	    utf_printf("%s: BUF done (%d)\n", __func__, usp->usize);
 	    /* this state must be kept until receiving local put event */
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_showpacket("sender packet buffer", &minfo->sndbuf->msgbdy);
@@ -504,7 +530,7 @@ progress:
 	    break;
 	case SNDCNTR_INPLACE_EAGER:
 	    usp->psize = ssize;
-	    usp->usize = MSG_EAGER_SIZE;
+	    usp->usize = MSG_CALC_EAGER_USIZE(ssize);
 	    usp->state = S_DO_EGR;
 	    remote_put(vcqh, rvcqid, minfo->sndstadd,
 		       recvstadd, ssize, usp->mypos, flgs, 0);
@@ -670,8 +696,8 @@ int
 utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 {
     int	dst = usp->dst;
-    usp->rcvreset = 0;
     /* DO NOT RESET HERE */
+    //usp->rcvreset = 0;
     // usp->recvoff = 0;
     if (sndmgt_isset_examed(dst, egrmgt) == 0) {
 	/*
@@ -785,7 +811,9 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	    utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 			     UTOFU_ARMW_OP_OR, SCNTR_OK,
 			     stadd + SCNTR_RST_RECVRESET_OFFST, sidx, 0);
-	    utf_printf("%s: RST sent src(%d)\n", __func__, EMSG_HDR(msgp).src);
+	    utf_printf("%s: RST sent src(%d) rvcq(%lx) flg(%lx) stadd(%lx)\n",
+		       __func__, EMSG_HDR(msgp).src, ursp->svcqid, ursp->flags, stadd);
+	    cur_av = av;
 	    ursp->rst_sent = 1;
 	} else if (ursp->recvoff > MSGBUF_SIZE) {
 	    utf_printf("%s: receive buffer overrun\n", __func__);
@@ -907,7 +935,8 @@ utf_tcqprogress(utofu_vcq_hdl_t vcqh)
     if (rc != UTOFU_ERR_NOT_FOUND && rc != UTOFU_SUCCESS) {
 	char msg[1024];
 	utofu_get_last_error(msg);
-	utf_printf("%s: error rc(%d) %s\n", __func__, rc, msg);
+	utf_printf("%s: error rc(%d)\n\t%s\n", __func__, rc, msg);
+	show_info();
     }
     return rc;
 }

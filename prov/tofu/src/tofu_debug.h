@@ -10,7 +10,7 @@
 
 extern char	*tofu_fi_flags_string(uint64_t flags);
 
-extern int mypid, myrank;
+extern int mypid, myrank, nprocs;
 extern int rdbgf, rdbgl;
 
 #define RDEBUG 1

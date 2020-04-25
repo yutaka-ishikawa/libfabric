@@ -64,6 +64,7 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 
     //utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
     //__func__, context, tofu_fi_flags_string(flags), len, data, tag);
+    utf_printf("%s:error\n", __func__);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no receive completion is generated\n",  __func__);
@@ -112,6 +113,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 		   __func__, tofu_fi_flags_string(flags), bufp, len);
 	if (bufp) utf_show_data("\tdata = ", bufp, len);
     }
+    utf_printf("%s:DONE\n", __func__);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no completion is generated\n",  __func__);
@@ -157,7 +159,6 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 	utf_printf("%s: notification received req(%p)->buf(%p)\n", __func__, req, req->buf);
 	utf_printf("%s:\t msg=%s\n", __func__, utf_msghdr_string(&req->hdr, req->buf));
     }
-    utf_printf("%s:rcvnotify\n", __func__);
     assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_EXPECTED2);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
@@ -482,6 +483,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	ignore = msg->ignore;
     utfslist *uexplst;
 
+    utf_printf("%s: exp src(%d)\n", __func__, src);
     //R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
     //ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
     if (flags & FI_TAGGED) {
@@ -652,6 +654,7 @@ req_setup:
 	    mlst = utf_msglst_append(explst, req);
 	    mlst->fi_ignore = ignore;
 	    mlst->fi_context = msg->context;
+	    utf_printf("%s:\tregexp src(%d) sz(%ld)\n", __func__, src, req->expsize);
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
 			   __func__, req->expsize, explst == &utf_fitag_explst ? "TAGGED": "REGULAR");

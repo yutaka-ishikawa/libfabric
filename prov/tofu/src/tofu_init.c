@@ -107,7 +107,7 @@ struct fi_provider *fi_prov_ini(void)
 /**************************************************************************/
 extern void utf_redirect();
 extern int utf_dbg_progress(int);
-int mypid, myrank;
+int mypid, myrank, nprocs;
 int rdbgf;
 int rdbgl;
 

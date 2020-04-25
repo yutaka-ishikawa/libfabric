@@ -119,6 +119,7 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
     av->av_sep->sep_myrank
         = tofu_av_lookup_rank_by_vcqid(av, av->av_sep->sep_myvcqid);
     myrank = av->av_sep->sep_myrank;
+    nprocs = count;
     /* fastlock_release(&av->av_lck); */
     utf_init_2(av->av_sep->sep_myvcqh, avtp->nct);
 bad:

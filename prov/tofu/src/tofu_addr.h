@@ -28,18 +28,25 @@ tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
 				vnam->tniq[0]>>4,
 				vnam->tniq[0]&0x0f,
 				vnam->cid, vcqid);
+    if (uc != UTOFU_SUCCESS) {
+	R_DBG("utof_construct_vcq_id error: rc(%d)\n", uc);
+	goto bad;
+    }
     if (flgs) {
-	utofu_path_id_t	pathid;
-	utofu_get_path_id(*vcqid, vnam->xyzabc, &pathid);
+	utofu_path_id_t	pathid = 0;
+	if ((uc = utofu_get_path_id(*vcqid, &vnam->xyzabc[3], &pathid)) != UTOFU_SUCCESS) {
+	    R_DBG("utof_get_path_id error: rc(%d)\n", uc);
+	}
 	*flgs = UTOFU_ONESIDED_FLAG_PATH(pathid);
     }
+bad:
     if (uc != UTOFU_SUCCESS) {
 	R_DBG("Something wrong %u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
 	      vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
 	      vnam->xyzabc[3], vnam->xyzabc[4], vnam->xyzabc[5], vnam->cid, uc);
 	fc = -FI_EINVAL;
+	abort();
     }
-bad:
     return fc;
 }
 

@@ -607,10 +607,10 @@ struct fi_ops_tagged tofu_ctx_ops_tag = {
 
 
 
-void
+int
 tofufab_resolve_addrinfo(void *av, int rank,
                          utofu_vcq_id_t *vcqid, uint64_t *flgs)
 {
-    tofu_av_lookup_vcqid_by_fia((struct tofu_av *) av,  (fi_addr_t) rank,
-                         vcqid, flgs);
+    return tofu_av_lookup_vcqid_by_fia((struct tofu_av *) av,  (fi_addr_t) rank,
+				       vcqid, flgs);
 }
