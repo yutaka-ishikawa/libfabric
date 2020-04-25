@@ -84,6 +84,7 @@ utfslist_remove2(utfslist *lst, utfslist_entry *cur, utfslist_entry *prev)
 	lst->head = cur->next;
 	if (lst->head == NULL) lst->tail = NULL;
     } else {
+	if (lst->tail == cur) lst->tail = prev;
 	prev->next = cur->next;
     }
     return cur->next;

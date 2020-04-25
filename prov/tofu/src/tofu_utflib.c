@@ -220,6 +220,7 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     struct tofu_ctx *ctx;
     struct tofu_cq  *cq;
 
+    utf_printf("%s: DONE\n", __func__);
     //utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
     //__func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
     assert(req->type == REQ_SND_REQ);
@@ -449,7 +450,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     }
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
-    utf_printf("%s: dst(%d) sz(%ld) hd(%p)\n", __func__, dst, msgsize, ohead);
+    utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     //fi_tofu_dbgvalue = ohead;
     if (ohead == NULL) { /* this is the first entry */
@@ -483,7 +484,6 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	ignore = msg->ignore;
     utfslist *uexplst;
 
-    utf_printf("%s: exp src(%d)\n", __func__, src);
     //R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
     //ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
     if (flags & FI_TAGGED) {
@@ -495,11 +495,13 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     } else {
 	uexplst = &utf_fimsg_uexplst;
     }
+    utf_printf("%s: exp src(%d) tag(%lx) lst(%p)\n", __func__, src, tag, uexplst);
     if ((idx=tofu_utf_uexplst_match(uexplst, src, tag, ignore, peek)) != -1) {
 	/* found in unexpected queue */
 	size_t	sz;
 	uint64_t myflags;
 	req = utf_idx2msgreq(idx);
+	utf_printf("\tfound\n");
 	if (req->status == REQ_WAIT_RNDZ && req->rndz) { /* rendezous */
 	    utofu_vcq_id_t vcqh;
 	    size_t	   msgsize;

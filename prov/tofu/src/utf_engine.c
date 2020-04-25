@@ -137,7 +137,7 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 	}
     }
     req->rsize += cpysz;
-    utf_printf("%s: src(%d) rsz(%ld) hsz(%ld)\n", __func__, req->hdr.src, req->rsize, req->hdr.size);
+    utf_printf("%s: src(%d) tag(%lx) rsz(%ld) hsz(%ld)\n", __func__, req->hdr.src, req->hdr.tag, req->rsize, req->hdr.size);
     if (req->hdr.size == req->rsize) { /* all data has come */
 	req->status = REQ_DONE;
 	ursp->state = R_DONE;
@@ -344,6 +344,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		  = pkt->hdr.flgs&FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
 		utf_msglst_append(uexplst, req);
 		// utf_printf("%s: register req(%p) to unexpected queue(%p)\n", __func__, req, uexplst);
+		utf_printf("%s: reg uexp %p\n", __func__, uexplst);
 	    }
 #else
 	    utf_msglst_append(&utf_uexplst, req);
