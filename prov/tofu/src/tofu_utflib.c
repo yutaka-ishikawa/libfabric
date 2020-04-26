@@ -64,7 +64,7 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 
     //utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
     //__func__, context, tofu_fi_flags_string(flags), len, data, tag);
-    utf_printf("%s:error\n", __func__);
+    DEBUG(DLEVEL_ADHOC) utf_printf("%s:error\n", __func__);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no receive completion is generated\n",  __func__);
@@ -113,7 +113,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 		   __func__, tofu_fi_flags_string(flags), bufp, len);
 	if (bufp) utf_show_data("\tdata = ", bufp, len);
     }
-    utf_printf("%s:DONE\n", __func__);
+    DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE\n", __func__);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no completion is generated\n",  __func__);
@@ -220,7 +220,7 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     struct tofu_ctx *ctx;
     struct tofu_cq  *cq;
 
-    utf_printf("%s: DONE\n", __func__);
+    DEBUG(DLEVEL_ADHOC) utf_printf("%s: DONE\n", __func__);
     //utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
     //__func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
     assert(req->type == REQ_SND_REQ);
@@ -275,7 +275,7 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 			    msg->msg_iov[0].iov_base, sndsz);
 	} else {
 	    /* This is a naive copy. we should optimize this copy */
-	    char	*cp = malloc(sndsz);
+	    char	*cp = utf_malloc(sndsz);
 	    if (cp == NULL) {
 		fc = -FI_ENOMEM; goto err;
 	    }
@@ -283,7 +283,7 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 			      msg->msg_iov, msg->iov_count, 0);
 	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
 			    cp, sndsz);
-	    free(cp);
+	    utf_free(cp);
 	}
 	/* completion */
 	/* generating completion event to receiver CQ  */
@@ -450,7 +450,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     }
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
-    utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
+    DEBUG(DLEVEL_ADHOC) utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     //fi_tofu_dbgvalue = ohead;
     if (ohead == NULL) { /* this is the first entry */
@@ -495,13 +495,13 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     } else {
 	uexplst = &utf_fimsg_uexplst;
     }
-    utf_printf("%s: exp src(%d) tag(%lx) lst(%p)\n", __func__, src, tag, uexplst);
+    DEBUG(DLEVEL_ADHOC) utf_printf("%s: exp src(%d) tag(%lx) lst(%p)\n", __func__, src, tag, uexplst);
     if ((idx=tofu_utf_uexplst_match(uexplst, src, tag, ignore, peek)) != -1) {
 	/* found in unexpected queue */
 	size_t	sz;
 	uint64_t myflags;
 	req = utf_idx2msgreq(idx);
-	utf_printf("\tfound\n");
+	DEBUG(DLEVEL_ADHOC) utf_printf("\tfound src(%d)\n", src);
 	if (req->status == REQ_WAIT_RNDZ && req->rndz) { /* rendezous */
 	    utofu_vcq_id_t vcqh;
 	    size_t	   msgsize;
@@ -580,7 +580,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 			       req->fi_flgs, req->rsize,
 			       req->hdr.data, req->hdr.tag);
 	    }
-	    free(req->buf); /* allocated dynamically and must be free */
+	    utf_free(req->buf); /* allocated dynamically and must be free */
 	    utf_msgreq_free(req);
 	} else if (~(flags & FI_CLAIM)) {
 	    req->fi_ucontext = msg->context;
@@ -629,10 +629,10 @@ req_setup:
 	    if (req->buf) {
 		ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
 				req->buf, req->rsize);
-		free(req->buf);
+		utf_free(req->buf);
 		req->buf = 0;
 	    }
-	    utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->status);
+	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->status);
 	}
 	if (req->expsize > CONF_TOFU_INJECTSIZE && utf_msgmode == MSG_RENDEZOUS) {
 	    utofu_vcq_id_t vcqh = ctx->ctx_sep->sep_myvcqh;
@@ -656,7 +656,7 @@ req_setup:
 	    mlst = utf_msglst_append(explst, req);
 	    mlst->fi_ignore = ignore;
 	    mlst->fi_context = msg->context;
-	    utf_printf("%s:\tregexp src(%d) sz(%ld)\n", __func__, src, req->expsize);
+	    DEBUG(DLEVEL_ADHOC) utf_printf("%s:\tregexp src(%d) sz(%ld)\n", __func__, src, req->expsize);
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
 			   __func__, req->expsize, explst == &utf_fitag_explst ? "TAGGED": "REGULAR");

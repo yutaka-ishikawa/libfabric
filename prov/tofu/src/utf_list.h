@@ -25,14 +25,15 @@ utfslist_init(utfslist *lst, utfslist_entry *ent)
 static inline utfslist_entry *
 utfslist_append(utfslist *lst, utfslist_entry *ent)
 {
-    utfslist_entry	*ohead;
-    if ((ohead = lst->head)) {
+    utfslist_entry	*ohead = lst->head;
+    if (lst->tail) {
 	lst->tail->next = ent;
     } else { /* empty */
 	lst->head = ent;
     }
     lst->tail = ent;
     ent->next = NULL;
+    /* ohead still points to the next entry */
     return ohead;
 }
 
@@ -83,10 +84,11 @@ utfslist_remove2(utfslist *lst, utfslist_entry *cur, utfslist_entry *prev)
     if (lst->head == cur) {
 	lst->head = cur->next;
 	if (lst->head == NULL) lst->tail = NULL;
-    } else {
-	if (lst->tail == cur) lst->tail = prev;
-	prev->next = cur->next;
+    } else if (lst->tail == cur) {
+	/* cur is the tail means no successor */
+	lst->tail = prev;
     }
+    if (prev) prev->next = cur->next;
     return cur->next;
 }
 

@@ -111,7 +111,7 @@ utf_recv(int src, size_t size, int tag, void *buf, int *ridx)
 	bcopy(req->buf, buf, size);
 	/* Thi is unexpected message.
 	 * This means the buffer is allocated dynamically */
-	free(req->buf);
+	utf_free(req->buf);
 	utf_msgreq_free(req);
 	*ridx = -1;
 	return 0;

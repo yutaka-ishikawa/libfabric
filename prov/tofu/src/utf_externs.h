@@ -1,4 +1,6 @@
 #include "utflib.h"
+extern void	*utf_malloc(size_t);
+extern void	utf_free(void*);
 extern void	utf_engine_init();
 extern void	utf_egrsbuf_init(utofu_vcq_hdl_t, int);
 extern struct utf_egr_sbuf *utf_egrsbuf_alloc();

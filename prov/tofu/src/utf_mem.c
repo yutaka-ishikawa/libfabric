@@ -56,13 +56,30 @@ uint32_t		utf_msgreq_size;
 static utfslist		utf_msgreqfree;
 //static utf_bits		*utf_msgreq_bits;
 
+void *
+utf_malloc(size_t sz)
+{
+    void	*ptr = malloc(sz);
+    if (ptr == NULL) {
+	utf_printf("%s: cannot allocate memory size(%ld)\n", __func__, sz);
+	abort();
+    }
+    return ptr;
+}
+
+void
+utf_free(void *ptr)
+{
+    free(ptr);
+}
+
 
 void
 utf_msglst_init()
 {
     int	i;
     
-    utf_msglst_pool = malloc(sizeof(struct utf_msglst)*REQ_SIZE);
+    utf_msglst_pool = utf_malloc(sizeof(struct utf_msglst)*REQ_SIZE);
     SYSERRCHECK_EXIT(utf_msglst_pool, ==, NULL, "Not enough memory");
     utfslist_init(&utf_msglstfree, NULL);
     for (i = 0; i < REQ_SIZE; i++) {
@@ -124,7 +141,7 @@ utf_msgreq_init()
 {
     int	i;
     
-    utf_msgreq_pool = malloc(sizeof(struct utf_msgreq)*REQ_SIZE);
+    utf_msgreq_pool = utf_malloc(sizeof(struct utf_msgreq)*REQ_SIZE);
     SYSERRCHECK_EXIT(utf_msgreq_pool, ==, NULL, "Not enough memory");
     utf_msgreq_size = REQ_SIZE;
     utfslist_init(&utf_msgreqfree, NULL);
@@ -239,7 +256,7 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs, int entries)
 	utf_scntrp[i].mypos = i;
     }
     /* rank2scntridx table is allocated */
-    rank2scntridx = malloc(sizeof(uint16_t)*nprocs);
+    rank2scntridx = utf_malloc(sizeof(uint16_t)*nprocs);
     SYSERRCHECK_EXIT(rank2scntridx, ==, NULL, "Not enough memory");
     for(i = 0; i < nprocs; i++) {
 	rank2scntridx[i] = -1;

@@ -323,13 +323,14 @@ tofu_ctx_msg_inject(struct fid_ep *fid_ep,  const void *buf, size_t len,
     struct fi_msg_tagged tmsg;
     struct iovec iovs[1];
     uint64_t flags = FI_INJECT;
-    void        *alocbuf;
 
-    alocbuf = malloc(len);
-    memcpy(alocbuf, buf, len); // NEEDDS to handle dynamic memory allocation!!
-    iovs->iov_base  = alocbuf;
+    if (len > CONF_TOFU_INJECTSIZE) {
+	R_DBG("%s: Message size(%ld) is larger than the INJECT SIZE (%d)\n",
+	      __func__, len, CONF_TOFU_INJECTSIZE);
+	return -FI_ENOMEM;
+    }
+    iovs->iov_base  = (void*) buf;
     iovs->iov_len   = len;
-
     tmsg.msg_iov    = iovs;
     tmsg.desc	    = 0;
     tmsg.iov_count  = 1;
@@ -340,9 +341,9 @@ tofu_ctx_msg_inject(struct fid_ep *fid_ep,  const void *buf, size_t len,
     tmsg.data	    = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "%s in %s  len(%ld)\n", __func__, __FILE__, len);
-    R_DBG1(RDBG_LEVEL3, "fi_inject dest(%s) len(%ld) orgbuf(%p) copied(%p) FI_INJECT",
+    R_DBG1(RDBG_LEVEL3, "fi_inject dest(%s) len(%ld) buf(%p) FI_INJECT",
           fi_addr2string(buf1, 128, dest_addr, fid_ep),
-          len, buf, alocbuf);
+	   len, buf);
 
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
 
