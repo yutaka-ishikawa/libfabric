@@ -15,11 +15,16 @@ int	utf_initialized;
 int
 utf_getenvint(char *envp)
 {
+    int	val = 0;
     char	*cp = getenv(envp);
     if (cp) {
-	return atoi(cp);
+	if (!strncmp(cp, "0x", 2)) {
+	    sscanf(cp, "%x", &val);
+	} else {
+	    val = atoi(cp);
+	}
     }
-    return 0;
+    return val;
 }
 
 int
