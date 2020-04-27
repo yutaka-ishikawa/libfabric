@@ -75,10 +75,10 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 	utf_printf("%s: cq(%p) CQ is full\n",  __func__, cq);
 	fc = -FI_EAGAIN; goto bad;
     }
-    /* FI_CLAIM */
+    /* FI_CLAIM is not set because no FI_BUFFERED_RECV is set*/
     cq_e->op_context	= context;
     cq_e->flags		=   FI_RECV
-		| (flags & (FI_MULTI_RECV|FI_TAGGED|FI_REMOTE_CQ_DATA));
+		| (flags & (FI_MULTI_RECV|FI_MSG|FI_TAGGED|FI_REMOTE_CQ_DATA|FI_COMPLETION));
     cq_e->len		= len;
     //cq_e->buf		= (flags & FI_MULTI_RECV) ? bufp : 0;
     cq_e->buf		= bufp;
@@ -124,10 +124,10 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 	utf_printf("%s: cq(%p) CQ is full\n",  __func__, cq);
 	fc = -FI_EAGAIN; goto bad;
     }
-    /* FI_CLAIM */
+    /* FI_CLAIM is not set because no FI_BUFFERED_RECV is set*/
     cq_e->op_context	= context;
     cq_e->flags		=   FI_RECV
-		| (flags & (FI_MULTI_RECV|FI_TAGGED|FI_REMOTE_CQ_DATA|FI_COMPLETION));
+		| (flags & (FI_MULTI_RECV|FI_MSG|FI_TAGGED|FI_REMOTE_CQ_DATA|FI_COMPLETION));
     cq_e->len		= len;
     //cq_e->buf		= (flags & FI_MULTI_RECV) ? bufp : 0;
     cq_e->buf		= bufp;
@@ -255,7 +255,6 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
     }
     if ((idx = tofu_utf_explst_match(explst, src, tag, 0)) != -1) {/* found */
 	uint64_t	sndsz;
-	uint64_t	cq_flags;
 
 	req = utf_idx2msgreq(idx);
 	sndsz = req->expsize >= msgsz ? msgsz : req->expsize;
@@ -276,9 +275,7 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 	} else {
 	    /* This is a naive copy. we should optimize this copy */
 	    char	*cp = utf_malloc(sndsz);
-	    if (cp == NULL) {
-		fc = -FI_ENOMEM; goto err;
-	    }
+	    if (cp == NULL) { fc = -FI_ENOMEM; goto err; }
 	    ofi_copy_from_iov(cp, req->expsize,
 			      msg->msg_iov, msg->iov_count, 0);
 	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
@@ -483,6 +480,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     struct utf_msgreq	*req = 0;
     fi_addr_t	src = msg->addr;
     uint64_t	tag = msg->tag;
+    uint64_t	data = msg->data;
     uint64_t	ignore = msg->ignore;
     utfslist *uexplst;
 
@@ -497,28 +495,31 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     } else {
 	uexplst = &utf_fimsg_uexplst;
     }
-    DEBUG(DLEVEL_ADHOC) utf_printf("%s: exp src(%d) tag(%lx) lst(%p)\n", __func__, src, tag, uexplst);
+    DEBUG(DLEVEL_ADHOC) {
+	utf_printf("%s: exp src(%d) tag(%lx) data(%lx) ignore(%lx) flags(%s)\n",
+		   __func__, src, tag, data, ignore,
+		   tofu_fi_flags_string(flags));
+    }
     if ((idx=tofu_utf_uexplst_match(uexplst, src, tag, ignore, peek)) != -1) {
 	/* found in unexpected queue */
 	size_t	sz;
+	size_t  msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 	uint64_t myflags;
+
 	req = utf_idx2msgreq(idx);
 	DEBUG(DLEVEL_ADHOC) utf_printf("\tfound src(%d)\n", src);
 	if (req->status == REQ_WAIT_RNDZ && req->rndz) { /* rendezous */
 	    utofu_vcq_id_t vcqh;
-	    size_t	   msgsize;
 	    struct utf_recv_cntr *ursp = req->rcntr;
 	    if (peek == 1) {
 		/* A control message has arrived in the unexpected queue,
 		 * but not yet receiving the data at this moment.
 		 * Thus, just return with FI_ENOMSG for FI_PEEK */
-		fc = -FI_ENOMSG;
-		goto ext;
+		goto peek_nomsg_ext;
 	    }
 	    // utf_printf("%s: req->status REQ_WAIT_RNDZ and RENDEZOUS\n", __func__);
 	    // req->expsize is declared by the sender
 	    vcqh = ctx->ctx_sep->sep_myvcqh;
-	    msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 	    /* ursp->req does not point to my request, but we need information */
 /*
 	    if (ursp->req != req) {
@@ -546,14 +547,15 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    utfslist_append(&ursp->rget_cqlst, &req->slst);
 	    remote_get(vcqh, ursp->svcqid, req->bufstadd,
 		       req->rmtstadd, msgsize, ursp->sidx, ursp->flags, 0);
+	    if (peek == 1) {
+		fc = -FI_ENOMSG;
+	    }
 	    goto ext;
 	}
 	if (req->status != REQ_DONE) {
+	    /* return value is -FI_ENOMSG */
 	    goto req_setup;
 	}
-	/* received data is copied to the specified buffer */
-	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
-				 req->buf, req->rsize);
 	if (peek == 1 && (flags & FI_CLAIM)
 	    && req->fi_ucontext != msg->context) {
 	    /* How should we do ? */
@@ -561,18 +563,12 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 		       " previous context(%p) now context(%p)\n",
 		       __func__, req->fi_ucontext, msg->context);
 	}
-	/* CQ is immediately generated */
-	/* sender's flag or receiver's flag */
-	myflags = req->hdr.flgs | flags;                                                                                 
-	if (sz != req->rsize) {                                                                                          
-	    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, myflags, sz,                                                  
-                           req->rsize, -1, -1,                                                                           
-                           req->fi_msg[0].iov_base, req->hdr.data, tag);                                                 
-	} else {                                                                                                         
-            tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, sz,                                                  
-                           req->fi_msg[0].iov_base, req->hdr.data, tag);                                                 
-	}
-	if (peek == 0) { /* reclaim unexpected resources */
+	/* received data is copied to the specified buffer */
+	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
+			     req->buf, req->rsize);
+	if (peek == 0 
+	    || ((flags & FI_CLAIM) && (req->fi_ucontext == msg->context))) {
+	    /* reclaim unexpected resources */
 #if 0	/* at this time the message has been copied */
 	    if (req->fistatus == REQ_SELFSEND) {
 		/* This request has been created by tofu_utf_sendmsg_self */
@@ -583,19 +579,40 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 			       req->hdr.data, req->hdr.tag);
 	    }
 #endif
+	    DEBUG(DLEVEL_ADHOC) utf_printf("%s:\t free src(%d)\n", __func__, src);
 	    utf_free(req->buf); /* allocated dynamically and must be free */
 	    utf_msgreq_free(req);
-	} else if (~(flags & FI_CLAIM)) {
-	    req->fi_ucontext = msg->context;
+	} else { /* FI_PEEK, no needs to copy message */
+	    if (~(flags & FI_CLAIM)) {
+		/* FI_PEEK but not FI_CLIAM */
+		DEBUG(DLEVEL_ADHOC) utf_printf("%s:\t set fi_ucontext(%ld) src(%d)\n", __func__, req->fi_ucontext, src);
+		req->fi_ucontext = msg->context;
+	    }
+	}
+	/* CQ is immediately generated */
+	/* sender's flag or receiver's flag */
+	myflags = req->hdr.flgs | flags;
+	if (peek == 0 && (sz < req->rsize)) {
+	    /* overrun */
+	    utf_printf("%s: overrun expected size(%ld) req->rsize(%ld)\n", __func__, msgsize, req->rsize);
+	    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, myflags,
+			   sz, /* received message size */
+			   req->rsize - msgsize, /* overrun length */
+			   -FI_ETOOSMALL, -FI_ETOOSMALL,
+			   req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+	} else {
+	    if (peek == 1 && msgsize == 0) {
+		tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, req->rsize,
+			       req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+	    } else {
+		tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, sz,
+			       req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+	    }
 	}
 	goto ext;
     }
 req_setup:
-    if (peek == 1) {
-	utf_printf("%s: peek no\n", __func__);
-	utf_msglst_append(uexplst, req);
-	fc = -FI_ENOMSG;
-    } else { /* register this request to the expected queue if it is new */
+    if (peek == 0) { /* register this request to the expected queue if it is new */
 	utfslist *explst;
 	struct utf_msglst *mlst;
 	size_t	i;
@@ -606,7 +623,7 @@ req_setup:
 		fc = -FI_ENOMEM; goto ext;
 	    }
 	    req->hdr.src = src;
-	    req->hdr.data = msg->data;
+	    req->hdr.data = data;
 	    req->hdr.tag = tag;
 	    req->rsize = 0;
 	    req->status = R_NONE;
@@ -666,6 +683,26 @@ req_setup:
 		utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
 	    }
 	}
+    } else {
+	/* FI_PEEK with no message, Generating CQ Error */
+    peek_nomsg_ext:
+	/* In MPICH implementation,
+	 * CQE will not be examined when -FI_ENOMSG is returned.
+	 * See src/mpid/ch4/netmod/ofi/ofi_probe.h
+	 *	Is this OK to generate CQE here ? 2020/04/27
+	 */
+	DEBUG(DLEVEL_ADHOC) {
+	    utf_printf("%s:\t No message arrives. just return FI_ENOMSG. Is this OK ?\n", __func__);
+	}
+#if 0
+	DEBUG(DLEVEL_ADHOC) {
+	    utf_printf("%s:\t gen CQE src(%d) cntxt(%lx)\n",
+		       __func__, src, msg->context);
+	}
+	tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, flags,
+		       0, 0, FI_ENOMSG, -1, 0, data, req->hdr.tag);
+#endif
+	fc = -FI_ENOMSG;
     }
 ext:
     return fc;
