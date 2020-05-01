@@ -17,6 +17,7 @@ static struct fi_ops tofu_ctx_fi_ops = {
     .ops_open	    = fi_no_ops_open,
 };
 
+static ssize_t tofu_ctx_cancel(fid_t fid, void *context);
 static int tofu_ctx_getopt(fid_t fid, int level, int optname,
                            void *optval, size_t *optlen);
 static int tofu_ctx_setopt(fid_t fid, int level,  int optname,
@@ -24,7 +25,7 @@ static int tofu_ctx_setopt(fid_t fid, int level,  int optname,
 
 static struct fi_ops_ep tofu_ctx_ops = {
     .size           = sizeof (struct fi_ops_ep),
-    .cancel         = fi_no_cancel,
+    .cancel         = tofu_ctx_cancel,
     .getopt         = tofu_ctx_getopt,
     .setopt         = tofu_ctx_setopt,
     .tx_ctx         = fi_no_tx_ctx,
@@ -522,6 +523,21 @@ tofu_ctx_ctrl(struct fid *fid, int command, void *arg)
 
 bad:
     // R_DBG("fc(%d)", fc);
+    return fc;
+}
+
+static ssize_t
+tofu_ctx_cancel(fid_t fid, void *context)
+{
+    int fc = FI_SUCCESS;
+    //struct tofu_ctx *ctx_priv;
+
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    assert(fid != 0);
+    //ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
+
+    R_DBG("%s: is not yet implemented. context(%p)", __func__, context);
+    fc = -FI_ENOSYS;
     return fc;
 }
 
