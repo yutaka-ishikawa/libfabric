@@ -1,0 +1,10 @@
+MAIN = tofuprovider
+#TEX = pdflatex
+TEX = platex -kanji=euc
+DVIPDF = dvipdfmx
+BIBTEX = bibtex
+TEXSRC = tofuprovider.tex overview.tex protocol.tex icep.tex ofif.tex toq.tex cq.tex rma.tex
+
+FIG = $(wildcard figs/*.{pdf,eps,png})
+XBB = $(patsubst %.pdf,%.xbb, $(wildcard figs/*.pdf)) \
+        $(patsubst %.png,%.xbb, $(wildcard figs/*.png))
