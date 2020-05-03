@@ -1,3 +1,5 @@
+
+
 [1] Sender engine
 (1) State transition in the sender buffer control
 
@@ -43,6 +45,16 @@ REQ_ROOM ==+===> HAS_ROOM -+--------------------------+
                      EVL_PUT
                         DO_EGR ==> WAIT_BUFDRDY ==> WAIT_BUFDRY
 
+(5) Important Sequences
+   EVL_PUT              EVR_WRMW        EVL_PUT
+  +=======>+DO_EGR--put+=======>+(rest)+========>+DO_EGR--put
+
+   EVL_PUT              EVL_PUT                    EVR_WRMW
+  +=======>+DO_EGR--put+=======>+ DO_EGR---+WAIT +========> + DO_EGR--put
+
+   EVL_PUT                EVL_WRMW
+  +=======>+DO_EGR--+WAIT+========>+ DO_EGR--put
+
 
 [2] Receive engine
 (1) State transition in the receiver buffer control
@@ -55,19 +67,25 @@ R_NONE+===+
           |      - //  if msg is rendzvous, enqueue ursp->rget_cqlst ---> R_NONE
           |        //     this state is handled in the req structure.
 	  |          
-	  |        +------> R_DO_RNDZ+=+
-          |        otherwise           " EVL_GET
-          |        |                   v
-          |        +------> R_BODY   +---> R_DONE --> R_NONE
-          |                ^ EVR_PUT "
-          |                +=========+
+	  |        +---> R_DO_RNDZ+=+
+	  |        v                "
+          |        otherwise        " EVL_GET
+          |        |                v
+          |        +----> R_BODY    +---> R_DONE --> R_NONE
+          |               ^ EVR_PUT "
+          |               +=========+
           +  if unexpected msg
                  - enqueue unexpected msg.
                  - //if msg is rendzvous, enqueue ursp->rget_cqlst ---> R_NONE
                    //     this state is handled in the req structure.
-                   otherwise                
-                   | 
-                   +------> R_BODY --> R_DONE --> R_NONE
+                   +if msg is rendzcous, 
+                   +-------------> R_WAIT_RNDZ
+                                        | by recv_post
+                                        +~~~~~~~>R_DO_RNDZ
+                   otherwise                        +
+                   |                                " EVL_GET
+                   |                                v
+                   +------> R_BODY --+----------> R_DONE --> R_NONE
                            ^ EVR_PUT "
                            +=========+
 
@@ -115,7 +133,12 @@ in the sender/receiver buffer control. But when
 	    - implementation of recvoff reset
 (6) UTOFU_MRQ_TYPE_RMT_ARMW
 	  Sender-side
-	    - implementation of remote get by 
+	    - implementation of remote get by receiver
+	        address: stadd + SCNTR_RGETDONE_OFFST
 	    - implementation of recvoff reset
+	        address: stadd + SCNTR_
 	  Receiver-side
 	    - ignore this event
+
+
+
