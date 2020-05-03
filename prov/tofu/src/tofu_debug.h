@@ -20,10 +20,10 @@ extern int rdbgf, rdbgl;
  * The user calls this function or setenv
  */
 
-/* setenv("TOFU_DEBUG", value, 1); */
+/* setenv("TOFU_DEBUG_FD", value, 1); */
 #define RDBG_STDOUT     0x1     /* output to stdout */
 #define RDBG_STDERR     0x2     /* output to stderr */
-/* setenv("TOFU_DLEVEL", value, 1); */
+/* setenv("TOFU_DEBUG_VVLL", value, 1); */
 #define RDBG_LEVEL1     0x1     /* general use */
 #define RDBG_LEVEL2     0x2     /* selective */
 #define RDBG_LEVEL3     0x2     /* general use */
@@ -49,13 +49,13 @@ extern int rdbgf, rdbgl;
 #define R_DBG0(level, format, ...)                                      \
    do {									\
 	   if (rdbgf & 0x01 && level & rdbgl) {                         \
-		   printf("\t%d: " format " in %s:%d\n",		\
-			  mypid, __VA_ARGS__, __func__, __LINE__);	\
+		   printf("\t[%d]:%d: " format " in %s:%d\n",		\
+			  myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stdout);					\
            }                                                            \
 	   if (rdbgf & 0x02 && level & rdbgl) {                         \
-		   fprintf(stderr, "%d: " format " in %s:%d\n",		\
-			   mypid, __VA_ARGS__, __func__, __LINE__);	\
+		   fprintf(stderr, "[%d]:%d: " format " in %s:%d\n",	\
+			   myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stderr);					\
 	   }								\
    } while (0)
@@ -64,13 +64,13 @@ extern int rdbgf, rdbgl;
     do {								\
 	    char buf1[128];						\
             if (rdbgf & 0x01 && level & rdbgl) {                        \
-		    printf("\t%d: " format " in %s:%d\n",		\
-			   mypid, __VA_ARGS__, __func__, __LINE__);	\
+		    printf("\t[%d]:%d: " format " in %s:%d\n",		\
+			   myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
 		    fflush(stdout);					\
             }                                                           \
             if (rdbgf & 0x02 && level & rdbgl) {                        \
-	    fprintf(stderr, "%d: " format " in %s:%d\n",		\
-			    mypid, __VA_ARGS__, __func__, __LINE__);	\
+	    fprintf(stderr, "[%d]:%d: " format " in %s:%d\n",		\
+                    myrank, mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stderr);					\
 	    }								\
     } while (0)
@@ -79,13 +79,13 @@ extern int rdbgf, rdbgl;
    do {									\
 	   char buf1[128], buf2[128];					\
            if (rdbgf & 0x01 && level & rdbgl) {                         \
-		   printf("\t%d:" format " in %s:%d\n",			\
-			  mypid, __VA_ARGS__, __func__, __LINE__);	\
+		   printf("\t[%d]:%d:" format " in %s:%d\n",		\
+			  myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stdout);					\
            }                                                            \
            if (rdbgf & 0x02 && level & rdbgl) {                         \
-		   fprintf(stderr, "%d:" format " in %s:%d\n",		\
-			  mypid, __VA_ARGS__, __func__, __LINE__);	\
+		   fprintf(stderr, "[%d]:%d:" format " in %s:%d\n",	\
+                           myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stderr);					\
 	   }								\
    } while (0)

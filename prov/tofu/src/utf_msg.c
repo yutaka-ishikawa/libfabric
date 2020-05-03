@@ -42,10 +42,10 @@ remote_piggysend(utofu_vcq_hdl_t vcqh,
 	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
-    UTOFU_CALL(utofu_prepare_put_piggyback,
+    UTOFU_CALL(1, utofu_prepare_put_piggyback,
 	       vcqh, rvcqid, data, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
-    UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_piggyback: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
     }
@@ -65,10 +65,10 @@ remote_put(utofu_vcq_hdl_t vcqh,
     	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
-    UTOFU_CALL(utofu_prepare_put,
+    UTOFU_CALL(1, utofu_prepare_put,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
-    UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_put: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
     }
@@ -87,10 +87,10 @@ remote_get(utofu_vcq_hdl_t vcqh,
     	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
-    UTOFU_CALL(utofu_prepare_get,
+    UTOFU_CALL(1, utofu_prepare_get,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
-    UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS) {
 	utf_printf("remote_get: desc size(%ld) cbdata(%ld) lcl_stadd(%lx) rmt_stadd(%lx)\n",
 		   sz, cbdata, lstadd, rstadd);
@@ -175,11 +175,11 @@ utf_remote_add(utofu_vcq_hdl_t vcqh,
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("remote_add: val(%ld) rvcqid(%lx)\n", val, rvcqid);
     }
-    UTOFU_CALL(utofu_prepare_armw8,
+    UTOFU_CALL(1, utofu_prepare_armw8,
 	       vcqh, rvcqid,
 	       UTOFU_ARMW_OP_ADD,
 	       val, rstadd, edata, flgs, desc, &sz);
-    UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
     return 0;
 }
 
@@ -199,7 +199,7 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 	utf_printf("utf_remote_armw4: val(%ld) rvcqid(%lx) op(%x) rstadd(%lx)\n",
 		 val, rvcqid, op, rstadd);
     }
-    UTOFU_CALL(utofu_armw4, vcqh, rvcqid, op,
+    UTOFU_CALL(1, utofu_armw4, vcqh, rvcqid, op,
 	       val, rstadd, edata, flgs, cbdata);
     return 0;
 }
@@ -295,7 +295,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
 	      sizeof(utofu_stadd_t));
 	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
-	sbufp->msgbdy.rndz = MSG_RENDEZOUS;
+	sbufp->msgbdy.ptype = PKT_RENDZ;
     }
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
     if (ohead == NULL) { /* this is the first entry */

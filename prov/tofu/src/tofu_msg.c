@@ -23,17 +23,21 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
     uint16_t tni[1], tcq[1], cid[1];
     int uc;
 
-    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
-    av_priv = ctx_priv->ctx_sep->sep_av_;
-    tofu_av_lookup_vcqid_by_fia(av_priv, fi_addr, &vcqi, 0);
-    uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
-    if (uc == UTOFU_SUCCESS) {
-        snprintf(buf, sz, "xyzabc(%02x:%02x:%02x:%02x:%02x:%02x), "
-                 "tni(%d), tcq(%d), cid(0x%x)",
-		 xyz[0], xyz[1], xyz[2], xyz[3], xyz[4], xyz[5],
-		 tni[0], tcq[0], cid[0]);
+    if (fi_addr == -1) {
+	snprintf(buf, sz, "fi_addr(-1)");
     } else {
-        snprintf(buf, sz, "fi_addr_unspec");
+	ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+	av_priv = ctx_priv->ctx_sep->sep_av_;
+	tofu_av_lookup_vcqid_by_fia(av_priv, fi_addr, &vcqi, 0);
+	uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
+	if (uc == UTOFU_SUCCESS) {
+	    snprintf(buf, sz, "xyzabc(%02x:%02x:%02x:%02x:%02x:%02x), "
+		     "tni(%d), tcq(%d), cid(0x%x)",
+		     xyz[0], xyz[1], xyz[2], xyz[3], xyz[4], xyz[5],
+		     tni[0], tcq[0], cid[0]);
+	} else {
+	    snprintf(buf, sz, "fi_addr_unspec");
+	}
     }
     return buf;
 }
@@ -166,9 +170,9 @@ tofu_ctx_msg_recvmsg(struct fid_ep *fid_ep, const struct fi_msg *msg,
     tmsg.data	    = msg->data;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1(RDBG_LEVEL3, "fi_recvmsg src(%s) len(%ld) buf(%p) flags(0x%lx)", 
+    R_DBG1(RDBG_LEVEL3, "fi_recvmsg src(%s) len(%ld) buf(%p) flags(%s)", 
            fi_addr2string(buf1, 128, msg->addr, fid_ep),
-           msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, flags);
+           msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, tofu_fi_flags_string(flags));
 
     ret = tofu_ctx_msg_recv_common(fid_ep, &tmsg, flags);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
@@ -234,9 +238,9 @@ tofu_ctx_msg_sendmsg(struct fid_ep *fid_ep,const struct fi_msg *msg,
     tmsg.data	    = msg->data;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1(RDBG_LEVEL3, "fi_senddata dest(%s) len(%ld) buf(%p) data(%ld) flags(0x%lx)",
+    R_DBG1(RDBG_LEVEL3, "fi_senddata dest(%s) len(%ld) buf(%p) data(%ld) flags(%s)",
           fi_addr2string(buf1, 128, msg->addr, fid_ep),
-          msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, msg->data, flags);
+          msg->msg_iov[0].iov_len, msg->msg_iov[0].iov_base, msg->data, tofu_fi_flags_string(flags));
 
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
     if (ret != 0) { goto bad; }
@@ -427,10 +431,10 @@ tofu_ctx_tag_recvmsg(struct fid_ep *fid_ep,
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
 
     flags |= FI_TAGGED;
-    R_DBG1(RDBG_LEVEL3, "fi_trecvmsg src(%s) len(%ld) buf(%p) flags(0x%lx)", 
+    R_DBG1(RDBG_LEVEL3, "fi_trecvmsg src(%s) len(%ld) buf(%p) flags(%s)", 
            fi_addr2string(buf1, 128, msg->addr, fid_ep),
            msg->msg_iov ? msg->msg_iov[0].iov_len : 0,
-           msg->msg_iov ? msg->msg_iov[0].iov_base : 0, flags);
+           msg->msg_iov ? msg->msg_iov[0].iov_base : 0, tofu_fi_flags_string(flags));
 
     ret = tofu_ctx_msg_recv_common(fid_ep, msg, flags);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
@@ -536,15 +540,15 @@ tofu_ctx_tag_senddata(struct fid_ep *fid_ep,
     tmsg.data	    = data;
 
     if (buf) {
-        R_DBG1(RDBG_LEVEL3, "fi_tsenddata dest(%s) len(%ld) data(%ld) "
-               "buf(%d) tag(%lx) flags(%lx)",
-               fi_addr2string(buf1, 128, dest_addr, fid_ep),
-               len, data, *(int*)buf, tag, flags);
+        R_DBG1(RDBG_LEVEL3, "fi_tsenddata dest(%ld: %s) len(%ld) desc(%p) buf(%p) data(%ld) "
+               "buf(%d) tag(%lx) flags(%s)",
+	       dest_addr, fi_addr2string(buf1, 128, dest_addr, fid_ep),
+               len, desc, buf, data, *(int*)buf, tag, tofu_fi_flags_string(flags));
     } else {
-        R_DBG1(RDBG_LEVEL3, "fi_tsenddata dest(%s) len(%ld) data(%ld) "
-               "buf=nil tag(%lx) flags(%lx)",
-               fi_addr2string(buf1, 128, dest_addr, fid_ep),
-               len, data, tag, flags);
+        R_DBG1(RDBG_LEVEL3, "fi_tsenddata dest(%ld: %s) len(%ld) desc(%p) buf(%p) data(%ld) "
+               "buf=nil tag(%lx) flags(%s)",
+	       dest_addr, fi_addr2string(buf1, 128, dest_addr, fid_ep),
+               len, desc, buf, data, tag, tofu_fi_flags_string(flags));
     }
 
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
@@ -570,8 +574,8 @@ tofu_ctx_tag_injectdata(struct fid_ep *fid_ep,
     //   dest_addr, len, data, tofu_fi_flags_string(flags));
     
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%ld: %s) len(%ld) data(%ld) tag(%lx) flags(%lx)",
-	   dest_addr, fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data, tag, flags);
+    R_DBG1(RDBG_LEVEL3, "fi_tinjectdata dest(%ld: %s) len(%ld) data(%ld) buf(%p) tag(%lx) flags(%s)",
+	   dest_addr, fi_addr2string(buf1, 128, dest_addr, fid_ep), len, data, buf, tag, tofu_fi_flags_string(flags));
 
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;

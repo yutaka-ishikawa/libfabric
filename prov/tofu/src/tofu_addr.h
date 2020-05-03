@@ -2,12 +2,13 @@ static inline int
 tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
 			    utofu_vcq_id_t *vcqid, uint64_t *flgs)
 {
-    int		uc, fc = FI_SUCCESS;
+    int	uc = UTOFU_SUCCESS;
+    int	fc = FI_SUCCESS;
     size_t	rx_idx, av_idx;
     struct tofu_vname *vnam;
 
     if (fi_a == FI_ADDR_NOTAVAIL) {
-	fc = -FI_EINVAL; goto bad;
+	fc = -FI_EINVAL; uc = -FI_EINVAL; goto bad;
     }
     assert(av->av_rxb >= 0);
     /* assert(av->av_rxb <= TOFU_RX_CTX_MAX_BITS); */
@@ -41,8 +42,8 @@ tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
     }
 bad:
     if (uc != UTOFU_SUCCESS) {
-	R_DBG("Something wrong %u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
-	      vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
+	R_DBG("Something wrong fi_a(%ld) %u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
+	      fi_a, vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
 	      vnam->xyzabc[3], vnam->xyzabc[4], vnam->xyzabc[5], vnam->cid, uc);
 	fc = -FI_EINVAL;
 	abort();

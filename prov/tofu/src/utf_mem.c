@@ -188,7 +188,7 @@ utf_egrsbuf_init(utofu_vcq_hdl_t vcqh, int entries)
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
     memset(utf_egsbuf, 0, sizeof(struct utf_egr_sbuf)*entries);
 
-    UTOFU_CALL(utofu_reg_mem, vcqh, (void *)utf_egsbuf,
+    UTOFU_CALL(1, utofu_reg_mem, vcqh, (void *)utf_egsbuf,
 	       sizeof(struct utf_egr_sbuf)*entries, 0, &egsbfstadd);
     utf_egsbufsize = entries;
     utfslist_init(&utf_egsbuffree, NULL);
@@ -200,7 +200,7 @@ utf_egrsbuf_init(utofu_vcq_hdl_t vcqh, int entries)
 void
 utf_egrsbuf_fin(utofu_vcq_hdl_t vcqh)
 {
-    UTOFU_CALL(utofu_dereg_mem, vcqh, egsbfstadd, 0);
+    UTOFU_CALL(0, utofu_dereg_mem, vcqh, egsbfstadd, 0);
 }
 
 void
@@ -243,7 +243,7 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs, int entries)
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enoguh memory");
     memset(utf_scntrp, 0, sizeof(struct utf_send_cntr)*entries);
 
-    UTOFU_CALL(utofu_reg_mem_with_stag, vcqh, (void*) utf_scntrp,
+    UTOFU_CALL(1, utofu_reg_mem_with_stag, vcqh, (void*) utf_scntrp,
 	       sizeof(struct utf_send_cntr)*entries,
 	       TAG_SNDCTR, 0, &sndctrstadd);
     // utf_printf("YI****** sndctrstadd(%lx)\n", sndctrstadd);
@@ -328,7 +328,7 @@ utf_sndminfo_init(utofu_vcq_hdl_t vcqh, int entries)
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
     memset(utf_sndminfo_pool, 0, sizeof(struct utf_send_msginfo)*entries);
 
-    UTOFU_CALL(utofu_reg_mem, vcqh, (void *)utf_sndminfo_pool,
+    UTOFU_CALL(1, utofu_reg_mem, vcqh, (void *)utf_sndminfo_pool,
 	       sizeof(struct utf_send_msginfo)*entries, 0, &sndminfostadd);
     utf_sndminfosize = entries;
     utfslist_init(&utf_sndminfofree, NULL);
@@ -407,7 +407,7 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
     memset(erbuf, 0, sizeof(struct erecv_buf));
 
-    UTOFU_CALL(utofu_reg_mem_with_stag,
+    UTOFU_CALL(1, utofu_reg_mem_with_stag,
 	       vcqh, (void *)erbuf, sizeof(struct erecv_buf),
 	       TAG_ERBUF, 0, &erbstadd);
     erbuf->header.cntr = MSG_PEERS - 1;
@@ -416,7 +416,7 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
     memset(egrmgt, 0, sizeof(sndmgt)*nprocs);
 
-    UTOFU_CALL(utofu_reg_mem_with_stag,
+    UTOFU_CALL(1, utofu_reg_mem_with_stag,
 	       vcqh, (void *)egrmgt, sizeof(sndmgt)*nprocs,
 	       TAG_EGRMGT, 0, &egrmgtstadd);
     
@@ -455,22 +455,22 @@ utf_mem_reg(utofu_vcq_id_t vcqh, void *buf, size_t size)
 {
     utofu_stadd_t	stadd;
     
-    UTOFU_CALL(utofu_reg_mem, vcqh, buf, size, 0, &stadd);
+    UTOFU_CALL(1, utofu_reg_mem, vcqh, buf, size, 0, &stadd);
     return stadd;
 }
 
 void
 utf_mem_dereg(utofu_vcq_id_t vcqh, utofu_stadd_t stadd)
 {
-    UTOFU_CALL(utofu_dereg_mem, vcqh, stadd, 0);
+    UTOFU_CALL(1, utofu_dereg_mem, vcqh, stadd, 0);
     return;
 }
 
 void
 utf_stadd_free(utofu_vcq_hdl_t vcqh)
 {
-    UTOFU_CALL(utofu_dereg_mem, vcqh, erbstadd, 0);
-    UTOFU_CALL(utofu_dereg_mem, vcqh, egrmgtstadd, 0);
+    UTOFU_CALL(0, utofu_dereg_mem, vcqh, erbstadd, 0);
+    UTOFU_CALL(0, utofu_dereg_mem, vcqh, egrmgtstadd, 0);
 }
 
 void

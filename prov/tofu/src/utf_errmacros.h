@@ -34,7 +34,21 @@ extern void utofu_get_last_error(const char*);
     }									\
 } while(0);
 
-#define UTOFU_CALL(func, ...) do {					\
+#define UTOFU_ERRCHECK_EXIT_IF(abrt, rc) do {				\
+    if (rc != UTOFU_SUCCESS) {						\
+	char msg[1024];							\
+	utofu_get_last_error(msg);					\
+	printf("[%d] error: %s (code:%d) @ %d in %s\n",			\
+	       mypid, msg, rc, __LINE__, __FILE__);			\
+	fprintf(stderr, "[%d] error: %s (code:%d) @ %d in %s\n",	\
+	        mypid, msg, rc, __LINE__, __FILE__);			\
+	fflush(stdout); fflush(stderr);					\
+	if (abrt) abort();						\
+    }									\
+} while(0);
+
+
+#define UTOFU_CALL(abrt, func, ...) do {				\
     char msg[256];							\
     int rc;								\
     DEBUG(DLEVEL_UTOFU) {						\
@@ -42,7 +56,7 @@ extern void utofu_get_last_error(const char*);
 	utf_printf("%s", msg);						\
     }									\
     rc = func(__VA_ARGS__);						\
-    UTOFU_ERRCHECK_EXIT(rc);						\
+    UTOFU_ERRCHECK_EXIT_IF(abrt, rc);					\
 } while (0);
 
 #define ERRCHECK_RETURN(val1, op, val2, rc) do {			\

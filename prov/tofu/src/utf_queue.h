@@ -44,16 +44,28 @@ struct utf_hpacket {
 };
 
 /*
- * 1920 = 18 + 1902
+ * MSG_SIZE 1920
+ * MSG_PAYLOAD_SIZE = 1918
+ * MSG_EAGER_SIZE = 1878
  */
 #pragma pack(1)
 struct utf_msgbdy {
-    uint16_t	psize:15,	/* 32 kByte max */
-    		rndz: 1;	/* 1 for rendezous */
+    uint16_t	psize:14,	/* 16 kByte max */
+    		ptype: 2;	/* 0 : eager
+				 * 1 : rendezous
+				 * 2 : fi_writmsg
+				 * 3 : fi_readmsg */
     union {
 	struct utf_hpacket	h_pkt;
 	uint8_t		rawdata[MSG_PAYLOAD_SIZE];
     } payload;
+};
+
+enum {
+    PKT_EAGER = 0,
+    PKT_RENDZ = 1,
+    PKT_WRITE = 2,
+    PKT_READ  = 3
 };
 
 #define EMSG_HDR(msgp) ((msgp)->payload.h_pkt.hdr)
@@ -100,7 +112,7 @@ struct utf_msgreq {
     uint8_t	fistatus;	/* 42: fabric-level status */
     uint8_t	status;		/* 43: utf-level  status */
     uint8_t	type:4,		/* 44: EXPECTED or UNEXPECTED or SENDREQ */
-		rndz:4;		/* RENDEZOUS or not */
+		ptype:4;	/* PKT_EAGER | PKT_RENDZ | PKT_WRITE | PKT_READ */
     size_t	rsize;		/* 52: utf received size */
     size_t	expsize;	/* 60: expected size in expected queue */
     utfslist_entry slst;	/* 68: list */
@@ -345,7 +357,9 @@ typedef enum rstate {
     R_BODY		= 3,
     R_WAIT_RNDZ		= 4,
     R_DO_RNDZ		= 5,
-    R_DONE		= 6,
+    R_DO_READ		= 6,
+    R_DO_WRITE		= 7,
+    R_DONE		= 8,
 } rstate;
 	
 
@@ -363,7 +377,7 @@ struct utf_recv_cntr {
     utofu_vcq_id_t	svcqid;	/* rendezous: sender's vcqid */
     uint64_t		flags;	/* rendezous: sender's flags */
     int		sidx;		/* rendezous: sender's sidx */
-    utfslist	rget_cqlst;	/* CQ for remote get operation in UTF level */
+    //utfslist	rget_cqlst;	/* CQ for remote get operation in UTF level */
 };
 
 typedef enum sstate {
@@ -398,14 +412,14 @@ enum {
 
 #pragma pack(1)
 struct utf_send_cntr {	/* 92 Byte */
-    uint32_t		rgetdone:1,	/* ready for resetting recv offset */
+    uint32_t		rgetdone:1,	/* remote get done */
 			ineager: 1,	/* */
 			rgetwait:2,	/* */
 			state: 4,	/* upto 15 states */
 			ostate: 4,
 			mypos: 20;	/* */
 					/*  +4 =  4 Byte */
-    uint32_t		rcvreset: 1,
+    uint32_t		rcvreset: 1,	/* ready for resetting recv offset */
 			recvoff: 31;	/*  +4 =  8 Byte */
     uint32_t		dst;		/*  +4 = 12 Byte */
     uint64_t		flags;		/*  +8 = 20 Byte */

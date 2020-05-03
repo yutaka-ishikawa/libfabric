@@ -213,21 +213,13 @@ tofu_ictx_close(struct tofu_ctx *ctx)
     }
     if (myrank == 0) {
         static int nfst = 0;
-        if (nfst == 0) { R_DBG("%s: NEEDS TO IMPLEMENT", __func__); nfst = 1; }
+        if (nfst == 0) { R_DBG("%s: Needs to checking if it's all in closing utofu", __func__); nfst = 1; }
     }
-#if 0
     if (ctx->ctx_enb != 0) {
-	assert(ctx->vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
-	uc = utofu_free_vcq(ctx->vcqh);
-	if (uc != UTOFU_SUCCESS) { goto bad; }
-	ctx->vcqh = 0; /* XXX */
-	ctx->ctx_enb = 0;
+        struct tofu_sep     *sep = ctx->ctx_sep;
+	assert(sep->sep_myvcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
+        utf_finalize(sep->sep_myvcqh);
     }
-#endif
-    /* unexpected entries */
-    /* expected entries */
-    /* transmit entries */
-    /* desc_cash */
 bad:
     return uc;
 }
@@ -264,7 +256,7 @@ static int tofu_ctx_close(struct fid *fid)
     }
     if (myrank == 0) {
         static int nfst = 0;
-        if (nfst == 0) { R_DBG("%s: NEEDS TO IMPLEMENT", __func__); nfst = 1; }
+        if (nfst == 0) { R_DBG("%s: NEEDS TO clean up ", __func__); nfst = 1; }
     }
 #if 0
     if (ctx_priv->ctx_trx != 0) {

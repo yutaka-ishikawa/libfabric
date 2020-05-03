@@ -101,22 +101,27 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     cq = container_of(fid_cq, struct tofu_cq, cq_fid);
 
     ent = tofu_progress(cq);
-    if (ent == 0) {
-        ret = -FI_EAGAIN; goto empty;
-    }
     ent = (ent > count) ? count : ent;
     fastlock_acquire(&cq->cq_lck);
-    for (i = 0; i < ent; i++) {
-        struct fi_cq_tagged_entry *comp;
-	comp = ofi_cirque_head(cq->cq_ccq);
-        assert(comp != 0);
-        /* copy */
-        ((struct fi_cq_tagged_entry *)buf)[i] = *comp;
-        ofi_cirque_discard(cq->cq_ccq);
+    if (ent > 0) {
+        for (i = 0; i < ent; i++) {
+            struct fi_cq_tagged_entry *comp;
+            comp = ofi_cirque_head(cq->cq_ccq);
+            assert(comp != 0);
+            /* copy */
+            ((struct fi_cq_tagged_entry *)buf)[i] = *comp;
+            ofi_cirque_discard(cq->cq_ccq);
+        }
+        ret = ent;
+    } else {
+        ssize_t eent = ofi_cirque_usedcnt(cq->cq_cceq);
+        if (eent > 0) {
+            ret = -FI_EAVAIL;
+        } else {
+            ret = -FI_EAGAIN;
+        }
     }
     fastlock_release(&cq->cq_lck);
-    ret = ent;
-empty:
     return ret;
 }
 

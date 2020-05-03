@@ -10,6 +10,16 @@
 #include "utf_sndmgt.h"
 #include <rdma/fabric.h>
 
+/*
+ *	See also ofi_events.c in the mpich/src/mpid/ch4/netmod/ofi directory
+ *		 fi_errno.h   in the include/rma directory
+ *	CQ value  : FI_EAVAIL
+ *	CQE value :
+ *		FI_ETRUNC	265
+ *		FI_ECANCELED	125
+ *		FI_ENOMSG	42
+ */
+
 __attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
 void	*fi_tofu_dbgvalue;
 utfslist *dbg_uexplst;
@@ -23,6 +33,8 @@ extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
 extern char     *tofu_fi_msg_string(const struct fi_msg_tagged *msgp);
 extern char	*utf_msghdr_string(struct utf_msghdr *hdrp, void *bp);
+
+#include "utf_msgmacro.h"
 
 static char	*rstate_symbol[] = {
     "R_FREE", "R_NONE", "R_HEAD", "R_BODY", "R_DO_RNDZ", "R_DONE"
@@ -64,15 +76,15 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 
     //utf_printf("%s: context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n",
     //__func__, context, tofu_fi_flags_string(flags), len, data, tag);
-    DEBUG(DLEVEL_ADHOC) utf_printf("%s:error\n", __func__);
+    DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE error len(%ld) olen(%ld) err(%d)\n", __func__, len, olen, err);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no receive completion is generated\n",  __func__);
 	return fc;
     }
     fastlock_acquire(&cq->cq_lck);
-    if (ofi_cirque_isfull(cq->cq_ccq)) {
-	utf_printf("%s: cq(%p) CQ is full\n",  __func__, cq);
+    if (ofi_cirque_isfull(cq->cq_cceq)) {
+	utf_printf("%s: cq(%p) CQE is full\n",  __func__, cq);
 	fc = -FI_EAGAIN; goto bad;
     }
     /* FI_CLAIM is not set because no FI_BUFFERED_RECV is set*/
@@ -113,7 +125,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 		   __func__, tofu_fi_flags_string(flags), bufp, len);
 	if (bufp) utf_show_data("\tdata = ", bufp, len);
     }
-    DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE\n", __func__);
+    DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE len(%ld)\n", __func__, len);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no completion is generated\n",  __func__);
@@ -155,17 +167,20 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     struct tofu_ctx *ctx;
     uint64_t	flags = req->hdr.flgs | (req->fi_flgs&FI_MULTI_RECV);
 
-    DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("%s: notification received req(%p)->buf(%p)\n", __func__, req, req->buf);
-	utf_printf("%s:\t msg=%s\n", __func__, utf_msghdr_string(&req->hdr, req->buf));
+    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+	utf_printf("%s: notification received req(%p)->buf(%p) "
+		   "iov_base(%p) msg=%s\n", __func__,
+		   req, req->buf, req->fi_msg[0].iov_base, utf_msghdr_string(&req->hdr, req->buf));
     }
     assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_EXPECTED2);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
     if (req->ustatus == REQ_OVERRUN) {
 	tofu_reg_rcveq(ctx->ctx_recv_cq, req->fi_ucontext,
-		       flags, req->rsize,
-		       req->hdr.size, -1, -1,
+		       flags,
+		       req->rsize, /* received size */
+		       req->rsize - req->expsize, /* overrun length */
+		       FI_ETRUNC, FI_ETRUNC,  /* not negative value here */
 		       req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
     } else {
 	tofu_reg_rcvcq(ctx->ctx_recv_cq, req->fi_ucontext,
@@ -194,7 +209,7 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     }
     if (flags & FI_INJECT
 	|| (cq->cq_ssel && !(flags & FI_COMPLETION))) {
-	DEBUG(DLEVEL_PROTOCOL) {
+	DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	    utf_printf("%s: no send completion is generated\n",  __func__);
 	}
 	goto skip;
@@ -413,6 +428,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	minfo->usrstadd = 0;
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
 	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(msgsize);
+	sbufp->msgbdy.ptype = PKT_EAGER;
 	/* message copy */
 	if (msg->iov_count > 0) { /* if 0, null message */
 	    ofi_copy_from_iov(sbufp->msgbdy.payload.h_pkt.msgdata,
@@ -435,6 +451,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	    bcopy(minfo->usrbuf, sbufp->msgbdy.payload.h_pkt.msgdata, MSG_EAGER_SIZE);
 	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(MSG_EAGER_SIZE);
 	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
+	    sbufp->msgbdy.ptype = PKT_EAGER;
 	} else { /* Rendezvous */
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 		utf_printf("RENDEZOUS\n");
@@ -444,7 +461,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	          sizeof(utofu_stadd_t));
 	    minfo->cntrtype = SNDCNTR_RENDEZOUS;
 	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
-	    sbufp->msgbdy.rndz = MSG_RENDEZOUS;
+	    sbufp->msgbdy.ptype = PKT_RENDZ;
 	}
     }
     /* for utf progress */
@@ -508,7 +525,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 
 	req = utf_idx2msgreq(idx);
 	DEBUG(DLEVEL_ADHOC) utf_printf("\tfound src(%d)\n", src);
-	if (req->status == REQ_WAIT_RNDZ && req->rndz) { /* rendezous */
+	if (req->status == REQ_WAIT_RNDZ && req->ptype) { /* rendezous */
 	    utofu_vcq_id_t vcqh;
 	    struct utf_recv_cntr *ursp = req->rcntr;
 	    if (peek == 1) {
@@ -517,36 +534,18 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 		 * Thus, just return with FI_ENOMSG for FI_PEEK */
 		goto peek_nomsg_ext;
 	    }
-	    // utf_printf("%s: req->status REQ_WAIT_RNDZ and RENDEZOUS\n", __func__);
-	    // req->expsize is declared by the sender
 	    vcqh = ctx->ctx_sep->sep_myvcqh;
-	    /* ursp->req does not point to my request, but we need information */
-/*
-	    if (ursp->req != req) {
-		utf_printf("%s: ursp(%p) req(%p) req->status(%d)\n", __func__, ursp, req, req->status);
-		if (ursp) { utf_printf("\tursp->state=%d ursp->req(%p)\n", ursp->state, ursp->req); }
-	    } else {
-		ursp->state = R_DO_RNDZ;
-	    }
 	    assert(ursp->req == req);
-*/
 	    req->bufstadd = utf_mem_reg(vcqh, msg->msg_iov[0].iov_base, msgsize);
 	    req->fi_ctx = ctx;
 	    req->fi_flgs = flags;
 	    req->fi_ucontext = msg->context;
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED2;
-	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		utf_printf("%s: issuing remote_get -- to(0x%lx) rendezous msgsize(0x%lx) "
-			   "local stadd(0x%lx) remote stadd(0x%lx) "
-			   "edata(%d) mypos(%d)\n",
-			   __func__, ursp->svcqid, msgsize, req->bufstadd,
-			   req->rmtstadd, ursp->sidx, ursp->mypos);
-	    }
-	    /* enter to the rget_cqlst */
-	    utfslist_append(&ursp->rget_cqlst, &req->slst);
-	    remote_get(vcqh, ursp->svcqid, req->bufstadd,
-		       req->rmtstadd, msgsize, ursp->sidx, ursp->flags, 0);
+	    utf_do_rget(vcqh, ursp, R_DO_RNDZ);
+	    /* ursp->state is changed to R_DO_RNDZ */
+	    //remote_get(vcqh, ursp->svcqid, req->bufstadd,
+	    //           req->rmtstadd, msgsize, ursp->sidx, ursp->flags, 0);
 	    if (peek == 1) {
 		fc = -FI_ENOMSG;
 	    }
@@ -598,7 +597,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, myflags,
 			   sz, /* received message size */
 			   req->rsize - msgsize, /* overrun length */
-			   -FI_ETOOSMALL, -FI_ETOOSMALL,
+			   FI_ETRUNC, FI_ETRUNC, /* not negative value here */
 			   req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
 	} else {
 	    if (peek == 1 && msgsize == 0) {

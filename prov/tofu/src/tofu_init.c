@@ -123,7 +123,7 @@ TOFU_INI
         char *cp;
         cp = getenv("TOFU_DEBUG_LVL");
         if (cp) {
-	    if (!strncmp(optarg, "0x", 2)) {
+	    if (!strncmp(cp, "0x", 2)) {
 		sscanf(cp, "%x", &rdbgl);
             } else {
                 rdbgl = atoi(cp);

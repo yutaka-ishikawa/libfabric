@@ -104,8 +104,12 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
 void
 utf_finalize(utofu_vcq_hdl_t vcqh)
 {
+    utf_printf("%s: vcqh(%lx) initialized(%d)\n", __func__, vcqh, utf_initialized);
+    if (utf_initialized == 0) return;
     utf_egrsbuf_fin(vcqh);
     utf_stadd_free(vcqh);
+    UTOFU_CALL(0, utofu_free_vcq, vcqh);
+    utf_initialized = 0;
 }
 
 int
@@ -125,12 +129,12 @@ bremote_add(utofu_vcq_hdl_t vcqh,
 	| UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE;
 /*	| UTOFU_MRQ_TYPE_LCL_ARMW;*/
     utf_printf("bremote_add: off(%ld) val(%ld)\n", off, val);
-    UTOFU_CALL(utofu_prepare_armw8,
+    UTOFU_CALL(0, utofu_prepare_armw8,
 	       vcqh, rvcqid,
 	       UTOFU_ARMW_OP_ADD,
 	       val, rstadd + off, edata, flgs, desc, &sz);
     cbdata1 = (void*) __LINE__;
-    UTOFU_CALL(utofu_post_toq, vcqh, desc, sz, cbdata1);
+    UTOFU_CALL(0, utofu_post_toq, vcqh, desc, sz, cbdata1);
     do {
 	rc = utofu_poll_tcq(vcqh, 0, &cbdata2);
     } while (rc == UTOFU_ERR_NOT_FOUND);

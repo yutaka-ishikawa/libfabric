@@ -34,7 +34,7 @@ tofu_ctx_rma_readmsg(struct fid_ep *fid_ep,
 //    struct tofu_ctx *ctx_priv = 0;
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
-    fprintf(stderr, "YI**** fi_readmsg is only implemented for self\n"); fflush(stderr);
+    R_DBG("%s: YI**** fi_readmsg src(%ld)", __func__, msg->addr);
 
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
     return ret;
@@ -51,8 +51,7 @@ tofu_ctx_rma_writemsg(struct fid_ep *fid_ep,
     ssize_t ret = 0;
 //    struct tofu_ctx *ctx_priv = 0;
 
-    fprintf(stderr, "YI**** fi_writemsg is only implemented for self\n"); fflush(stderr);
-    printf("YI**** fi_writemsg is only implemented for self\n"); fflush(stdout);
+    R_DBG("%s: YI**** fi_writemsg src(%ld)", __func__, msg->addr); fflush(stderr);
     FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
     return ret;
 }
