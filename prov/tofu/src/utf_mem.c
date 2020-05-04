@@ -449,13 +449,50 @@ utf_recvbuf_get(int idx)
     return bp;
 }
 
+utfslist		utf_wait_rmacq;
+static utfslist		utf_free_rmacq;
+static struct utf_rma_cq *utf_rmacq_pool;
+
+void
+utf_rmacq_init()
+{
+    int	i;
+    utf_rmacq_pool = utf_malloc(sizeof(struct utf_rma_cq)*RMACQ_SIZE);
+    utfslist_init(&utf_free_rmacq, NULL);
+    for (i = 0; i < RMACQ_SIZE; i++) {
+	utfslist_append(&utf_free_rmacq, &utf_rmacq_pool[i].slst);
+    }
+}
+
+struct utf_rma_cq *
+utf_rmacq_alloc()
+{
+    struct utfslist_entry *slst = utfslist_remove(&utf_free_rmacq);
+    struct utf_rma_cq *cq;
+    if (slst == NULL) {
+	utf_printf("%s: no more RMA CQ entry\n", __func__);
+	abort();
+    }
+    cq = container_of(slst, struct utf_rma_cq, slst);
+    return cq;
+}
+
+void
+utf_rmacq_free(struct utf_rma_cq *cq)
+{
+    utfslist_insert(&utf_free_rmacq, &cq->slst);
+}
+
 
 utofu_stadd_t
-utf_mem_reg(utofu_vcq_id_t vcqh, void *buf, size_t size)
+utf_mem_reg(utofu_vcq_hdl_t vcqh, void *buf, size_t size)
 {
-    utofu_stadd_t	stadd;
-    
+    utofu_stadd_t	stadd = 0;
+
     UTOFU_CALL(1, utofu_reg_mem, vcqh, buf, size, 0, &stadd);
+    DEBUG(DLEVEL_ADHOC) {
+	utf_printf("%s: size(%ld) vcqh(%lx) buf(%p) stadd(%lx)\n", __func__, size, vcqh, buf, stadd);
+    }
     return stadd;
 }
 
@@ -463,6 +500,9 @@ void
 utf_mem_dereg(utofu_vcq_id_t vcqh, utofu_stadd_t stadd)
 {
     UTOFU_CALL(1, utofu_dereg_mem, vcqh, stadd, 0);
+    DEBUG(DLEVEL_ADHOC) {
+	utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, stadd);
+    }
     return;
 }
 

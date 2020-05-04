@@ -16,6 +16,8 @@ extern sndmgt	*egrmgt;
 extern struct utf_msgreq	*utf_msgreq_alloc();
 extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
+extern utfslist utf_wait_rmacq;
+
 extern int scntr2idx(struct utf_send_cntr *scp);
 
 #include "utf_msgmacro.h"
@@ -189,14 +191,13 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 }
 
 static inline void
-utf_done_rget(utofu_vcq_id_t vcqh, struct utf_msgreq *req)
+utf_done_rget(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
 {
-    struct utf_recv_cntr *ursp = req->rcntr;
+    struct utf_msgreq *req = ursp->req;
     int sidx = ursp->sidx;
     utofu_stadd_t	stadd = SCNTR_ADDR_CNTR_FIELD(sidx);
-    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
+    DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
 	utf_printf("%s: R_DO_RNDZ done ursp(%p)\n", __func__, ursp);
-	utf_printf("%s: raise recv notify from req(%p)\n", __func__, req);
     }
     /*
      * notification to the sender: local mrq notification is supressed
@@ -299,24 +300,6 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
 		/* state is now R_WAIT_RNDZ */
 		break;
-	    case PKT_WRITE: /* fi_writemsg */
-		req->rcntr = ursp;
-		req->rmtstadd = ((utofu_stadd_t*) pkt->msgdata)[0];
-		req->buf = ((uint8_t**) pkt->msgdata)[1];
-		req->bufstadd = utf_mem_reg(vcqh, req->buf, req->expsize);
-		init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
-		utf_do_rget(vcqh, ursp, R_DO_WRITE);
-		/* state is now R_DO_WRITE */
-		break;
-	    case PKT_READ: /* fi_readmsg */
-		req->rcntr = ursp;
-		req->rmtstadd = ((utofu_stadd_t*) pkt->msgdata)[0];
-		req->buf = ((uint8_t**) pkt->msgdata)[1];
-		init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
-		req->bufstadd = utf_mem_reg(vcqh, req->buf, req->expsize);
-		utf_do_rput(vcqh, ursp, R_DO_READ);
-		/* state is now R_DO_READ */
-		break;
 	    }
 	}
 	/* state is now  R_DO_RNDZ | R_BODY | R_WAIT_RNDZ 
@@ -336,13 +319,14 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	abort();
 	break;
     case R_DO_WRITE:
-	req = ursp->req;
-	utf_done_rget(vcqh, req);
+	utf_done_rget(vcqh, ursp);
 	goto reset_state;
     case R_DO_RNDZ: /* R_DO_RNDZ --> R_DONE */
-	req = ursp->req;
-	utf_done_rget(vcqh, req);
-	goto done;
+	DEBUG(DLEVEL_ADHOC) {
+	    utf_printf("%s: R_DO_RNDZ ursp->req(%p) -->\n", __func__, ursp->req);
+	}
+	utf_done_rget(vcqh, ursp);
+	/* Falls through. */
     case R_DONE:
 	req = ursp->req;
     done:
@@ -592,7 +576,7 @@ progress:
 	utf_printf("%s: S_DO_EGR_WAITCMPL rcvreset(%d)\n", __func__, usp->rcvreset);
 	break;
     case S_REQ_RDVR:
-	DEBUG(DLEVEL_PROTO_RENDEZOUS) {
+	DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
 	    utf_printf("%s: S_REQ_RDVR evt(%s) rgetwait(%d)\n",
 		       __func__, evnt_symbol[evt], usp->rgetwait);
 	}
@@ -604,6 +588,8 @@ progress:
 	usp->rgetwait |= (evt == EVT_RMT_GET) ? 2 : 0 ;
 	if (usp->rgetwait == 3) { /* remote completion from the receiver */
 	    usp->state = S_RDVDONE;
+	} else {
+	    break;
 	}
 	/* Falls through. */
     case S_RDVDONE:
@@ -697,6 +683,52 @@ utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
     }
 }
 
+void
+utf_rma_lclcq(struct utofu_mrq_notice mrq_notice)
+{
+    struct utf_rma_cq	*cq;
+    utfslist_entry	*cur, *prev;
+
+    utf_printf("%s: mrq_notice: vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+	       __func__, mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+
+    utfslist_foreach2(&utf_wait_rmacq, cur, prev) {
+	cq = container_of(cur, struct utf_rma_cq, slst);
+	utf_printf("%s: cq(%p): addr(%lx) vcqh(%lx) lstadd(%lx) rstadd(%lx) len(%lx) type(%d: %s)\n",
+		   __func__, cq, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd, cq->len,
+		   cq->type, cq->type == FI_RMA_READ ? "FI_READ" : "FI_WRITE");
+	if (cq->lstadd + cq->len == mrq_notice.lcl_stadd) {
+	    utf_printf("%s: fi_read is done\n");
+	    goto found;
+	}
+    }
+    return;
+found:
+    utfslist_remove2(&utf_wait_rmacq, cur, prev);
+    if (cq->notify) cq->notify(cq);
+    return;
+}
+
+void
+utf_rma_rmtcq(struct utofu_mrq_notice mrq_notice)
+{
+    switch (mrq_notice.notice_type) {
+    case UTOFU_MRQ_TYPE_RMT_PUT: /* 1 */
+	utf_printf("fi_write has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		   mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+	break;
+    case UTOFU_MRQ_TYPE_RMT_GET: /* 3 */
+	utf_printf("fi_read has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		   mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+	break;
+    default:
+	utf_printf("unkown operation has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx) noticetype(%s)\n",
+		   mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd,
+		   notice_symbol[mrq_notice.notice_type]);
+	break;
+    }
+}
+
 int
 utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 {
@@ -720,6 +752,11 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
     {	/* Sender side: edata is index of sender engine */
 	struct utf_send_cntr *usp;
 	int	sidx = mrq_notice.edata;
+	if (sidx == EDAT_RMA) {
+	    /* RMA operation */
+	    utf_rma_lclcq(mrq_notice);
+	    break;
+	}
 	usp = utf_idx2scntr(sidx);
 	DEBUG(DLEVEL_UTOFU|DLEVEL_ADHOC) {
 	    utf_printf("%s: MRQ_TYPE_LCL_PUT: edata(%d) rmt_val(%ld)"
@@ -728,24 +765,6 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		     mrq_notice.vcq_id, usp);
 	}
 	utf_sendengine(vcqh, usp, 0, EVT_LCL);
-#if 0 /* for fi_readmsg, we need to keep track the event in another way */
-	{
-	    struct utf_recv_cntr	*ursp = vcqid2recvcntr(mrq_notice.vcq_id);
-	    if (ursp == NULL) { /* send engine event */
-		utf_sendengine(vcqh, usp, 0, EVT_LCL);
-	    } else {
-		if (ursp->state != R_DO_READ) {
-		utf_printf("%s: protocol error, expecting R_DO_RNDZ but %s\n"
-			   "\tMRQ_TYPE_LCL_GET: vcq_id(%lx) edata(%d) "
-			   "lcl_stadd(%lx) rmt_stadd(%lx)\n",
-			   __func__, rstate_symbol[ursp->state],
-			   mrq_notice.vcq_id, mrq_notice.edata,
-			   mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
-		}
-		utf_recvengine(av, vcqh, ursp, NULL, sidx);
-	    }
-	}
-#endif
 	break;
     }
     case UTOFU_MRQ_TYPE_RMT_PUT: /* 1 */
@@ -762,6 +781,10 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		       __func__, mrq_notice.edata, mrq_notice.rmt_value,
 		       mrq_notice.rmt_stadd,
 		       mrq_notice.vcq_id, entry, ursp->recvoff, sidx);
+	}
+	if (mrq_notice.edata == EDAT_RMA) {
+	    utf_rma_rmtcq(mrq_notice);
+	    break;
 	}
 	if (ERECV_LENGTH(mrq_notice.rmt_value) < ursp->recvoff) {
 	    /* the data might be the top */
@@ -813,6 +836,11 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		       __func__, mrq_notice.vcq_id, mrq_notice.edata,
 		       mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
 	}
+	if (sidx == EDAT_RMA) {
+	    /* RMA operation */
+	    utf_rma_lclcq(mrq_notice);
+	    break;
+	}
 	if (ursp->state != R_DO_RNDZ
 	    && ursp->state != R_DO_WRITE) {
 	    utf_printf("%s: protocol error, expecting R_DO_RNDZ or R_DO_WRITE but %s\n"
@@ -835,6 +863,10 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		     "lcl_stadd(%lx) rmt_stadd(%lx)\n",
 		     __func__, mrq_notice.edata,
 		     mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+	}
+	if (sidx == EDAT_RMA) {
+	    utf_rma_rmtcq(mrq_notice);
+	    break;
 	}
 	usp = utf_idx2scntr(sidx);
 	utf_sendengine(vcqh, usp, mrq_notice.rmt_stadd, EVT_RMT_GET);

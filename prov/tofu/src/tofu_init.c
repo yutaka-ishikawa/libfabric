@@ -178,6 +178,9 @@ int fi_tofu_cntrl(int cmd, ...)
         mode = va_arg(ap, int);
         rc = utf_dbg_progress(mode);
         break;  }
+    case 1: {
+            utf_dbg_progress(1);
+        }
     }
     va_end(ap);
     return rc;

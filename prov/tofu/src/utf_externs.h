@@ -47,15 +47,18 @@ extern struct utf_msgbdy *utf_recvbuf_get(int idx);
 extern void	utf_msgreq_init();
 extern void	utf_msglst_init();
 extern int	utf_progress();
-extern utofu_stadd_t	utf_mem_reg(utofu_vcq_id_t, void *buf, size_t size);
+extern utofu_stadd_t	utf_mem_reg(utofu_vcq_hdl_t, void *buf, size_t size);
 extern void		utf_mem_dereg(utofu_vcq_id_t, utofu_stadd_t stadd);
 extern void	utf_stadd_free();
+extern void	utf_rmacq_init();
+extern struct utf_rma_cq *utf_rmacq_alloc();
+extern void	utf_rmacq_free(struct utf_rma_cq *cq);
 extern void	utf_setmsgmode(int mode);
+
+/* for debugging */
 extern int	utf_getenvint(char *);
 extern void	utf_show_msgmode(FILE *fp);
 extern void	utf_show_data(char *msg, char *data, size_t len);
-
-/* for debugging */
 extern void	utf_redirect();
 extern int	utf_printf(const char *fmt, ...);
 extern void	mrq_notice_show(struct utofu_mrq_notice *ntcp);

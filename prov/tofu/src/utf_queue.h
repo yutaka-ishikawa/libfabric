@@ -1,5 +1,15 @@
 #include "utf_list.h"
+
 /*
+ * Though the edata field of utofu put/get/rma operations is uint64_t,
+ * actual length is only 1 byte. If -1 value was passed, the utofu_poll_tcq would
+ * returns the error: UTOFU_ERR_TCQ_LENGTH.
+ *
+ */
+#define EDAT_RMA	0x7f
+
+/*
+ * Event types for handling messages
  */
 #define EVT_START	0
 #define EVT_LCL		1
@@ -64,8 +74,8 @@ struct utf_msgbdy {
 enum {
     PKT_EAGER = 0,
     PKT_RENDZ = 1,
-    PKT_WRITE = 2,
-    PKT_READ  = 3
+    // PKT_WRITE = 2,
+    // PKT_READ  = 3
 };
 
 #define EMSG_HDR(msgp) ((msgp)->payload.h_pkt.hdr)
@@ -446,6 +456,28 @@ struct utf_send_msginfo { /* msg info */
     void		*context;	/* for Fabric */
 #endif
 };
+
+#define FI_RMA_READ	1
+#define FI_RMA_WRITE	2
+struct utf_rma_cq {
+    utfslist_entry	slst;
+    struct tofu_ctx	*ctx;
+    utofu_vcq_hdl_t	vcqh;
+    utofu_vcq_id_t	rvcqid;
+    utofu_stadd_t	lstadd;
+    utofu_stadd_t	rstadd;
+    void		*lmemaddr;
+    uint64_t		addr;
+    ssize_t		len;
+    uint64_t		data;
+    void		(*notify)(struct utf_rma_cq *);
+    int			type;
+    uint64_t		utf_flgs;
+    uint64_t		fi_flags;
+    void		*fi_ctx;
+    void		*fi_ucontext;
+};
+
 
 #if 0
 struct utf_send_cntr {	/* 128 Byte */

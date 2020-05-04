@@ -69,6 +69,7 @@ utf_init_1(utofu_vcq_hdl_t vcqh, size_t pigsz)
     utf_engine_init();
     utf_msgreq_init();
     utf_msglst_init();
+    utf_rmacq_init();
     return 0;
 }
 

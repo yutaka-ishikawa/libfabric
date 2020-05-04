@@ -172,7 +172,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 		   "iov_base(%p) msg=%s\n", __func__,
 		   req, req->buf, req->fi_msg[0].iov_base, utf_msghdr_string(&req->hdr, req->buf));
     }
-    assert(req->type == REQ_RECV_EXPECTED || req->type == REQ_RECV_EXPECTED2);
+    assert(req->type == REQ_RECV_EXPECTED);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
     if (req->ustatus == REQ_OVERRUN) {
@@ -541,7 +541,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    req->fi_flgs = flags;
 	    req->fi_ucontext = msg->context;
 	    req->notify = tofu_catch_rcvnotify;
-	    req->type = REQ_RECV_EXPECTED2;
+	    req->type = REQ_RECV_EXPECTED;
 	    utf_do_rget(vcqh, ursp, R_DO_RNDZ);
 	    /* ursp->state is changed to R_DO_RNDZ */
 	    //remote_get(vcqh, ursp->svcqid, req->bufstadd,
@@ -704,5 +704,179 @@ req_setup:
 	fc = -FI_ENOMSG;
     }
 ext:
+    return fc;
+}
+
+/*
+ * This is for fi_read. it is invoked by progress engine
+ */
+static void
+tofu_catch_readnotify(struct utf_rma_cq *cq)
+{
+    struct tofu_ctx *ctx = cq->ctx;
+    uint64_t	flags = cq->fi_flags;
+
+    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+	utf_printf("%s: RMA notification received cq(%p)->ctx(%p): addr(%lx) vcqh(%lx) "
+		   "lstadd(%lx) rstadd(%lx) lmemaddr(%p) len(%lx) flags(%lx; %s) type(%d: %s)\n",
+		   __func__, cq, cq->ctx, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd,
+		   cq->lmemaddr, cq->len, cq->fi_flags, tofu_fi_flags_string(flags),
+		   cq->type, cq->type == FI_RMA_READ ? "FI_READ" : "FI_WRITE");
+    }
+    tofu_reg_rcvcq(ctx->ctx_recv_cq, cq->fi_ucontext, flags,
+		   cq->len, cq->lmemaddr, cq->data, 0);
+    utf_rmacq_free(cq);
+}
+
+static inline void
+tofu_dbg_show_rma(const char *fname, const struct fi_msg_rma *msg, uint64_t flags)
+{
+    ssize_t		msgsz = 0;
+    if (msg->msg_iov) {
+	msgsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+    }
+    utf_printf("%s: YI**** fi_readmsg src(%ld) "
+	       "desc(%p) msg_iov(%p) msgsz(%ld) iov_count(%ld) "
+	       "rma_iov(%p) rma_iov_count(%ld) "
+	       "context(%p) data(%ld) flags(%lx: %s)\n",
+	       fname, msg->addr,
+	       msg->desc, msg->msg_iov, msgsz, msg->iov_count,
+	       msg->rma_iov, msg->rma_iov_count,
+	       msg->context, msg->data, flags, tofu_fi_flags_string(flags));
+}
+
+static inline ssize_t
+tofu_total_rma_iov_len(const struct fi_rma_iov *rma_iov,  size_t rma_iov_count)
+{                                                                                              
+    size_t i;
+    ssize_t len = 0;
+    for (i = 0; i < rma_iov_count; i++) {
+        if ((rma_iov[i].len > 0) && (rma_iov[i].addr == 0)) {
+            return -FI_EINVAL; 
+        }
+        len += rma_iov[i].len;
+    }                                                                                          
+    return len;
+}
+
+
+static inline ssize_t
+utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t flags,
+		utofu_vcq_hdl_t *vcqh, utofu_vcq_id_t *rvcqid, 
+		utofu_stadd_t *lstadd, utofu_stadd_t *rstadd, uint64_t *utf_flgs,
+		struct utf_rma_cq **rma_cq)
+{
+    ssize_t	fc = 0;
+    ssize_t	msglen, rmalen;
+    struct tofu_sep	*sep;
+    struct tofu_av	*av;
+    struct utf_rma_cq	*cq;
+
+    msglen = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+    rmalen = tofu_total_rma_iov_len(msg->rma_iov, msg->rma_iov_count);
+    if (msglen != rmalen) {
+	utf_printf("%s: msglen(%ld) != rmalen(%ld)\n", __func__, msglen, rmalen);
+	fc = -FI_EINVAL; goto bad;
+    }
+    if (msg->iov_count != 0 && msg->rma_iov_count != 1) {
+	utf_printf("%s: Cannot handle vector length is more than 1: "
+		   "msg->iov_count(%d) msg->rma_iov_count(%d)\n", __func__, msg->iov_count, msg->rma_iov_count);
+	fc = -FI_EINVAL; goto bad;
+    }
+    sep = ctx->ctx_sep;
+    *vcqh = sep->sep_myvcqh;
+    av = sep->sep_av_;
+    /* convert destination fi_addr to utofu_vcq_id_t: r_vcqid */
+    fc = tofu_av_lookup_vcqid_by_fia(av, msg->addr, rvcqid, utf_flgs);
+    if (fc != FI_SUCCESS) goto bad;
+    *rstadd = msg->rma_iov[0].key;
+    *lstadd = utf_mem_reg(*vcqh, msg->msg_iov[0].iov_base, rmalen);
+    if (flags & FI_REMOTE_CQ_DATA) {
+	utf_printf("FI_REMOTE_CQ_DATA is not supported in RMA operations\n");
+	fc = -FI_EINVAL; goto bad;
+    } else if (flags & FI_INJECT) {
+	utf_printf("FI_INJECT is currently not supported in RMA operations\n");
+	fc = -FI_EINVAL; goto bad;
+    }
+    /* RMA CQ is created */
+    cq = utf_rmacq_alloc();
+    cq->ctx = ctx; cq->vcqh = *vcqh; cq->rvcqid = *rvcqid;
+    cq->lstadd = *lstadd; cq->rstadd = *rstadd;
+    cq->lmemaddr = msg->msg_iov[0].iov_base;
+    cq->addr = msg->addr;
+    cq->len = rmalen;
+    cq->data = msg->data;
+    cq->utf_flgs = *utf_flgs;
+    cq->fi_flags = flags;
+    cq->fi_ctx = ctx;
+    cq->fi_ucontext = msg->context;
+    *rma_cq = cq;
+    utf_printf("%s: rvcqid(%lx) rstadd(%lx) lstadd(%lx) flgs(%lx) len(%ld) rmacq(%p)\n",
+	       __func__, *rvcqid, *rstadd, *lstadd, *utf_flgs, rmalen, cq);
+    utf_printf("%s: rmt_buf(%p) lcl_buf(%p)\n", __func__, msg->rma_iov[0].addr, msg->msg_iov[0].iov_base);
+    fc = rmalen;
+bad:
+    return fc;
+}
+
+extern utfslist utf_wait_rmacq;
+
+ssize_t
+tofu_utf_read_post(struct tofu_ctx *ctx,
+		   const struct fi_msg_rma *msg, uint64_t flags)
+{
+    ssize_t	fc = 0;
+    ssize_t	len = 0;
+    uint64_t		flgs = 0;
+    utofu_vcq_hdl_t	vcqh;
+    utofu_vcq_id_t	rvcqid;
+    utofu_stadd_t	lstadd, rstadd;
+    struct utf_rma_cq	*rma_cq;
+
+    tofu_dbg_show_rma(__func__, msg, flags);
+    len = utf_rma_prepare(ctx, msg, flags,
+			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
+    if (len >= 0) { /* edata is -1 */
+	remote_get(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
+	rma_cq->notify = tofu_catch_readnotify;
+	rma_cq->type = FI_RMA_READ;
+	utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
+    } else {
+	fc = len;
+    }
+    {
+	extern int utf_dbg_progress(int);
+	int i;
+	for (i = 0; i < 10; i++) {
+	    utf_dbg_progress(1);
+	    usleep(10000);
+	}
+    }
+    return fc;
+}
+
+ssize_t
+tofu_utf_write_post(struct tofu_ctx *ctx,
+		   const struct fi_msg_rma *msg, uint64_t flags)
+{
+    ssize_t	fc = 0;
+    ssize_t	len = 0;
+    uint64_t		flgs = 0;
+    utofu_vcq_hdl_t	vcqh;
+    utofu_vcq_id_t	rvcqid;
+    utofu_stadd_t	lstadd, rstadd;
+    struct utf_rma_cq	*rma_cq;
+
+    tofu_dbg_show_rma(__func__, msg, flags);
+    len = utf_rma_prepare(ctx, msg, flags,
+			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
+    if (len >= 0) { /* edata is -1 */
+	remote_put(vcqh, rvcqid, lstadd, rstadd, len, -1, flgs, rma_cq);
+	rma_cq->notify = NULL;
+	rma_cq->type = FI_RMA_WRITE;
+	utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
+    } else {
+	fc = len;
+    }
     return fc;
 }

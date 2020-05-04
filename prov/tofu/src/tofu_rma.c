@@ -4,6 +4,11 @@
 #include "tofu_impl.h"
 #include <assert.h>	    /* for assert() */
 
+extern ssize_t  tofu_utf_read_post(struct tofu_ctx *ctx,
+                                   const struct fi_msg_rma *msg, uint64_t flags);
+extern ssize_t  tofu_utf_write_post(struct tofu_ctx *ctx,
+                                    const struct fi_msg_rma *msg, uint64_t flags);
+
 /*
  * fi_read:
  */
@@ -27,16 +32,18 @@ tofu_ctx_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
  */
 static ssize_t
 tofu_ctx_rma_readmsg(struct fid_ep *fid_ep,
-                     const struct fi_msg_rma *msg,
-                     uint64_t flags)
+                     const struct fi_msg_rma *msg, uint64_t flags)
 {
     ssize_t ret = 0;
-//    struct tofu_ctx *ctx_priv = 0;
+    struct tofu_ctx *ctx_priv;
+    uint64_t    flgs = flags | FI_READ | FI_RMA;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
-    R_DBG("%s: YI**** fi_readmsg src(%ld)", __func__, msg->addr);
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
+    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    ret = tofu_utf_read_post(ctx_priv, msg, flgs);
+
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
     return ret;
 }
 
@@ -49,10 +56,15 @@ tofu_ctx_rma_writemsg(struct fid_ep *fid_ep,
                       const struct fi_msg_rma *msg, uint64_t flags)
 {
     ssize_t ret = 0;
-//    struct tofu_ctx *ctx_priv = 0;
+    struct tofu_ctx *ctx_priv;
+    uint64_t    flgs = flags | FI_WRITE | FI_RMA;
 
-    R_DBG("%s: YI**** fi_writemsg src(%ld)", __func__, msg->addr); fflush(stderr);
-    FI_INFO( &tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
+
+    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    ret = tofu_utf_write_post(ctx_priv, msg, flgs);
+    
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
     return ret;
 }
 

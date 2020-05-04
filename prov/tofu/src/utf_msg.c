@@ -52,6 +52,7 @@ remote_piggysend(utofu_vcq_hdl_t vcqh,
     return 0;
 }
 
+extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqi);
 
 int
 remote_put(utofu_vcq_hdl_t vcqh,
@@ -69,8 +70,11 @@ remote_put(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
-    DEBUG(DLEVEL_UTOFU) {
-	utf_printf("remote_put: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
+    DEBUG(DLEVEL_UTOFU|DLEVEL_ADHOC) {
+	char buf[128];
+	utf_printf("remote_put: desc size(%ld)  vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len, cbdata, lstadd, rstadd);
+
     }
     return 0;
 }
@@ -91,9 +95,10 @@ remote_get(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
-    DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS) {
-	utf_printf("remote_get: desc size(%ld) cbdata(%ld) lcl_stadd(%lx) rmt_stadd(%lx)\n",
-		   sz, cbdata, lstadd, rstadd);
+    DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
+	char buf[128];
+	utf_printf("remote_get: desc size(%ld) vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len, cbdata, lstadd, rstadd);
     }
     return 0;
 }

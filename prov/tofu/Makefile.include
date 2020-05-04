@@ -24,10 +24,13 @@ _tofu_files =				\
 	    prov/tofu/src/tofu_trigger.c \
 	    prov/tofu/src/tofu_utflib.c \
 	    prov/tofu/src/utf_conf.h \
-	    prov/tofu/src/utf_externs.h \
 	    prov/tofu/src/utf_errmacros.h \
-	    prov/tofu/src/utf_queue.h \
-	    prov/tofu/src/utf_sndmgt.h \
+	    prov/tofu/src/utf_externs.h \
+	    prov/tofu/src/utflib.h	\
+	    prov/tofu/src/utf_list.h	\
+	    prov/tofu/src/utf_msgmacro.h \
+	    prov/tofu/src/utf_queue.h	\
+	    prov/tofu/src/utf_sndmgt.h	\
 	    prov/tofu/src/utf_debug.c \
 	    prov/tofu/src/utf_engine.c \
 	    prov/tofu/src/utf_init.c \

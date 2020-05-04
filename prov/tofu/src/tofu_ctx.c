@@ -336,6 +336,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		 *   using FI_WRITE.
 		 */
                 cq_priv->cq_ssel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
+                R_DBG("FI_SEND FI_SELECTIVE_COMPLETION(%d)\n", cq_priv->cq_ssel);
 		if (ctx_priv->ctx_send_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
 		}
@@ -353,6 +354,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		ctx_priv->ctx_recv_cq = cq_priv;
 		tofu_cq_ins_ctx_rx(cq_priv, ctx_priv);
                 cq_priv->cq_rsel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
+                R_DBG("FI_RECV FI_SELECTIVE_COMPLETION(%d)\n", cq_priv->cq_rsel);
 	    }
 	    break;
 	default:
@@ -447,8 +449,7 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
                                         ;
                 tni_id = dom->tnis[i];
                 uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
-                //R_DBG("tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx",
-                //    tni_id, c_id, flags, uc, vcqh);
+                R_DBG("tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx", tni_id, c_id, flags, uc, vcqh);
                 if (uc != UTOFU_SUCCESS) { goto bad; }
                 // dbg_show_utof_vcqh(vcqh);
                 assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */

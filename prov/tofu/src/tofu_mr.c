@@ -6,6 +6,7 @@
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
+extern utofu_stadd_t    utf_mem_reg(utofu_vcq_hdl_t vcqh, void *buf, size_t size);
 
 static int
 tofu_mr_close(struct fid *fid)
@@ -13,7 +14,7 @@ tofu_mr_close(struct fid *fid)
     int fc = FI_SUCCESS;
     struct tofu_mr *mr_priv;
 
-    FI_INFO( &tofu_prov, FI_LOG_MR, "in %s\n", __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_MR, "in %s\n", __FILE__);
     assert(fid != 0);
     mr_priv = container_of(fid, struct tofu_mr, mr_fid.fid);
 
@@ -52,13 +53,14 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
                        struct fid_mr **fid_mr_, void *context)
 {
     int fc = FI_SUCCESS;
-    int uc;
+    int uc = 0;
     struct tofu_domain *dom_priv;
     struct tofu_mr     *mr_priv = 0;
     utofu_stadd_t      stadd;
-    uint64_t           utofu_flg = 0;
 
-    FI_INFO( &tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p) in %s\n", buf, len, offset, requested_key, flags, context, __FILE__);
+    FI_INFO(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p) in %s\n", buf, len, offset, requested_key, flags, context, __FILE__);
+
+    R_DBG("buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p)", buf, len, offset, requested_key, flags, context);
     assert(fid != 0);
     if (fid->fclass != FI_CLASS_DOMAIN) {
 	fc = -FI_EINVAL; goto bad;
@@ -76,8 +78,12 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
      * the area are accessed by any vcqh.
      * The current implementation, only one vcqh and thus it is much easy.
      */
+    stadd = utf_mem_reg((utofu_vcq_hdl_t) dom_priv->vcqh[0], (void*) buf, len);
+#if 0
+    uint64_t           utofu_flg = 0;
     uc = utofu_reg_mem((utofu_vcq_hdl_t )dom_priv->vcqh[0],
                        (void*) buf, len, utofu_flg, &stadd);
+#endif
     if (uc != UTOFU_SUCCESS) {
         fprintf(stderr, "%s: utofu_reg_mem error uc(%d)\n", __func__, uc);
         fc = -FI_ENOMEM; goto bad;
@@ -128,8 +134,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     }
     FI_DBG(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) registered key(0x%lx)\n",
            buf, len, mr_priv->mr_fid.key);
-    /*printf("%d:YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n",
-      mypid, buf, len, mr_priv->mr_fid.key); fflush(stdout);*/
+    R_DBG("YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n", buf, len, mr_priv->mr_fid.key);
 
     /* return fid_dom */
     fid_mr_[0] = &mr_priv->mr_fid;
@@ -143,11 +148,7 @@ bad:
 
 struct fi_ops_mr tofu_mr_ops = {
     .size	    = sizeof (struct fi_ops_mr),
-#ifdef	notdef
-    .reg	    = fi_no_mr_reg,
-#else	/* notdef */
     .reg	    = tofu_mr_reg,
-#endif	/* notdef */
     .regv	    = fi_no_mr_regv,
     .regattr	    = fi_no_mr_regattr,
 };

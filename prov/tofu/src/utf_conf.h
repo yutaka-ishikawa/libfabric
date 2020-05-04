@@ -48,4 +48,16 @@
 #define SND_EGR_BUFENT	128
 #define SND_CNTR_SIZE	256
 #define REQ_SIZE	512
+#define RMACQ_SIZE	128
 
+/*
+ * num_cmp_ids:		  8
+ * cache_line_size:	  256 B
+ * stag_address_alignment:256 B
+ * max_toq_desc_size:	  64 B
+ * max_putget_size:	  15 MiB (16777215 B)
+ * max_piggyback_size:	  32 B
+ * max_edata_size:	   1 B
+ * max_mtu:		1920 B
+ * max_gap:		 255 B
+ */
