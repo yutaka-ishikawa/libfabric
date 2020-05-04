@@ -48,11 +48,14 @@ tofu_cntr_read(struct fid_cntr *cntr_fid)
     struct tofu_cntr *ctr_priv;
 
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+
     assert(cntr_fid != 0);
     ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
     if (ctr_priv == 0) { }
 
-    ret = ofi_atomic_get64( &ctr_priv->ctr_ctr );
+    // R_DBG("fid(%p) val(%ld)", cntr_fid, ctr_priv->ctr_ctr);
+
+    ret = ofi_atomic_get64(&ctr_priv->ctr_ctr);
     return ret;
 }
 
@@ -63,6 +66,8 @@ static uint64_t
 tofu_cntr_readerr(struct fid_cntr *cntr_fid)
 {
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    // R_DBG("fid(%p)", cntr_fid);
+
     return 0; /* YYY ofi_atomic_get64(&cntr->err) */
 }
 
@@ -85,6 +90,8 @@ tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    // R_DBG("fid(%p)", cntr_fid);
+
     return fc;
 }
 
@@ -95,7 +102,14 @@ static int
 tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
+    struct tofu_cntr *ctr_priv;
+
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    // R_DBG("fid(%p)", cntr_fid);
+
+    assert(cntr_fid != 0);
+    ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
+    ofi_atomic_set64(&ctr_priv->ctr_ctr, value);
     return fc;
 }
 
@@ -107,6 +121,8 @@ tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    // R_DBG("fid(%p)", cntr_fid);
+
     return fc;
 }
 
@@ -118,6 +134,8 @@ tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
+    // R_DBG("fid(%p)", cntr_fid);
+
     fc = -FI_ETIMEDOUT;
     return fc;
 }
@@ -200,7 +218,7 @@ tofu_cntr_open(struct fid_domain *fid_dom, struct fi_cntr_attr *attr,
     /* initialize ctr_priv */
     {
 	ctr_priv->ctr_dom = dom_priv;
-	ofi_atomic_initialize32( &ctr_priv->ctr_ref, 0 );
+	ofi_atomic_initialize32(&ctr_priv->ctr_ref, 0);
 	fastlock_init( &ctr_priv->ctr_lck );
 
 	ctr_priv->ctr_fid.fid.fclass    = FI_CLASS_CNTR;
@@ -209,8 +227,8 @@ tofu_cntr_open(struct fid_domain *fid_dom, struct fi_cntr_attr *attr,
 	ctr_priv->ctr_fid.ops           = &tofu_ctr_ops;
 
 	/* dlist_init( &ctr_priv->ctr_ent ); */
-	dlist_init( &ctr_priv->ctr_htx );
-	dlist_init( &ctr_priv->ctr_hrx );
+	dlist_init(&ctr_priv->ctr_htx);
+	dlist_init(&ctr_priv->ctr_hrx);
 	ofi_atomic_initialize64(&ctr_priv->ctr_ctr, 0);
 	ofi_atomic_initialize64(&ctr_priv->ctr_err, 0);
     }

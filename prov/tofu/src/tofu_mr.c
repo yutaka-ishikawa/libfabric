@@ -60,7 +60,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
 
     FI_INFO(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p) in %s\n", buf, len, offset, requested_key, flags, context, __FILE__);
 
-    R_DBG("buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p)", buf, len, offset, requested_key, flags, context);
+    //R_DBG("buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p)", buf, len, offset, requested_key, flags, context);
     assert(fid != 0);
     if (fid->fclass != FI_CLASS_DOMAIN) {
 	fc = -FI_EINVAL; goto bad;
@@ -134,7 +134,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     }
     FI_DBG(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) registered key(0x%lx)\n",
            buf, len, mr_priv->mr_fid.key);
-    R_DBG("YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n", buf, len, mr_priv->mr_fid.key);
+    //R_DBG("YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n", buf, len, mr_priv->mr_fid.key);
 
     /* return fid_dom */
     fid_mr_[0] = &mr_priv->mr_fid;

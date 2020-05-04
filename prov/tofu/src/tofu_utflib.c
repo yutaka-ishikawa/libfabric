@@ -121,8 +121,8 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
     DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("%s: flags = %s bufp(%p) len(%ld)\n",
-		   __func__, tofu_fi_flags_string(flags), bufp, len);
+	utf_printf("%s: cq(%p) flags = %s bufp(%p) len(%ld)\n",
+		   __func__, cq, tofu_fi_flags_string(flags), bufp, len);
 	if (bufp) utf_show_data("\tdata = ", bufp, len);
     }
     DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE len(%ld)\n", __func__, len);
@@ -501,6 +501,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	ignore = msg->ignore;
     utfslist *uexplst;
 
+    //utf_printf("%s: ctx(%p)->ctx_recv_cq(%p)\n", __func__, ctx, ctx->ctx_recv_cq);
     //R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
     //ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
     if (flags & FI_TAGGED) {
@@ -718,13 +719,26 @@ tofu_catch_readnotify(struct utf_rma_cq *cq)
 
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	utf_printf("%s: RMA notification received cq(%p)->ctx(%p): addr(%lx) vcqh(%lx) "
-		   "lstadd(%lx) rstadd(%lx) lmemaddr(%p) len(%lx) flags(%lx; %s) type(%d: %s)\n",
+		   "lstadd(%lx) rstadd(%lx) lmemaddr(%p) len(%lx) flags(%lx: %s) type(%d: %s)\n",
 		   __func__, cq, cq->ctx, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd,
 		   cq->lmemaddr, cq->len, cq->fi_flags, tofu_fi_flags_string(flags),
 		   cq->type, cq->type == FI_RMA_READ ? "FI_READ" : "FI_WRITE");
     }
-    tofu_reg_rcvcq(ctx->ctx_recv_cq, cq->fi_ucontext, flags,
-		   cq->len, cq->lmemaddr, cq->data, 0);
+    if (ctx->ctx_recv_cq) { /* receive notify */
+	tofu_reg_rcvcq(ctx->ctx_recv_cq, cq->fi_ucontext, flags,
+		       cq->len, cq->lmemaddr, cq->data, 0);
+    }
+    if (ctx->ctx_send_ctr) { /* counter */
+	struct tofu_cntr *ctr = ctx->ctx_send_ctr;
+	DEBUG(DLEVEL_ADHOC) {
+	    utf_printf("%s: cntr->ctr_tsl(%d)\n", __func__, ctr->ctr_tsl);
+	}
+	if (ctr->ctr_tsl && !(flags & FI_COMPLETION)) {
+	    goto skip;
+	}
+	ofi_atomic_inc64(&ctr->ctr_ctr);
+    }
+skip:
     utf_rmacq_free(cq);
 }
 
@@ -811,9 +825,6 @@ utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t fla
     cq->fi_ctx = ctx;
     cq->fi_ucontext = msg->context;
     *rma_cq = cq;
-    utf_printf("%s: rvcqid(%lx) rstadd(%lx) lstadd(%lx) flgs(%lx) len(%ld) rmacq(%p)\n",
-	       __func__, *rvcqid, *rstadd, *lstadd, *utf_flgs, rmalen, cq);
-    utf_printf("%s: rmt_buf(%p) lcl_buf(%p)\n", __func__, msg->rma_iov[0].addr, msg->msg_iov[0].iov_base);
     fc = rmalen;
 bad:
     return fc;
@@ -833,7 +844,14 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd, rstadd;
     struct utf_rma_cq	*rma_cq;
 
-    tofu_dbg_show_rma(__func__, msg, flags);
+    DEBUG(DLEVEL_ADHOC) {
+	utf_printf("%s: ctx(%p)->ctx_send_cq(%p) "
+		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p)\n",
+		   __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
+		   ctx->ctx_send_ctr, ctx->ctx_recv_ctr);
+	tofu_dbg_show_rma(__func__, msg, flags);
+    }
+
     len = utf_rma_prepare(ctx, msg, flags,
 			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
     if (len >= 0) { /* edata is -1 */
@@ -844,6 +862,7 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
     } else {
 	fc = len;
     }
+#if 0
     {
 	extern int utf_dbg_progress(int);
 	int i;
@@ -852,6 +871,7 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
 	    usleep(10000);
 	}
     }
+#endif
     return fc;
 }
 
@@ -867,7 +887,7 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd, rstadd;
     struct utf_rma_cq	*rma_cq;
 
-    tofu_dbg_show_rma(__func__, msg, flags);
+    // tofu_dbg_show_rma(__func__, msg, flags);
     len = utf_rma_prepare(ctx, msg, flags,
 			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
     if (len >= 0) { /* edata is -1 */

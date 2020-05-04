@@ -689,16 +689,22 @@ utf_rma_lclcq(struct utofu_mrq_notice mrq_notice)
     struct utf_rma_cq	*cq;
     utfslist_entry	*cur, *prev;
 
-    utf_printf("%s: mrq_notice: vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
-	       __func__, mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+    DEBUG(DLEVEL_ADHOC) {
+	utf_printf("%s: mrq_notice: vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		   __func__, mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+    }
 
     utfslist_foreach2(&utf_wait_rmacq, cur, prev) {
 	cq = container_of(cur, struct utf_rma_cq, slst);
-	utf_printf("%s: cq(%p): addr(%lx) vcqh(%lx) lstadd(%lx) rstadd(%lx) len(%lx) type(%d: %s)\n",
-		   __func__, cq, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd, cq->len,
-		   cq->type, cq->type == FI_RMA_READ ? "FI_READ" : "FI_WRITE");
+	DEBUG(DLEVEL_ADHOC) {
+	    utf_printf("%s: cq(%p): addr(%lx) vcqh(%lx) lstadd(%lx) rstadd(%lx) len(%lx) type(%d: %s)\n",
+		       __func__, cq, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd, cq->len,
+		       cq->type, cq->type == FI_RMA_READ ? "FI_READ" : "FI_WRITE");
+	}
 	if (cq->lstadd + cq->len == mrq_notice.lcl_stadd) {
-	    utf_printf("%s: fi_read is done\n");
+	    DEBUG(DLEVEL_ADHOC) {
+		utf_printf("%s: fi_read is done\n", __func__);
+	    }
 	    goto found;
 	}
     }
@@ -712,20 +718,22 @@ found:
 void
 utf_rma_rmtcq(struct utofu_mrq_notice mrq_notice)
 {
-    switch (mrq_notice.notice_type) {
-    case UTOFU_MRQ_TYPE_RMT_PUT: /* 1 */
-	utf_printf("fi_write has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
-		   mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
-	break;
-    case UTOFU_MRQ_TYPE_RMT_GET: /* 3 */
-	utf_printf("fi_read has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
-		   mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
-	break;
-    default:
-	utf_printf("unkown operation has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx) noticetype(%s)\n",
-		   mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd,
-		   notice_symbol[mrq_notice.notice_type]);
-	break;
+    DEBUG(DLEVEL_ADHOC) {
+	switch (mrq_notice.notice_type) {
+	case UTOFU_MRQ_TYPE_RMT_PUT: /* 1 */
+	    utf_printf("fi_write has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		       mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+	    break;
+	case UTOFU_MRQ_TYPE_RMT_GET: /* 3 */
+	    utf_printf("fi_read has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
+		       mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+	    break;
+	default:
+	    utf_printf("unkown operation has been issued in remote side vcqid(%lx) lcl_stadd(%lx) rmt_stadd(%lx) noticetype(%s)\n",
+		       mrq_notice.vcq_id, mrq_notice.lcl_stadd, mrq_notice.rmt_stadd,
+		       notice_symbol[mrq_notice.notice_type]);
+	    break;
+	}
     }
 }
 
