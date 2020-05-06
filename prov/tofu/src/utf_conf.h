@@ -46,9 +46,10 @@
 #define TAG_ERBUF	13
 #define TAG_EGRMGT	14
 #define SND_EGR_BUFENT	128
-#define SND_CNTR_SIZE	256
+#define SND_CNTR_SIZE	128
 #define REQ_SIZE	512
 #define RMACQ_SIZE	128
+#define RMA_MDAT_ENTSIZE 16
 
 /*
  * num_cmp_ids:		  8

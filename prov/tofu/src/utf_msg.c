@@ -72,9 +72,10 @@ remote_put(utofu_vcq_hdl_t vcqh,
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU|DLEVEL_ADHOC) {
 	char buf[128];
-	utf_printf("remote_put: desc size(%ld)  vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
-		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len, cbdata, lstadd, rstadd);
-
+	utf_printf("remote_put: desc size(%ld)  vcqh(%lx) rvcqid(%lx: %s) len(%ld) "
+		   "cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx) edata(0x%lx)\n",
+		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len,
+		   cbdata, lstadd, rstadd, edata);
     }
     return 0;
 }

@@ -40,14 +40,27 @@ utf_printf(const char *fmt, ...)
     return rc;
 }
 
+/* needs to fi it */
+extern struct utf_tofuctx	utf_sndctx[16];
+extern struct utf_tofuctx	utf_rcvctx[16];
+
 /*
  * utf_init_1:  The first step of the Tofu initialization
  *		We do not know myrank during this phase
  */
 int
-utf_init_1(utofu_vcq_hdl_t vcqh, size_t pigsz)
+utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
 {
     int	i;
+    if (class == UTF_TX_CTX) {
+	utf_printf("%s: utf_sndctx[0] = %p\n", __func__, ctx);
+	utf_sndctx[0].vcqh = vcqh;
+	utf_sndctx[0].fi_ctx = ctx;
+    } else {
+	utf_printf("%s: utf_rcvctx[0] = %p\n", __func__, ctx);
+	utf_rcvctx[0].vcqh = vcqh;
+	utf_rcvctx[0].fi_ctx = ctx;
+    }
     if (utf_initialized) {
 	return 0;
     }
@@ -98,7 +111,7 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
     /* receive buffer is allocated */
     utf_recvbuf_init(vcqh, nprocs);
     /* sender control is allocated */
-    utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT);
+    utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT, RMA_MDAT_ENTSIZE);
     return 0;
 }
 

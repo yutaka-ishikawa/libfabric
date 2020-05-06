@@ -44,25 +44,6 @@ struct tofu_domain {
     size_t              max_edata_size;
 };
 
-struct tofu_ctx {
-    struct fid_ep	ctx_fid;
-    struct tofu_sep *	ctx_sep;
-    ofi_atomic32_t	ctx_ref;
-    uint32_t		ctx_enb;    /* enabled */
-    int			ctx_idx;
-    fastlock_t		ctx_lck;
-/*  struct dlist_entry	ctx_ent; */
-    uint64_t		ctx_xop_flg;
-    struct dlist_entry	ctx_ent_sep;
-    struct dlist_entry	ctx_ent_cq;
-    struct dlist_entry	ctx_ent_ctr;
-    struct tofu_cq     *ctx_send_cq;  /* send completion queue */
-    struct tofu_cq     *ctx_recv_cq;  /* receive completion queue */
-    struct tofu_cntr   *ctx_send_ctr; /* fi_write/fi_read and send operation */
-    struct tofu_cntr   *ctx_recv_ctr; /* recv operation */
-    struct tofu_av     *ctx_av;       /* copy of sep->sep_av_ */
-} ;
-
 struct tofu_sep {
     struct fid_ep	sep_fid;
     struct tofu_domain *sep_dom;
@@ -73,13 +54,35 @@ struct tofu_sep {
     struct dlist_entry	sep_htx;        /* head for ep tx ctxs */
     struct dlist_entry	sep_hrx;        /* head for ep rx ctxs */
     struct tofu_av     *sep_av_;
-    struct tofu_ctx    *sep_sctx;
-    struct tofu_ctx    *sep_rctx;
+    struct tofu_ctx    *sep_sctx;       /* not used, should be deleted */
+    struct tofu_ctx    *sep_rctx;       /* not used, should be deleted */
     int                 sep_myvcqidx;
     utofu_vcq_hdl_t     sep_myvcqh;     /* copy of sep_dom->vcqh[sep_vcqid] */
     utofu_vcq_id_t      sep_myvcqid;    /*  */
     int                 sep_myrank;     /*  */
 };
+
+/*
+ *  TX Context or RX Context
+ */
+struct tofu_ctx {
+    struct fid_ep	ctx_fid;
+    struct tofu_sep *	ctx_sep;
+    ofi_atomic32_t	ctx_ref;
+    uint32_t		ctx_enb;    /* enabled */
+    int			ctx_idx;
+    fastlock_t		ctx_lck;
+/*  struct dlist_entry	ctx_ent; */
+    uint64_t		ctx_xop_flg;
+    struct dlist_entry	ctx_ent_sep;  /* linked by SEP's sep_htx or sep_hrx  */
+    struct dlist_entry	ctx_ent_cq;   /* linked by CQ's sep_htx or sep_hrx  */
+    struct dlist_entry	ctx_ent_ctr;  /* linked by CNTR's sep_htx or sep_hrx  */
+    struct tofu_cq     *ctx_send_cq;  /* send completion queue */
+    struct tofu_cq     *ctx_recv_cq;  /* receive completion queue */
+    struct tofu_cntr   *ctx_send_ctr; /* fi_write/fi_read and send operation */
+    struct tofu_cntr   *ctx_recv_ctr; /* recv operation */
+    struct tofu_av     *ctx_av;       /* copy of sep->sep_av_ */
+} ;
 
 /*
  * circular queue for completion queue (tofu_comp_cirq)

@@ -197,18 +197,19 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
     cq_e->op_context	= context;
-    cq_e->flags		= (flags&(FI_TAGGED|FI_COMPLETION)) | FI_SEND;
+    cq_e->flags		= (flags & (FI_TAGGED|FI_COMPLETION|FI_TRANSMIT_COMPLETE|FI_DELIVERY_COMPLETE|FI_RMA|FI_WRITE|FI_READ))
+			| (flags&FI_RMA) ? 0 : FI_SEND;
     cq_e->len		= len;
     cq_e->buf		= 0;
     cq_e->data		= data;
     cq_e->tag		= tag;
 
     DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx) cq(%p)->cq_ccq(%p)\n",
-		   __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag, cq, cq->cq_ccq);
+	utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx) cq(%p)->cq_ccq(%p) cq_ssel(%d)\n",
+		   __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag, cq, cq->cq_ccq, cq->cq_ssel);
     }
     if (flags & FI_INJECT
-	|| (cq->cq_ssel && !(flags & FI_COMPLETION))) {
+	|| (cq->cq_ssel && !(flags & (FI_COMPLETION|FI_TRANSMIT_COMPLETE|FI_DELIVERY_COMPLETE)))) {
 	DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	    utf_printf("%s: no send completion is generated\n",  __func__);
 	}
@@ -709,23 +710,19 @@ ext:
 }
 
 /*
- * This is for fi_read. it is invoked by progress engine
+ * This is for remote completion of fi_write. it is invoked by progress engine
  */
-static void
-tofu_catch_readnotify(struct utf_rma_cq *cq)
+void
+tofu_catch_rma_rmtnotify(void *fi_ctx)
 {
-    struct tofu_ctx *ctx = cq->ctx;
-    uint64_t	flags = cq->fi_flags;
+    struct tofu_ctx *ctx = (struct tofu_ctx*) fi_ctx;
 
-    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
-	utf_printf("%s: RMA notification received cq(%p)->ctx(%p): addr(%lx) vcqh(%lx) "
-		   "lstadd(%lx) rstadd(%lx) lmemaddr(%p) len(%lx) flags(%lx: %s) type(%d: %s)\n",
-		   __func__, cq, cq->ctx, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd,
-		   cq->lmemaddr, cq->len, cq->fi_flags, tofu_fi_flags_string(flags),
-		   cq->type, cq->type == FI_RMA_READ ? "FI_READ" : "FI_WRITE");
+    DEBUG(DLEVEL_ADHOC) {
+	utf_printf("%s: ctx(%p) class(%s)\n", __func__, ctx, tofu_fi_class_string[ctx->ctx_fid.fid.fclass]);
     }
-    if (ctx->ctx_recv_cq) { /* receive notify */
-	tofu_reg_rcvcq(ctx->ctx_recv_cq, cq->fi_ucontext, flags,
+#if 0
+    if (ctx->ctx_send_cq) { /* send notify */
+	tofu_reg_sndcq(ctx->ctx_send_cq, cq->fi_ucontext, flags,
 		       cq->len, cq->lmemaddr, cq->data, 0);
     }
     if (ctx->ctx_send_ctr) { /* counter */
@@ -738,7 +735,45 @@ tofu_catch_readnotify(struct utf_rma_cq *cq)
 	}
 	ofi_atomic_inc64(&ctr->ctr_ctr);
     }
+#endif
+}
+
+/*
+ * This is for local completion of fi_read/fi_write. it is invoked by progress engine
+ */
+static void
+tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
+{
+    struct tofu_ctx *ctx = cq->ctx;
+    uint64_t	flags = cq->fi_flags;
+
+    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+	utf_printf("%s: RMA notification received cq(%p)->ctx(%p): addr(%lx) vcqh(%lx) "
+		   "lstadd(%lx) rstadd(%lx) lmemaddr(%p) len(%lx) flags(%lx: %s) type(%d: %s)\n",
+		   __func__, cq, cq->ctx, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd,
+		   cq->lmemaddr, cq->len, cq->fi_flags, tofu_fi_flags_string(flags),
+		   cq->type, cq->type == UTF_RMA_READ ? "UTF_RMA_READ" : "UTF_RMA_WRITE");
+    }
+    if (ctx->ctx_send_cq) { /* send notify */
+	tofu_reg_sndcq(ctx->ctx_send_cq, cq->fi_ucontext, flags,
+		       cq->len, cq->data, 0);
+    }
+    if (ctx->ctx_send_ctr) { /* counter */
+	struct tofu_cntr *ctr = ctx->ctx_send_ctr;
+	DEBUG(DLEVEL_ADHOC) {
+	    utf_printf("%s: cntr->ctr_tsl(%d)\n", __func__, ctr->ctr_tsl);
+	}
+	if (flags & (FI_COMPLETION|FI_DELIVERY_COMPLETE|FI_INJECT_COMPLETE)) {
+	    ofi_atomic_inc64(&ctr->ctr_ctr);
+	    utf_printf("%s: ctr->ctr_ctr(%ld)\n", __func__, ctr->ctr_ctr);
+	}
+    }
 skip:
+    if (cq->lstadd) {
+	struct tofu_sep	*sep = ctx->ctx_sep;
+	utofu_vcq_hdl_t vcqh = sep->sep_myvcqh;
+	utf_mem_dereg(vcqh, cq->lstadd);
+    }
     utf_rmacq_free(cq);
 }
 
@@ -749,7 +784,7 @@ tofu_dbg_show_rma(const char *fname, const struct fi_msg_rma *msg, uint64_t flag
     if (msg->msg_iov) {
 	msgsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     }
-    utf_printf("%s: YI**** fi_readmsg src(%ld) "
+    utf_printf("%s: YI**** RMA src(%ld) "
 	       "desc(%p) msg_iov(%p) msgsz(%ld) iov_count(%ld) "
 	       "rma_iov(%p) rma_iov_count(%ld) "
 	       "context(%p) data(%ld) flags(%lx: %s)\n",
@@ -854,10 +889,10 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
 
     len = utf_rma_prepare(ctx, msg, flags,
 			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
-    if (len >= 0) { /* edata is -1 */
+    if (len >= 0) {
 	remote_get(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
-	rma_cq->notify = tofu_catch_readnotify;
-	rma_cq->type = FI_RMA_READ;
+	rma_cq->notify = tofu_catch_rma_lclnotify;
+	rma_cq->type = UTF_RMA_READ;
 	utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
     } else {
 	fc = len;
@@ -887,16 +922,41 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd, rstadd;
     struct utf_rma_cq	*rma_cq;
 
-    // tofu_dbg_show_rma(__func__, msg, flags);
+    DEBUG(DLEVEL_ADHOC) {
+	utf_printf("%s: ctx(%p)->ctx_send_cq(%p) "
+		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p)\n",
+		   __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
+		   ctx->ctx_send_ctr, ctx->ctx_recv_ctr);
+	tofu_dbg_show_rma(__func__, msg, flags);
+    }
     len = utf_rma_prepare(ctx, msg, flags,
 			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
-    if (len >= 0) { /* edata is -1 */
-	remote_put(vcqh, rvcqid, lstadd, rstadd, len, -1, flgs, rma_cq);
-	rma_cq->notify = NULL;
-	rma_cq->type = FI_RMA_WRITE;
+    if (len >= 0) {
+	remote_put(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
+	rma_cq->notify = tofu_catch_rma_lclnotify;
+	rma_cq->type = UTF_RMA_WRITE;
 	utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
+#if 0
+	struct utf_send_cntr *usp;
+	utfslist_entry	*ohead;
+	usp = utf_scntr_alloc(rma_cq->addr, rma_cq->rvcqid, rma_cq->utf_flgs);
+	ohead = utfslist_append(&usp->rmawaitlst, &rma_cq->slst);
+	if (ohead ==NULL) {
+	    utf_rmwrite_engine(vcqh, usp);
+	}
+#endif
     } else {
 	fc = len;
     }
+#if 0
+    {
+	extern int utf_dbg_progress(int);
+	int i;
+	for (i = 0; i < 10; i++) {
+	    utf_dbg_progress(1);
+	    usleep(100);
+	}
+    }
+#endif
     return fc;
 }

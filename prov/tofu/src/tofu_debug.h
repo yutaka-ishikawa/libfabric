@@ -9,6 +9,7 @@
 #include <utofu.h>
 
 extern char	*tofu_fi_flags_string(uint64_t flags);
+extern char     *tofu_fi_class_string[];
 
 extern int mypid, myrank, nprocs;
 extern int rdbgf, rdbgl;

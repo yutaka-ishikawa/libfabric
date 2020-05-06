@@ -68,6 +68,19 @@ tofu_ctx_rma_writemsg(struct fid_ep *fid_ep,
     return ret;
 }
 
+/*
+ * fi_inject_write
+ */
+static ssize_t 
+tofu_ctx_rma_inject(struct fid_ep *ep, const void *buf, size_t len,
+		fi_addr_t dest_addr, uint64_t addr, uint64_t key)
+{
+    FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
+    R_DBG0(RDBG_LEVEL3, "fi_inject_write: fid_ep(%p) buf(%p) len(%ld) dst(%ld) addr(%ld) key(%lx)",
+           ep, buf, len, dest_addr, addr, key);
+    return -FI_ENOSYS;
+}
+
 struct fi_ops_rma tofu_ctx_ops_rma = {
     .size	    = sizeof (struct fi_ops_rma),
     .read	    = tofu_ctx_rma_read,
@@ -76,7 +89,7 @@ struct fi_ops_rma tofu_ctx_ops_rma = {
     .write	    = fi_no_rma_write,
     .writev	    = fi_no_rma_writev,
     .writemsg	    = tofu_ctx_rma_writemsg,
-    .inject	    = fi_no_rma_inject,
+    .inject	    = tofu_ctx_rma_inject,
     .writedata	    = fi_no_rma_writedata,
     .injectdata	    = fi_no_rma_injectdata,
 };

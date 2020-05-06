@@ -6,7 +6,7 @@
  * returns the error: UTOFU_ERR_TCQ_LENGTH.
  *
  */
-#define EDAT_RMA	0x7f
+#define EDAT_RMA	0x80	/* MSB is used to identify RMA operations */
 
 /*
  * Event types for handling messages
@@ -414,11 +414,25 @@ enum {
 #define SCNTR_HEAD	0
 #define SCNTR_TAIL	1
 #define SCNTR_OK	1
+#define SCNTR_RMA_OK	1
 #define SCNTR_RGETDONE_OFFST		0x0
 #define SCNTR_RST_RECVRESET_OFFST	0x4
+#define SCNTR_RST_RMARESET_OFFST	0x8
 
 #define SCNTR_ADDR_CNTR_FIELD(sidx)	\
     (utf_sndctr_stadd() + sizeof(struct utf_send_cntr)*(sidx))
+
+#pragma pack(1)
+struct utf_rma_mdat {
+    void		*rmt_addr;
+    utofu_stadd_t	rmt_stadd;
+    size_t		len;
+    int			src;
+};
+
+struct utf_rma_cmplinfo {
+    struct utf_rma_mdat	info[RMA_MDAT_ENTSIZE];
+};
 
 #pragma pack(1)
 struct utf_send_cntr {	/* 92 Byte */
@@ -431,14 +445,18 @@ struct utf_send_cntr {	/* 92 Byte */
 					/*  +4 =  4 Byte */
     uint32_t		rcvreset: 1,	/* ready for resetting recv offset */
 			recvoff: 31;	/*  +4 =  8 Byte */
-    uint32_t		dst;		/*  +4 = 12 Byte */
-    uint64_t		flags;		/*  +8 = 20 Byte */
-    utofu_vcq_id_t	rvcqid;		/*  +8 = 28 Byte */
-    size_t		psize;		/* packet-level sent size  +8=36 Byte */
-    size_t		usize;		/* user-level sent size */
-    utfslist		smsginfo;	/* +16 = 52 Byte */
+    uint32_t		rmareset: 1,	/* ready for reseting */
+			rmawait: 1,	/* Wait for reseting */
+			rmaoff: 30;	/*  +4 = 12 Byte */
+    uint32_t		dst;		/*  +4 = 16 Byte */
+    uint64_t		flags;		/*  +8 = 24 Byte */
+    utofu_vcq_id_t	rvcqid;		/*  +8 = 32 Byte */
+    size_t		psize;		/* packet-level sent size  +8=40 Byte */
+    size_t		usize;		/* user-level sent size +8=48*/
+    utfslist		smsginfo;	/* +16 = 64 Byte */
+    utfslist		rmawaitlst;	/* +16 = 80 Byte */
     union {
-	uint8_t		desc[32];	/* +32 = 84 Byte */
+	uint8_t		desc[32];	/* +32 = 112 Byte */
 	utfslist_entry	slst;		/* for free list */
     };
 };
@@ -457,8 +475,8 @@ struct utf_send_msginfo { /* msg info */
 #endif
 };
 
-#define FI_RMA_READ	1
-#define FI_RMA_WRITE	2
+#define UTF_RMA_READ	1
+#define UTF_RMA_WRITE	2
 struct utf_rma_cq {
     utfslist_entry	slst;
     struct tofu_ctx	*ctx;
@@ -478,6 +496,10 @@ struct utf_rma_cq {
     void		*fi_ucontext;
 };
 
+struct utf_tofuctx {
+    utofu_vcq_hdl_t	vcqh;
+    void		*fi_ctx;
+};
 
 #if 0
 struct utf_send_cntr {	/* 128 Byte */

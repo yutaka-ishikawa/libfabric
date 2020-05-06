@@ -27,6 +27,9 @@ utofu_stadd_t	sndctrstadd, sndctrstaddend;
 static int	utf_scntrsize;
 static utfslist	utf_scntrfree;
 static uint16_t	*rank2scntridx; /* destination rank to sender control index */
+/* For RMA */
+static struct utf_rma_cmplinfo	*utf_rmacmplip;
+utofu_stadd_t	rmacmplistadd;
 
 /* For Receiver-side eager message handling */
 struct erecv_buf *erbuf;	/* eager receiver buffer */
@@ -234,24 +237,26 @@ utf_egrsbuf_alloc(utofu_stadd_t	*stadd)
  *   - the length of the rank2scntridx's type, now uint16_t.
  */
 void
-utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs, int entries)
+utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
+	       int scntr_entries, int rmacntr_entries)
 {
     int	rc, i;
+    size_t	scntr_sz, rmacntr_sz, tot_sz;
 
-    rc = posix_memalign((void*) &utf_scntrp, 256,
-			sizeof(struct utf_send_cntr)*entries);
+    scntr_sz = sizeof(struct utf_send_cntr)*scntr_entries;
+    rmacntr_sz = sizeof(struct utf_rma_cmplinfo)*rmacntr_entries;
+    tot_sz = scntr_sz + rmacntr_sz;
+    rc = posix_memalign((void*) &utf_scntrp, 256, tot_sz);
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enoguh memory");
-    memset(utf_scntrp, 0, sizeof(struct utf_send_cntr)*entries);
 
+    memset(utf_scntrp, 0, tot_sz);
     UTOFU_CALL(1, utofu_reg_mem_with_stag, vcqh, (void*) utf_scntrp,
-	       sizeof(struct utf_send_cntr)*entries,
-	       TAG_SNDCTR, 0, &sndctrstadd);
-    // utf_printf("YI****** sndctrstadd(%lx)\n", sndctrstadd);
-    utf_scntrsize = entries;
-    sndctrstaddend = sndctrstadd + sizeof(struct utf_send_cntr)*entries;
-    memset(utf_scntrp, 0, sizeof(struct utf_send_cntr)*entries);
+	       tot_sz, TAG_SNDCTR, 0, &sndctrstadd);
+    utf_scntrsize = scntr_entries;
+    sndctrstaddend = sndctrstadd + scntr_sz;
+
     utfslist_init(&utf_scntrfree, NULL);
-    for (i = 0; i < entries; i++) {
+    for (i = 0; i < scntr_entries; i++) {
 	utfslist_append(&utf_scntrfree, &utf_scntrp[i].slst);
 	utf_scntrp[i].mypos = i;
     }
@@ -261,6 +266,11 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs, int entries)
     for(i = 0; i < nprocs; i++) {
 	rank2scntridx[i] = -1;
     }
+
+    /* setup RMA control area */
+    utf_rmacmplip = (struct utf_rma_cmplinfo*) (((uint64_t) utf_scntrp) + scntr_sz);
+    rmacmplistadd = sndctrstadd + scntr_sz;
+    memset(utf_rmacmplip, 0, rmacntr_sz);
 }
 
 int
@@ -377,6 +387,7 @@ utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 	rank2scntridx[dst]  = scp->mypos;
 	scp->dst = dst;
 	utfslist_init(&scp->smsginfo, NULL);
+	utfslist_init(&scp->rmawaitlst, NULL);
 	scp->state = S_NONE;
 	scp->flags = UTOFU_ONESIDED_FLAG_PATH(flgs);
 	scp->rvcqid = rvcqid;

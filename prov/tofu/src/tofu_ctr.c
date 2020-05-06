@@ -2,6 +2,7 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "utflib.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
@@ -53,7 +54,9 @@ tofu_cntr_read(struct fid_cntr *cntr_fid)
     ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
     if (ctr_priv == 0) { }
 
-    // R_DBG("fid(%p) val(%ld)", cntr_fid, ctr_priv->ctr_ctr);
+    R_DBG0(RDBG_LEVEL3, "fi_cntr_read: before process fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
+    utf_rma_progress();
+    R_DBG0(RDBG_LEVEL3, "fi_cntr_read: after progress fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
 
     ret = ofi_atomic_get64(&ctr_priv->ctr_ctr);
     return ret;
@@ -90,7 +93,7 @@ tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    // R_DBG("fid(%p)", cntr_fid);
+    R_DBG("fid(%p)", cntr_fid);
 
     return fc;
 }
@@ -105,7 +108,7 @@ tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
     struct tofu_cntr *ctr_priv;
 
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    // R_DBG("fid(%p)", cntr_fid);
+    R_DBG("fid(%p)", cntr_fid);
 
     assert(cntr_fid != 0);
     ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
@@ -121,7 +124,7 @@ tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    // R_DBG("fid(%p)", cntr_fid);
+    R_DBG("fid(%p)", cntr_fid);
 
     return fc;
 }
@@ -134,7 +137,7 @@ tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
 {
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
-    // R_DBG("fid(%p)", cntr_fid);
+    R_DBG0(RDBG_LEVEL3, "fi_cntr_wait: fid(%p)", cntr_fid);
 
     fc = -FI_ETIMEDOUT;
     return fc;
@@ -191,6 +194,9 @@ bad:
     return fc;
 }
 
+/*
+ * fi_cntr_open
+ */
 int
 tofu_cntr_open(struct fid_domain *fid_dom, struct fi_cntr_attr *attr,
                struct fid_cntr **fid_ctr, void *context)
@@ -232,6 +238,7 @@ tofu_cntr_open(struct fid_domain *fid_dom, struct fi_cntr_attr *attr,
 	ofi_atomic_initialize64(&ctr_priv->ctr_ctr, 0);
 	ofi_atomic_initialize64(&ctr_priv->ctr_err, 0);
     }
+    R_DBG0(RDBG_LEVEL3, "fi_cntr_open: ctr_priv->ctr_ctr(%p)", &ctr_priv->ctr_ctr);
 
     /* return fid_dom */
     fid_ctr[0] = &ctr_priv->ctr_fid;

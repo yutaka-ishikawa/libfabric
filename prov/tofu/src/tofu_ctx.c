@@ -86,8 +86,8 @@ tofu_cq_ins_ctx_tx(struct tofu_cq *cq_priv, struct tofu_ctx *ctx_priv)
 
     fastlock_acquire(&cq_priv->cq_lck);
     {
-	dlist_insert_tail(&ctx_priv->ctx_ent_cq, &cq_priv->cq_htx );
-	ofi_atomic_inc32(&cq_priv->cq_ref );
+	dlist_insert_tail(&ctx_priv->ctx_ent_cq, &cq_priv->cq_htx);
+	ofi_atomic_inc32(&cq_priv->cq_ref);
     }
     fastlock_release(&cq_priv->cq_lck);
     return ;
@@ -144,14 +144,14 @@ tofu_sep_ins_ctx_tx(struct tofu_sep *sep_priv, struct tofu_ctx *ctx_priv)
 {
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(ctx_priv->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
-    assert( dlist_empty(&ctx_priv->ctx_ent_sep) != 0 );
+    assert(dlist_empty(&ctx_priv->ctx_ent_sep) != 0);
 
     fastlock_acquire(&sep_priv->sep_lck);
     {
-	dlist_insert_tail( &ctx_priv->ctx_ent_sep, &sep_priv->sep_htx );
-	ofi_atomic_inc32( &sep_priv->sep_ref );
+	dlist_insert_tail(&ctx_priv->ctx_ent_sep, &sep_priv->sep_htx);
+	ofi_atomic_inc32(&sep_priv->sep_ref);
     }
-    fastlock_release( &sep_priv->sep_lck );
+    fastlock_release(&sep_priv->sep_lck);
     return ;
 }
 
@@ -302,7 +302,8 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
     assert(fid != 0);
     ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
 
-    fc = ofi_ep_bind_valid( &tofu_prov, bfid, flags);
+    /* checking bfid's class with flags */
+    fc = ofi_ep_bind_valid(&tofu_prov, bfid, flags);
     if (fc != 0) {
 	goto bad;
     }
@@ -467,7 +468,8 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
 alloc:
     /* initialize utf library */
     /* sep->sep_av_->av_cnt is nproc */
-    uc = utf_init_1(vcqh, ctx->ctx_sep->sep_dom->max_piggyback_size);
+    uc = utf_init_1(ctx, class == FI_CLASS_TX_CTX ? UTF_TX_CTX : UTF_RX_CTX,
+                    vcqh, ctx->ctx_sep->sep_dom->max_piggyback_size);
 //                  ctx->ctx_av->av_cnt);
     ctx->ctx_enb = 1;
 bad:
@@ -523,13 +525,15 @@ static ssize_t
 tofu_ctx_cancel(fid_t fid, void *context)
 {
     int fc = FI_SUCCESS;
-    //struct tofu_ctx *ctx_priv;
+    struct tofu_ctx *ctx_priv;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
-    //ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
+    ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
 
-    R_DBG("%s: is not yet implemented. context(%p)", __func__, context);
+    R_DBG("%s: is not yet implemented. user_context(%p) class(%s)",
+          __func__, context, tofu_fi_class_string[ctx_priv->ctx_fid.fid.fclass]);
+
     fc = -FI_ENOSYS;
     return fc;
 }
