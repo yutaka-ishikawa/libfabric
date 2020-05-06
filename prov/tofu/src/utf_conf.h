@@ -14,7 +14,8 @@
 #define DLEVEL_PROTOCOL		0x4
 #define DLEVEL_PROTO_EAGER	0x8
 #define DLEVEL_PROTO_RENDEZOUS	0x10	/* 16 */
-#define DLEVEL_PROTO_VBG	0x20	/* 32 */
+#define DLEVEL_PROTO_RMA	0x20	/* 32 */
+#define DLEVEL_PROTO_VBG	0x40	/* 64 */
 #define DLEVEL_ADHOC		0x80	/* 128 */
 #define DLEVEL_ALL		0xffff
 
@@ -40,16 +41,16 @@
  */
 
 #define MSG_SIZE	1920
-#define MSG_PEERS	12	/* must be smaller than 2^8 (edata) */
+#define MSG_PEERS	12	/* must be smaller than 2^7 (edata) */
 #define TOFU_ALIGN	256
 #define TAG_SNDCTR	12
 #define TAG_ERBUF	13
 #define TAG_EGRMGT	14
-#define SND_EGR_BUFENT	128
+#define SND_EGR_BUFENT	128	/* max peer's */
 #define SND_CNTR_SIZE	128
 #define REQ_SIZE	512
 #define RMACQ_SIZE	128
-#define RMA_MDAT_ENTSIZE 16
+#define RMA_MDAT_ENTSIZE 16	/* not used, will be removed 2020/05/06 */
 
 /*
  * num_cmp_ids:		  8

@@ -54,9 +54,9 @@ tofu_cntr_read(struct fid_cntr *cntr_fid)
     ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
     if (ctr_priv == 0) { }
 
-    R_DBG0(RDBG_LEVEL3, "fi_cntr_read: before process fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
+    //R_DBG0(RDBG_LEVEL3, "fi_cntr_read: before process fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
     utf_rma_progress();
-    R_DBG0(RDBG_LEVEL3, "fi_cntr_read: after progress fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
+    //R_DBG0(RDBG_LEVEL3, "fi_cntr_read: after progress fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
 
     ret = ofi_atomic_get64(&ctr_priv->ctr_ctr);
     return ret;

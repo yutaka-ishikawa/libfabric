@@ -501,8 +501,8 @@ utf_mem_reg(utofu_vcq_hdl_t vcqh, void *buf, size_t size)
     utofu_stadd_t	stadd = 0;
 
     UTOFU_CALL(1, utofu_reg_mem, vcqh, buf, size, 0, &stadd);
-    DEBUG(DLEVEL_ADHOC) {
-	utf_printf("%s: size(%ld) vcqh(%lx) buf(%p) stadd(%lx)\n", __func__, size, vcqh, buf, stadd);
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
+	utf_printf("%s: size(%ld/0x%lx) vcqh(%lx) buf(%p) stadd(%lx)\n", __func__, size, size, vcqh, buf, stadd);
     }
     return stadd;
 }
@@ -511,7 +511,7 @@ void
 utf_mem_dereg(utofu_vcq_id_t vcqh, utofu_stadd_t stadd)
 {
     UTOFU_CALL(1, utofu_dereg_mem, vcqh, stadd, 0);
-    DEBUG(DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
 	utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, stadd);
     }
     return;

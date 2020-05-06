@@ -6,7 +6,9 @@
  * returns the error: UTOFU_ERR_TCQ_LENGTH.
  *
  */
-#define EDAT_RMA	0x80	/* MSB is used to identify RMA operations */
+//#define EDAT_RMA	0x80	/* MSB is used to identify RMA operations */
+//#define EDAT_RMA	0x40
+#define EDAT_RMA	0x10
 
 /*
  * Event types for handling messages

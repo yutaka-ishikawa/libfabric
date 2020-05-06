@@ -717,7 +717,7 @@ tofu_catch_rma_rmtnotify(void *fi_ctx)
 {
     struct tofu_ctx *ctx = (struct tofu_ctx*) fi_ctx;
 
-    DEBUG(DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
 	utf_printf("%s: ctx(%p) class(%s)\n", __func__, ctx, tofu_fi_class_string[ctx->ctx_fid.fid.fclass]);
     }
 #if 0
@@ -727,7 +727,7 @@ tofu_catch_rma_rmtnotify(void *fi_ctx)
     }
     if (ctx->ctx_send_ctr) { /* counter */
 	struct tofu_cntr *ctr = ctx->ctx_send_ctr;
-	DEBUG(DLEVEL_ADHOC) {
+	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
 	    utf_printf("%s: cntr->ctr_tsl(%d)\n", __func__, ctr->ctr_tsl);
 	}
 	if (ctr->ctr_tsl && !(flags & FI_COMPLETION)) {
@@ -747,7 +747,7 @@ tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
     struct tofu_ctx *ctx = cq->ctx;
     uint64_t	flags = cq->fi_flags;
 
-    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	utf_printf("%s: RMA notification received cq(%p)->ctx(%p): addr(%lx) vcqh(%lx) "
 		   "lstadd(%lx) rstadd(%lx) lmemaddr(%p) len(%lx) flags(%lx: %s) type(%d: %s)\n",
 		   __func__, cq, cq->ctx, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd,
@@ -755,12 +755,16 @@ tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
 		   cq->type, cq->type == UTF_RMA_READ ? "UTF_RMA_READ" : "UTF_RMA_WRITE");
     }
     if (ctx->ctx_send_cq) { /* send notify */
-	tofu_reg_sndcq(ctx->ctx_send_cq, cq->fi_ucontext, flags,
-		       cq->len, cq->data, 0);
+	if (cq->fi_ucontext == 0) {
+	    utf_printf("%s: skipping send CQ notification\n", __func__);
+	} else {
+	    tofu_reg_sndcq(ctx->ctx_send_cq, cq->fi_ucontext, flags,
+			   cq->len, cq->data, 0);
+	}
     }
     if (ctx->ctx_send_ctr) { /* counter */
 	struct tofu_cntr *ctr = ctx->ctx_send_ctr;
-	DEBUG(DLEVEL_ADHOC) {
+	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
 	    utf_printf("%s: cntr->ctr_tsl(%d)\n", __func__, ctr->ctr_tsl);
 	}
 	if (flags & (FI_COMPLETION|FI_DELIVERY_COMPLETE|FI_INJECT_COMPLETE)) {
@@ -781,17 +785,26 @@ static inline void
 tofu_dbg_show_rma(const char *fname, const struct fi_msg_rma *msg, uint64_t flags)
 {
     ssize_t		msgsz = 0;
+    unsigned char	*bp = msg->msg_iov[0].iov_base;
+    char	buf[32];
+    int	i;
+
     if (msg->msg_iov) {
 	msgsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+    }
+    memset(buf, 0, 32);
+    for (i = 0; i < ((msgsz > 8) ? 8 : msgsz);  i++) {
+	snprintf(&buf[i*3], 4, ":%02x", bp[i]);
     }
     utf_printf("%s: YI**** RMA src(%ld) "
 	       "desc(%p) msg_iov(%p) msgsz(%ld) iov_count(%ld) "
 	       "rma_iov(%p) rma_iov_count(%ld) "
-	       "context(%p) data(%ld) flags(%lx: %s)\n",
+	       "context(%p) data(%ld) flags(%lx: %s) data(%p) %s\n",
 	       fname, msg->addr,
 	       msg->desc, msg->msg_iov, msgsz, msg->iov_count,
 	       msg->rma_iov, msg->rma_iov_count,
-	       msg->context, msg->data, flags, tofu_fi_flags_string(flags));
+	       msg->context, msg->data, flags, tofu_fi_flags_string(flags),
+	       msg->msg_iov[0].iov_base, buf);
 }
 
 static inline ssize_t
@@ -879,7 +892,7 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd, rstadd;
     struct utf_rma_cq	*rma_cq;
 
-    DEBUG(DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
 	utf_printf("%s: ctx(%p)->ctx_send_cq(%p) "
 		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p)\n",
 		   __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
@@ -899,10 +912,9 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
     }
 #if 0
     {
-	extern int utf_dbg_progress(int);
 	int i;
 	for (i = 0; i < 10; i++) {
-	    utf_dbg_progress(1);
+	    utf_rma_progress();
 	    usleep(10000);
 	}
     }
@@ -922,15 +934,17 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd, rstadd;
     struct utf_rma_cq	*rma_cq;
 
-    DEBUG(DLEVEL_ADHOC) {
-	utf_printf("%s: ctx(%p)->ctx_send_cq(%p) "
-		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p)\n",
-		   __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
-		   ctx->ctx_send_ctr, ctx->ctx_recv_ctr);
-	tofu_dbg_show_rma(__func__, msg, flags);
-    }
     len = utf_rma_prepare(ctx, msg, flags,
 			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
+	utf_printf("%s: calling remote_put ctx(%p)->ctx_send_cq(%p) "
+		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p) "
+		   "vcqh(%lx) rvcqid(%lx) lstadd(%lx) rstadd(%lx) len(0x%x) edata(0x%x) cq(%p)\n",
+		   __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
+		   ctx->ctx_send_ctr, ctx->ctx_recv_ctr,
+		   vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
+	tofu_dbg_show_rma(__func__, msg, flags);
+    }
     if (len >= 0) {
 	remote_put(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
 	rma_cq->notify = tofu_catch_rma_lclnotify;
@@ -948,15 +962,14 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
     } else {
 	fc = len;
     }
-#if 0
+//#if 0
     {
-	extern int utf_dbg_progress(int);
 	int i;
 	for (i = 0; i < 10; i++) {
-	    utf_dbg_progress(1);
+	    utf_rma_progress();
 	    usleep(100);
 	}
     }
-#endif
+//#endif
     return fc;
 }
