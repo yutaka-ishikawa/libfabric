@@ -41,11 +41,14 @@
  */
 
 #define MSG_SIZE	1920
-#define MSG_PEERS	12	/* must be smaller than 2^7 (edata) */
+//#define MSG_PEERS	12	/* must be smaller than 2^7 (edata) */
+#define MSG_PEERS	120	/* must be smaller than 2^7 (edata) */
 #define TOFU_ALIGN	256
+/* Stearing tag */
 #define TAG_SNDCTR	12
 #define TAG_ERBUF	13
 #define TAG_EGRMGT	14
+/**/
 #define SND_EGR_BUFENT	128	/* max peer's */
 #define SND_CNTR_SIZE	128
 #define REQ_SIZE	512

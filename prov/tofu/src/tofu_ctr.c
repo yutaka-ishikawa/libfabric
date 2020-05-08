@@ -139,6 +139,8 @@ tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     R_DBG0(RDBG_LEVEL3, "fi_cntr_wait: fid(%p)", cntr_fid);
 
+    utf_rma_progress();
+
     fc = -FI_ETIMEDOUT;
     return fc;
 }

@@ -430,9 +430,8 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
     UTOFU_CALL(1, utofu_reg_mem_with_stag,
 	       vcqh, (void *)egrmgt, sizeof(sndmgt)*nprocs,
 	       TAG_EGRMGT, 0, &egrmgtstadd);
-    
-    //egrmgt = (sndmgt*) calloc(1, sizeof(sndmgt)*nprocs);
-    // utf_printf("erbstadd(%0lx) cntr(%0ld)\n", erbstadd, erbuf->header.cntr);
+
+    utf_printf("%s: erbuf(%p) erbstadd(%lx)\n", __func__, erbuf, erbstadd);
 }
  
 

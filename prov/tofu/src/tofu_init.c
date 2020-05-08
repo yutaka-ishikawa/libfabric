@@ -169,18 +169,22 @@ void fi_tofu_setdopt(int flg, int lvl)
 __attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
 int fi_tofu_cntrl(int cmd, ...)
 {
+    extern void utf_show_recv_cntr(FILE*);
     va_list	ap;
+    int     iarg1;
     int		rc = 0;
     va_start(ap, cmd);
     switch (cmd) {
-    case 0: {
-        int     mode;
-        mode = va_arg(ap, int);
-        rc = utf_dbg_progress(mode);
-        break;  }
-    case 1: {
-            utf_dbg_progress(1);
-        }
+    case 0:
+        iarg1 = va_arg(ap, int);
+        rc = utf_dbg_progress(iarg1);
+        break;
+    case 1: 
+        utf_dbg_progress(1);
+        break;
+    case 2:
+        iarg1 = va_arg(ap, int);
+        utf_show_recv_cntr(iarg1 == 1 ? stdout : stderr);
     }
     va_end(ap);
     return rc;

@@ -40,6 +40,19 @@ utf_printf(const char *fmt, ...)
     return rc;
 }
 
+int
+utf_fprintf(FILE *fp, const char *fmt, ...)
+{
+    va_list	ap;
+    int		rc;
+    va_start(ap, fmt);
+    fprintf(fp, "[%d] ", myrank);
+    rc = vfprintf(fp, fmt, ap);
+    va_end(ap);
+    fflush(fp);
+    return rc;
+}
+
 /* needs to fi it */
 extern struct utf_tofuctx	utf_sndctx[16];
 extern struct utf_tofuctx	utf_rcvctx[16];
@@ -83,6 +96,8 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
     utf_msgreq_init();
     utf_msglst_init();
     utf_rmacq_init();
+    /* receive buffer is allocated here, up to 1024 2020/05/08 */
+    utf_recvbuf_init(vcqh, 1024);
     return 0;
 }
 
@@ -101,17 +116,24 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
 	}
     }
 
-    utf_redirect();
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: pid(%d) vcqh(%lx) nprocs(%d)\n", __func__, mypid, vcqh, nprocs);
     }
     if (myrank == 0) {
 	utf_show_msgmode(stderr);
     }
+#if 0 /* moving to the 1st phase */
     /* receive buffer is allocated */
     utf_recvbuf_init(vcqh, nprocs);
+#endif
     /* sender control is allocated */
     utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT, RMA_MDAT_ENTSIZE);
+    /*
+     * Do we need to synchronize ? 2020/05/08
+     * We observed the following error on 64 node
+     * [12] utf_mrqprogress: utofu_poll_mrq ERROR rc(-195)
+     * Tofu communication error (An error of remote memory access is reported by an MRQ descriptor. The specified remote STADD may be invalid.) [TNI=0 CQ=00 CMD=ArmHw RC=11h] {onesided_poll.c:374}
+     */
     return 0;
 }
 
@@ -124,6 +146,9 @@ utf_finalize(utofu_vcq_hdl_t vcqh)
     utf_stadd_free(vcqh);
     UTOFU_CALL(0, utofu_free_vcq, vcqh);
     utf_initialized = 0;
+    /* statistics */
+    utf_printf("UTF statiscitcs\n");
+    utf_show_recv_cntr(stderr);
 }
 
 int

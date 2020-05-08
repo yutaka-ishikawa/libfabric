@@ -44,7 +44,8 @@ static struct fi_ops tofu_mr_fi_ops = {
  *  This means that the key of a memory area is managed by Tofu provider.
  *  An application obtains the key using fi_mr_key().
  *  Unknown: what are puposes of a descriptor obtained by fi_mr_desc() ?
- *  2019/04/29
+ *                                                      2019/04/29
+ *  access : FI_REMOTE_READ, FI_REMOTE_READ|FI_REMOTE_WRITE
  */
 static int
 tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,

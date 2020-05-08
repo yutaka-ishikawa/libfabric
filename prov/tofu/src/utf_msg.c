@@ -12,6 +12,11 @@ extern void	utf_msgreq_free(struct utf_msgreq *req);
 extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
 
+extern int	dbg_tofu_cmd;
+extern uint64_t	dbg_tofu_rstadd;
+extern char	*dbg_tofu_file;
+extern int	dbg_tofu_line;
+
 void
 utf_setmsgmode(int mode)
 {
@@ -46,6 +51,7 @@ remote_piggysend(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid, data, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_LATEST_CMDINFO(CMD_PUT_PIGGY, rstadd);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_piggyback: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
     }
@@ -70,6 +76,7 @@ remote_put(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_LATEST_CMDINFO(CMD_PUT, rstadd);
     DEBUG(DLEVEL_UTOFU|DLEVEL_ADHOC) {
 	char buf[128];
 	utf_printf("remote_put: desc size(%ld)  vcqh(%lx) rvcqid(%lx: %s) len(%ld) "
@@ -96,6 +103,7 @@ remote_get(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_LATEST_CMDINFO(CMD_GET, rstadd);
     DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
 	char buf[128];
 	utf_printf("remote_get: desc size(%ld) vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
@@ -186,6 +194,7 @@ utf_remote_add(utofu_vcq_hdl_t vcqh,
 	       UTOFU_ARMW_OP_ADD,
 	       val, rstadd, edata, flgs, desc, &sz);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+    UTOFU_LATEST_CMDINFO(CMD_ARMW8, rstadd);    
     return 0;
 }
 

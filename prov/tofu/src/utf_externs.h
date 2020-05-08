@@ -62,6 +62,7 @@ extern void	utf_show_msgmode(FILE *fp);
 extern void	utf_show_data(char *msg, char *data, size_t len);
 extern void	utf_redirect();
 extern int	utf_printf(const char *fmt, ...);
+extern int	utf_fprintf(FILE*, const char *fmt, ...);
 extern void	mrq_notice_show(struct utofu_mrq_notice *ntcp);
 extern void	erecvbuf_dump(int, int);
 extern void	erecvbuf_printcntr();
@@ -72,6 +73,7 @@ extern void	vcq_info_dump(const char *msg, utofu_vcq_id_t rvcqid,
 struct utf_msgbdy;
 extern void	utf_showpacket(char *msg, struct utf_msgbdy *mbp);
 extern void	utf_setmsgmode(int);
+extern void	utf_show_recv_cntr(FILE*);
 
 extern int	utf_dflag;
 extern int	mypid, myrank;

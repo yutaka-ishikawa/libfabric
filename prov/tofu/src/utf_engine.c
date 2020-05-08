@@ -26,6 +26,10 @@ extern int scntr2idx(struct utf_send_cntr *scp);
 /* needs to fi it */
 struct utf_tofuctx	utf_sndctx[16];
 struct utf_tofuctx	utf_rcvctx[16];
+int		dbg_tofu_cmd;
+uint64_t	dbg_tofu_rstadd;
+char		*dbg_tofu_file;
+int		dbg_tofu_line;
 
 static struct utf_recv_cntr	rcntr[MSG_PEERS];
 static utofu_vcq_id_t		vcqrcntr[MSG_PEERS];
@@ -211,6 +215,7 @@ utf_done_rget(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
     utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 		     UTOFU_ARMW_OP_OR, SCNTR_OK,
 		     stadd + SCNTR_RGETDONE_OFFST, sidx, 0);
+    UTOFU_LATEST_CMDINFO(CMD_ARMW4, stadd + SCNTR_RGETDONE_OFFST);
     if (req->bufstadd) {
 	utf_mem_dereg(vcqh, req->bufstadd);
 	req->bufstadd = 0;
@@ -668,6 +673,7 @@ utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 	utf_remote_add(vcqh, usp->rvcqid,
 		       UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE,
 		       -1, erbstadd, usp->mypos, 0);
+	UTOFU_LATEST_CMDINFO(CMD_ADD, erbstadd);
 	usp->state = S_REQ_ROOM;
 	sndmgt_set_examed(dst, egrmgt);
 	return 0;
@@ -736,12 +742,18 @@ utf_rma_rmtcq(utofu_vcq_hdl_t vcqh, struct utofu_mrq_notice mrq_notice, struct u
 	    {
 		int	i;
 		unsigned char	*bp = (unsigned char*) 0x618510;
+		int	*ip = (int*) 0x618510;
 		char	buf[32];
 		memset(buf, 0, 32);
 		for (i = 0; i < 8; i++) {
 		    snprintf(&buf[i*3], 4, ":%02x", bp[i]);
 		}
 		utf_printf("\t bp(%p) %s\n", bp, buf);
+		for (i = 0; i < 4; i++) {
+		    printf("(%p) %d ", ip + i, *(ip + i));
+		    fprintf(stderr, "(%p) %d ", ip + i, *(ip + i));
+		}
+		printf("\n"); fprintf(stderr, "\n"); fflush(NULL);
 	    }
 	}
 	break;
@@ -815,6 +827,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	char msg[1024];
 	utofu_get_last_error(msg);
 	utf_printf("%s: utofu_poll_mrq ERROR rc(%d)\n\t%s\n", __func__, rc, msg);
+	abort();
 	return rc;
     }
     DEBUG(DLEVEL_UTOFU) {
@@ -893,6 +906,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	    utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 			     UTOFU_ARMW_OP_OR, SCNTR_OK,
 			     stadd + SCNTR_RST_RECVRESET_OFFST, sidx, 0);
+	    UTOFU_LATEST_CMDINFO(CMD_ARMW4, stadd + SCNTR_RST_RECVRESET_OFFST);
 	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: RST sent src(%d) rvcq(%lx) flg(%lx) stadd(%lx)\n",
 					   __func__, EMSG_HDR(msgp).src, ursp->svcqid, ursp->flags, stadd);
 	    cur_av = av;
@@ -1070,4 +1084,20 @@ utf_rma_progress()
     int rc;
     rc = utf_progress(dbg_av, dbg_vcqh);
     return rc;
+}
+
+void
+utf_show_recv_cntr(FILE *fp)
+{
+    extern struct erecv_buf	*erbuf;
+    uint64_t		cntr = erbuf->header.cntr;
+    int	i;
+    utf_fprintf(fp, "# of PEERS: %d\n", MSG_PEERS - cntr);
+#if 0
+    for (i = MSG_PEERS - 1; i > cntr; --i) {
+	fprintf(fp, "\t%07ld", rcntr[i].hdr.src);
+	if (((i + 1) % 8) == 0) fprintf(fp, "\n");
+    }
+    fprintf(fp, "\n"); fflush(fp);
+#endif
 }

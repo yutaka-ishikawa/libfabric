@@ -47,7 +47,6 @@ extern void utofu_get_last_error(const char*);
     }									\
 } while(0);
 
-
 #define UTOFU_CALL(abrt, func, ...) do {				\
     char msg[256];							\
     int rc;								\
@@ -65,4 +64,19 @@ extern void utofu_get_last_error(const char*);
 
 #define INITCHECK() do {						\
     if (utf_initialized == 0) return -1;				\
+} while (0);
+
+#define CMD_ARMW4	1
+#define CMD_ARMW8	2
+#define CMD_ADD		3
+#define CMD_PUT_PIGGY	4
+#define CMD_PUT		5
+#define CMD_GET		6
+
+#define UTOFU_LATEST_CMDINFO(cmd, rstadd)	\
+{						\
+    dbg_tofu_cmd = cmd;				\
+    dbg_tofu_rstadd = rstadd;			\
+    dbg_tofu_file = __FILE__;			\
+    dbg_tofu_line = __LINE__;			\
 } while (0);

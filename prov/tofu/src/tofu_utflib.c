@@ -355,6 +355,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     size_t	     msgsize;
     struct tofu_sep  *sep;
     struct tofu_av   *av;
+    utofu_vcq_id_t	vcqh;
     utofu_vcq_id_t   r_vcqid;
     uint64_t	     flgs;
     struct utf_send_cntr *usp;
@@ -368,6 +369,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     /* convert destination fi_addr to utofu_vcq_id_t: r_vcqid */
     sep = ctx->ctx_sep;
     av = sep->sep_av_;
+    vcqh = sep->sep_myvcqh;
     fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
     if (fc != FI_SUCCESS) { rc = fc; goto err1; }
 #if 0
@@ -437,7 +439,6 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	}
     } else {
 	void	*msgdtp = msg->msg_iov[0].iov_base;
-	utofu_vcq_id_t	vcqh = sep->sep_myvcqh;
 	/* We only handle one vector length so far ! */
 	if (msg->iov_count != 1) {
 	    utf_printf("%s: cannot handle message vector\n", __func__);
@@ -471,12 +472,15 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     //fi_tofu_dbgvalue = ohead;
     if (ohead == NULL) { /* this is the first entry */
-	rc = utf_send_start(ctx->ctx_sep->sep_myvcqh, usp);
+	rc = utf_send_start(vcqh, usp);
 	if (rc != 0) {
 	    fc = FI_EIO;
 	}
     }
-    //utf_printf("%s: YI***** return FI_SUCESS\n", __func__);
+#if 0
+    /* progress */
+    utf_progress(av, vcqh);
+#endif
     return fc;
 err4:
     utf_msgreq_free(req);
@@ -706,6 +710,10 @@ req_setup:
 	fc = -FI_ENOMSG;
     }
 ext:
+#if 0
+    /* progress */
+    utf_progress(ctx->ctx_sep->sep_av_, ctx->ctx_sep->sep_myvcqh);
+#endif
     return fc;
 }
 
@@ -799,10 +807,12 @@ tofu_dbg_show_rma(const char *fname, const struct fi_msg_rma *msg, uint64_t flag
     utf_printf("%s: YI**** RMA src(%ld) "
 	       "desc(%p) msg_iov(%p) msgsz(%ld) iov_count(%ld) "
 	       "rma_iov(%p) rma_iov_count(%ld) "
+	       "rma_iov[0].addr(%p) rma_iov[0].len(0x%lx) rma_iov[0].key(0x%lx) "
 	       "context(%p) data(%ld) flags(%lx: %s) data(%p) %s\n",
 	       fname, msg->addr,
 	       msg->desc, msg->msg_iov, msgsz, msg->iov_count,
 	       msg->rma_iov, msg->rma_iov_count,
+	       msg->rma_iov[0].addr, msg->rma_iov[0].len, msg->rma_iov[0].key,
 	       msg->context, msg->data, flags, tofu_fi_flags_string(flags),
 	       msg->msg_iov[0].iov_base, buf);
 }
@@ -967,7 +977,7 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
 	int i;
 	for (i = 0; i < 10; i++) {
 	    utf_rma_progress();
-	    usleep(100);
+	    //usleep(100);
 	}
     }
 //#endif
