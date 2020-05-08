@@ -49,6 +49,7 @@
 #define TAG_ERBUF	13
 #define TAG_EGRMGT	14
 /**/
+#define MAX_NODE	158976	/* Fugaku max nodes */
 #define SND_EGR_BUFENT	128	/* max peer's */
 #define SND_CNTR_SIZE	128
 #define REQ_SIZE	512

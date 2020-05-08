@@ -96,8 +96,10 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
     utf_msgreq_init();
     utf_msglst_init();
     utf_rmacq_init();
-    /* receive buffer is allocated here, up to 1024 2020/05/08 */
-    utf_recvbuf_init(vcqh, 1024);
+    /* receive buffer is allocated here, 2020/05/08 
+     * size of sndmgt is 4 * 158976 * 4 = about 2.5 MB
+     */
+    utf_recvbuf_init(vcqh, MAX_NODE*4);
     return 0;
 }
 

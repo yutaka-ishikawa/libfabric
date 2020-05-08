@@ -414,6 +414,8 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
 {
     int  rc;
     long algn = sysconf(_SC_PAGESIZE);
+
+    /* erbuf size is decided at the compile time: MSG_PEERS */
     rc = posix_memalign((void*) &erbuf, algn, sizeof(struct erecv_buf));
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
     memset(erbuf, 0, sizeof(struct erecv_buf));
@@ -423,6 +425,7 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
 	       TAG_ERBUF, 0, &erbstadd);
     erbuf->header.cntr = MSG_PEERS - 1;
 
+    /* here is a dynamic memory allocation */
     rc = posix_memalign((void*) &egrmgt, 256, sizeof(sndmgt)*nprocs);
     SYSERRCHECK_EXIT(rc, !=, 0, "Not enough memory");
     memset(egrmgt, 0, sizeof(sndmgt)*nprocs);

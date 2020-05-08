@@ -10,6 +10,12 @@ extern int	utf_printf(const char *fmt, ...);
 #include "utf_queue.h"
 #include "tofu_conf.h"
 
+int mypid;
+
+#include "utf_errmacros.h"
+#include "utf_sndmgt.h"
+
+
 int
 main()
 {
@@ -25,4 +31,5 @@ main()
     printf("sizeof(struct utf_msghdr) = %ld\n", sizeof(struct utf_msghdr));
     printf("sizeof(struct utf_hpacket) = %ld\n", sizeof(struct utf_hpacket));
     printf("sizeof(struct utf_msgbdy) = %ld\n", sizeof(struct utf_msgbdy));
+    printf("sizeof(struct sndmgt) = %ld\n", sizeof(struct sndmgt));
 }

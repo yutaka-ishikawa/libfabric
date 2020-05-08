@@ -14,8 +14,8 @@
 #	PJM --mpi "proc=192"
 #	PJM -L "node=4608"
 #	PJM --mpi "proc=4608"
-#PJM -L "elapse=00:03:00"
-#PJM -L "rscunit=rscunit_ft01,rscgrp=dvsin"
+#PJM -L "elapse=00:00:10"
+#PJM -L "rscunit=rscunit_ft01,rscgrp=dvsin-r1"
 #PJM -L proc-core=unlimited
 #------- Program execution -------#
 
