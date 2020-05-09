@@ -204,7 +204,8 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 {
     int	rc;
     /* local mrq notification is supressed */
-    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
+//    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
+      flgs |= UTOFU_ONESIDED_FLAG_TCQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
@@ -218,14 +219,22 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
     if (rc == UTOFU_SUCCESS) {
 	return 0;
     } else  if (rc == UTOFU_ERR_BUSY) {
+	utf_printf("%s: ERROR\n", __func__); printf("%s: ERROR\n", __func__); fflush(stdout);
+	utf_tofu_error();
+#if 0
 	/* Needs to reissuue later, so adding pending list */
 	struct utf_pending_utfcmd	*upu = utf_pcmd_alloc();
+	utf_printf("%s: busy\n", __func__); printf("%s: busy\n", __func__); fflush(stdout);
 	UTOFU_CALL(1, utofu_prepare_armw4,
 		   vcqh, rvcqid, op, val, rstadd, edata, flgs,  upu->desc, &upu->sz);
 	upu->vcqh = vcqh, upu->rvcqid = rvcqid; upu->cmd = UTF_CMD_ARMW4; upu->op = op;
 	upu->file = __FILE__; upu->line = __LINE__;
+	utf_printf("%s: busy upu(%p)\n", __func__, upu);
+	printf("%s: busy upu(%p)\n", __func__, upu); fflush(stdout);
 	utfslist_append(&utf_pcmd_head, &upu->slst);
+#endif
     } else {
+	utf_printf("%s: ERROR\n", __func__); printf("%s: ERROR\n", __func__); fflush(stdout);
 	utf_tofu_error();
 	/* never return */
     }

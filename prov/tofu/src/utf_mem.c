@@ -505,9 +505,9 @@ void
 utf_pcmd_init()
 {
     int	i;
-    utf_pcmd_pool = utf_malloc(sizeof(struct utf_rma_cq)*PND_LISTSIZE);
+    utf_pcmd_pool = utf_malloc(sizeof(struct utf_pending_utfcmd)*PND_LISTSIZE);
     utfslist_init(&utf_pcmd_freelst, NULL);
-    for (i = 0; i < RMACQ_SIZE; i++) {
+    for (i = 0; i < PND_LISTSIZE; i++) {
 	utfslist_append(&utf_pcmd_freelst, &utf_pcmd_pool[i].slst);
     }
 }

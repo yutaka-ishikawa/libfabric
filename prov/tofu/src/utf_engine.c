@@ -913,8 +913,8 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 			     UTOFU_ARMW_OP_OR, SCNTR_OK,
 			     stadd + SCNTR_RST_RECVRESET_OFFST, sidx, 0);
 	    DBG_UTF_CMDINFO(UTF_CMD_ARMW4, stadd + SCNTR_RST_RECVRESET_OFFST);
-	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: RST sent src(%d) rvcq(%lx) flg(%lx) stadd(%lx)\n",
-					   __func__, EMSG_HDR(msgp).src, ursp->svcqid, ursp->flags, stadd);
+	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: RST sent src(%d) rvcq(%lx) flg(%lx) stadd(%lx) edata(%d)\n",
+					   __func__, EMSG_HDR(msgp).src, ursp->svcqid, ursp->flags, stadd, sidx);
 	    cur_av = av;
 	    ursp->rst_sent = 1;
 	} else if (ursp->recvoff > MSGBUF_SIZE) {
@@ -978,7 +978,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	int	sidx = mrq_notice.edata;
 	usp = utf_idx2scntr(sidx);
 	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_UTOFU) {
-	    utf_printf("%s: MRQ_LCL_ARM: edata(%d) rmt_val(%ld) usp(%p)\n",
+	    utf_printf("%s: MRQ_LCL_ARM: edata(%d) rmt_val(%ld) usp(%p) RST ?\n",
 		     __func__, mrq_notice.edata, mrq_notice.rmt_value, usp);
 	}
 	if (is_scntr(mrq_notice.rmt_stadd, &evtype)) {
@@ -1054,6 +1054,12 @@ utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 	dbg_prog1st = 1;
     }
     do {
+	rc1 = utf_mrqprogress(av, vcqh);
+	rc2 = utf_tcqprogress(vcqh);
+	progressed++;
+    } while (rc1 == UTOFU_SUCCESS && progressed < 10);
+#if 0
+    do {
 	utfslist_entry		*slst;
 	progressed = 0;
 	while ((rc1 = utf_mrqprogress(av, vcqh)) == UTOFU_SUCCESS) {
@@ -1064,6 +1070,7 @@ utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 	    int	rc;
 	    struct utf_pending_utfcmd *upu = container_of(slst, struct utf_pending_utfcmd, slst);
 	    /* re-issue */
+	    utf_printf("%s: upu(%p) reissue rvcqid(%p) cmd(%d) sz(%ld)\n", __func__, upu, upu->rvcqid, upu->cmd, upu->sz);
 	    UTOFU_CALL_RC(rc, utofu_post_toq, upu->vcqh, upu->desc, upu->sz, upu);
 	    if (rc == UTOFU_ERR_BUSY) {
 		/* re-schedule */
@@ -1081,6 +1088,7 @@ utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 	    progressed++;
 	}
     } while (progressed);
+#endif
     /* NEEDS to check return value if error occurs YI */
     return rc2;
 }
