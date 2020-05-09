@@ -498,6 +498,26 @@ struct utf_rma_cq {
     void		*fi_ucontext;
 };
 
+#define UTF_CMD_ARMW4	1
+#define UTF_CMD_ARMW8	2
+#define UTF_CMD_ADD	3
+#define UTF_CMD_PUT_PIGGY	4
+#define UTF_CMD_PUT		5
+#define UTF_CMD_GET		6
+
+#pragma pack(1)
+struct utf_pending_utfcmd {
+    utfslist_entry	slst;
+    utofu_vcq_hdl_t	vcqh;
+    utofu_vcq_id_t	rvcqid;
+    int		cmd;	/* utofu command */
+    uint32_t	op;	/* operation type in ARM */
+    char	*file;	/* for debug purpose */
+    int		line;	/* for debug purpose */
+    uint8_t	desc[128];
+    size_t	sz;	/* desc size */
+};
+
 struct utf_tofuctx {
     utofu_vcq_hdl_t	vcqh;
     void		*fi_ctx;

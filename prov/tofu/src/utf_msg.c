@@ -12,10 +12,9 @@ extern void	utf_msgreq_free(struct utf_msgreq *req);
 extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
 
-extern int	dbg_tofu_cmd;
-extern uint64_t	dbg_tofu_rstadd;
-extern char	*dbg_tofu_file;
-extern int	dbg_tofu_line;
+extern utfslist		utf_pcmd_head;
+extern struct utf_pending_utfcmd *utf_pcmd_alloc();
+extern void	utf_pcmd_free(struct utf_pending_utfcmd *);
 
 void
 utf_setmsgmode(int mode)
@@ -35,6 +34,8 @@ utf_show_msgmode(FILE *fp)
     fprintf(fp, "MSGMODE is %s\n", md);
 }
 
+extern void	utf_tofu_error();
+
 int
 remote_piggysend(utofu_vcq_hdl_t vcqh,
 		 utofu_vcq_id_t rvcqid, void *data,  utofu_stadd_t rstadd,
@@ -51,7 +52,6 @@ remote_piggysend(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid, data, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
-    UTOFU_LATEST_CMDINFO(CMD_PUT_PIGGY, rstadd);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_piggyback: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
     }
@@ -76,7 +76,6 @@ remote_put(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
-    UTOFU_LATEST_CMDINFO(CMD_PUT, rstadd);
     DEBUG(DLEVEL_UTOFU|DLEVEL_ADHOC) {
 	char buf[128];
 	utf_printf("remote_put: desc size(%ld)  vcqh(%lx) rvcqid(%lx: %s) len(%ld) "
@@ -103,7 +102,6 @@ remote_get(utofu_vcq_hdl_t vcqh,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
-    UTOFU_LATEST_CMDINFO(CMD_GET, rstadd);
     DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
 	char buf[128];
 	utf_printf("remote_get: desc size(%ld) vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
@@ -194,9 +192,9 @@ utf_remote_add(utofu_vcq_hdl_t vcqh,
 	       UTOFU_ARMW_OP_ADD,
 	       val, rstadd, edata, flgs, desc, &sz);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
-    UTOFU_LATEST_CMDINFO(CMD_ARMW8, rstadd);    
     return 0;
 }
+
 
 int
 utf_remote_armw4(utofu_vcq_hdl_t vcqh,
@@ -204,6 +202,7 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 		 enum utofu_armw_op op, uint64_t val,
 		 utofu_stadd_t rstadd, uint64_t edata, void *cbdata)
 {
+    int	rc;
     /* local mrq notification is supressed */
     flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
 	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
@@ -214,9 +213,23 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 	utf_printf("utf_remote_armw4: val(%ld) rvcqid(%lx) op(%x) rstadd(%lx)\n",
 		 val, rvcqid, op, rstadd);
     }
-    UTOFU_CALL(1, utofu_armw4, vcqh, rvcqid, op,
+    UTOFU_CALL_RC(rc, utofu_armw4, vcqh, rvcqid, op,
 	       val, rstadd, edata, flgs, cbdata);
-    return 0;
+    if (rc == UTOFU_SUCCESS) {
+	return 0;
+    } else  if (rc == UTOFU_ERR_BUSY) {
+	/* Needs to reissuue later, so adding pending list */
+	struct utf_pending_utfcmd	*upu = utf_pcmd_alloc();
+	UTOFU_CALL(1, utofu_prepare_armw4,
+		   vcqh, rvcqid, op, val, rstadd, edata, flgs,  upu->desc, &upu->sz);
+	upu->vcqh = vcqh, upu->rvcqid = rvcqid; upu->cmd = UTF_CMD_ARMW4; upu->op = op;
+	upu->file = __FILE__; upu->line = __LINE__;
+	utfslist_append(&utf_pcmd_head, &upu->slst);
+    } else {
+	utf_tofu_error();
+	/* never return */
+    }
+    return 0; /* never come */
 }
 
 #define ERR_NOMORE_SNDCNTR	-2

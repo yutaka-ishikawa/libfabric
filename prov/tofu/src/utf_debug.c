@@ -7,6 +7,11 @@
 #include "tofu_debug.h"
 #endif
 
+int		dbg_tofu_cmd;
+uint64_t	dbg_tofu_rstadd;
+char		*dbg_tofu_file;
+int		dbg_tofu_line;
+
 static FILE	*logfp;
 static char	logname[PATH_MAX];
 

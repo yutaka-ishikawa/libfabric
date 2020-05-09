@@ -496,6 +496,41 @@ utf_rmacq_free(struct utf_rma_cq *cq)
     utfslist_insert(&utf_free_rmacq, &cq->slst);
 }
 
+utfslist		utf_pcmd_head;
+utfslist		utf_pcmd_save;
+static utfslist		utf_pcmd_freelst;
+static struct utf_pending_utfcmd *utf_pcmd_pool;
+
+void
+utf_pcmd_init()
+{
+    int	i;
+    utf_pcmd_pool = utf_malloc(sizeof(struct utf_rma_cq)*PND_LISTSIZE);
+    utfslist_init(&utf_pcmd_freelst, NULL);
+    for (i = 0; i < RMACQ_SIZE; i++) {
+	utfslist_append(&utf_pcmd_freelst, &utf_pcmd_pool[i].slst);
+    }
+}
+
+struct utf_pending_utfcmd *
+utf_pcmd_alloc()
+{
+    struct utfslist_entry *slst = utfslist_remove(&utf_pcmd_freelst);
+    struct utf_pending_utfcmd *pu;
+    if (slst == NULL) {
+	utf_printf("%s: no more RMA CQ entry\n", __func__);
+	abort();
+    }
+    pu = container_of(slst, struct utf_pending_utfcmd, slst);
+    return pu;
+}
+
+void
+utf_pcmd_free(struct utf_pending_utfcmd *pu)
+{
+    utfslist_insert(&utf_pcmd_freelst, &pu->slst);
+}
+
 
 utofu_stadd_t
 utf_mem_reg(utofu_vcq_hdl_t vcqh, void *buf, size_t size)

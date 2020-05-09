@@ -16,6 +16,8 @@ extern sndmgt	*egrmgt;
 extern struct utf_msgreq	*utf_msgreq_alloc();
 extern struct utf_msglst	*utf_msglst_append(utfslist *head,
 						   struct utf_msgreq *req);
+extern utfslist	utf_pcmd_head, utf_pcmd_save;
+extern void	utf_pcmd_free(struct utf_pending_utfcmd *);
 extern utfslist utf_wait_rmacq;
 extern void	tofu_catch_rma_rmtnotify(void *cntx);
 
@@ -26,10 +28,6 @@ extern int scntr2idx(struct utf_send_cntr *scp);
 /* needs to fi it */
 struct utf_tofuctx	utf_sndctx[16];
 struct utf_tofuctx	utf_rcvctx[16];
-int		dbg_tofu_cmd;
-uint64_t	dbg_tofu_rstadd;
-char		*dbg_tofu_file;
-int		dbg_tofu_line;
 
 static struct utf_recv_cntr	rcntr[MSG_PEERS];
 static utofu_vcq_id_t		vcqrcntr[MSG_PEERS];
@@ -102,6 +100,17 @@ show_info()
 	}
     }
 }
+
+void
+utf_tofu_error()
+{
+    char msg[1024];
+    utofu_get_last_error(msg);
+    utf_printf("%s: utofu error: %s\n", __func__, msg);
+    show_info();
+    abort();
+}
+
 
 static inline int
 utfgen_explst_match(struct utf_hpacket *pkt)
@@ -215,7 +224,7 @@ utf_done_rget(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
     utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 		     UTOFU_ARMW_OP_OR, SCNTR_OK,
 		     stadd + SCNTR_RGETDONE_OFFST, sidx, 0);
-    UTOFU_LATEST_CMDINFO(CMD_ARMW4, stadd + SCNTR_RGETDONE_OFFST);
+    DBG_UTF_CMDINFO(UTF_CMD_ARMW4, stadd + SCNTR_RGETDONE_OFFST);
     if (req->bufstadd) {
 	utf_mem_dereg(vcqh, req->bufstadd);
 	req->bufstadd = 0;
@@ -673,7 +682,7 @@ utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 	utf_remote_add(vcqh, usp->rvcqid,
 		       UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE,
 		       -1, erbstadd, usp->mypos, 0);
-	UTOFU_LATEST_CMDINFO(CMD_ADD, erbstadd);
+	DBG_UTF_CMDINFO(UTF_CMD_ADD, erbstadd);
 	usp->state = S_REQ_ROOM;
 	sndmgt_set_examed(dst, egrmgt);
 	return 0;
@@ -733,7 +742,6 @@ found:
 void
 utf_rma_rmtcq(utofu_vcq_hdl_t vcqh, struct utofu_mrq_notice mrq_notice, struct utf_recv_cntr *ursp)
 {
-    int i;
     switch (mrq_notice.notice_type) {
     case UTOFU_MRQ_TYPE_RMT_PUT: /* 1 */
 	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
@@ -824,10 +832,8 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
     rc = utofu_poll_mrq(vcqh, 0, &mrq_notice);
     if (rc == UTOFU_ERR_NOT_FOUND) return rc;
     if (rc != UTOFU_SUCCESS) {
-	char msg[1024];
-	utofu_get_last_error(msg);
-	utf_printf("%s: utofu_poll_mrq ERROR rc(%d)\n\t%s\n", __func__, rc, msg);
-	abort();
+	utf_tofu_error();
+	/* never return */
 	return rc;
     }
     DEBUG(DLEVEL_UTOFU) {
@@ -906,7 +912,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	    utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 			     UTOFU_ARMW_OP_OR, SCNTR_OK,
 			     stadd + SCNTR_RST_RECVRESET_OFFST, sidx, 0);
-	    UTOFU_LATEST_CMDINFO(CMD_ARMW4, stadd + SCNTR_RST_RECVRESET_OFFST);
+	    DBG_UTF_CMDINFO(UTF_CMD_ARMW4, stadd + SCNTR_RST_RECVRESET_OFFST);
 	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: RST sent src(%d) rvcq(%lx) flg(%lx) stadd(%lx)\n",
 					   __func__, EMSG_HDR(msgp).src, ursp->svcqid, ursp->flags, stadd);
 	    cur_av = av;
@@ -1027,10 +1033,7 @@ utf_tcqprogress(utofu_vcq_hdl_t vcqh)
 
     rc = utofu_poll_tcq(vcqh, 0, &cbdata);
     if (rc != UTOFU_ERR_NOT_FOUND && rc != UTOFU_SUCCESS) {
-	char msg[1024];
-	utofu_get_last_error(msg);
-	utf_printf("%s: error rc(%d)\n\t%s\n", __func__, rc, msg);
-	show_info();
+	utf_tofu_error();
     }
     return rc;
 }
@@ -1051,10 +1054,29 @@ utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 	dbg_prog1st = 1;
     }
     do {
+	utfslist_entry		*slst;
 	progressed = 0;
 	while ((rc1 = utf_mrqprogress(av, vcqh)) == UTOFU_SUCCESS) {
 	    progressed++;
 	}
+	utfslist_init(&utf_pcmd_save, NULL);
+	while ((slst = utfslist_remove(&utf_pcmd_head)) != NULL) {
+	    int	rc;
+	    struct utf_pending_utfcmd *upu = container_of(slst, struct utf_pending_utfcmd, slst);
+	    /* re-issue */
+	    UTOFU_CALL_RC(rc, utofu_post_toq, upu->vcqh, upu->desc, upu->sz, upu);
+	    if (rc == UTOFU_ERR_BUSY) {
+		/* re-schedule */
+		utfslist_append(&utf_pcmd_save, &upu->slst);
+	    } else if (rc != UTOFU_SUCCESS) {
+		/* error */
+		utf_tofu_error();
+		/* never return */
+	    } else {
+		utf_pcmd_free(upu);
+	    }
+	}
+	utf_pcmd_head = utf_pcmd_save;
 	while ((rc2 = utf_tcqprogress(vcqh)) == UTOFU_SUCCESS) {
 	    progressed++;
 	}
@@ -1091,7 +1113,6 @@ utf_show_recv_cntr(FILE *fp)
 {
     extern struct erecv_buf	*erbuf;
     uint64_t		cntr = erbuf->header.cntr;
-    int	i;
     utf_fprintf(fp, "# of PEERS: %d\n", MSG_PEERS - cntr);
 #if 0
     for (i = MSG_PEERS - 1; i > cntr; --i) {

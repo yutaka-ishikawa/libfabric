@@ -780,7 +780,6 @@ tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
 	    utf_printf("%s: ctr->ctr_ctr(%ld)\n", __func__, ctr->ctr_ctr);
 	}
     }
-skip:
     if (cq->lstadd) {
 	struct tofu_sep	*sep = ctx->ctx_sep;
 	utofu_vcq_hdl_t vcqh = sep->sep_myvcqh;

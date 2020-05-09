@@ -55,6 +55,7 @@
 #define REQ_SIZE	512
 #define RMACQ_SIZE	128
 #define RMA_MDAT_ENTSIZE 16	/* not used, will be removed 2020/05/06 */
+#define PND_LISTSIZE	128	/* pending command list */
 
 /*
  * num_cmp_ids:		  8

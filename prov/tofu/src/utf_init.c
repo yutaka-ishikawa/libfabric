@@ -96,6 +96,7 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
     utf_msgreq_init();
     utf_msglst_init();
     utf_rmacq_init();
+    utf_pcmd_init();
     /* receive buffer is allocated here, 2020/05/08 
      * size of sndmgt is 4 * 158976 * 4 = about 2.5 MB
      */

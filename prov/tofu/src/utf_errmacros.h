@@ -58,6 +58,16 @@ extern void utofu_get_last_error(const char*);
     UTOFU_ERRCHECK_EXIT_IF(abrt, rc);					\
 } while (0);
 
+#define UTOFU_CALL_RC(rc, func, ...) do {				\
+    char msg[256];							\
+    DEBUG(DLEVEL_UTOFU) {						\
+	snprintf(msg, 256, "%s: calling %s(%s)\n", __func__, #func, #__VA_ARGS__); \
+	utf_printf("%s", msg);						\
+    }									\
+    rc = func(__VA_ARGS__);						\
+    return rc;								\
+} while (0);
+
 #define ERRCHECK_RETURN(val1, op, val2, rc) do {			\
     if (val1 op val2) return rc;					\
 } while (0);
@@ -66,17 +76,15 @@ extern void utofu_get_last_error(const char*);
     if (utf_initialized == 0) return -1;				\
 } while (0);
 
-#define CMD_ARMW4	1
-#define CMD_ARMW8	2
-#define CMD_ADD		3
-#define CMD_PUT_PIGGY	4
-#define CMD_PUT		5
-#define CMD_GET		6
-
-#define UTOFU_LATEST_CMDINFO(cmd, rstadd)	\
-{						\
-    dbg_tofu_cmd = cmd;				\
-    dbg_tofu_rstadd = rstadd;			\
-    dbg_tofu_file = __FILE__;			\
-    dbg_tofu_line = __LINE__;			\
+#define DBG_UTF_CMDINFO(cmd, rstadd)	\
+{					\
+    dbg_tofu_cmd = cmd;			\
+    dbg_tofu_rstadd = rstadd;		\
+    dbg_tofu_file = __FILE__;		\
+    dbg_tofu_line = __LINE__;		\
 } while (0);
+
+extern int	dbg_tofu_cmd;
+extern uint64_t	dbg_tofu_rstadd;
+extern char	*dbg_tofu_file;
+extern int	dbg_tofu_line;
