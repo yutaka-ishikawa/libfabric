@@ -548,6 +548,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    req->fi_ucontext = msg->context;
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED;
+	    req->rsize = 0;
 	    utf_do_rget(vcqh, ursp, R_DO_RNDZ);
 	    /* ursp->state is changed to R_DO_RNDZ */
 	    //remote_get(vcqh, ursp->svcqid, req->bufstadd,

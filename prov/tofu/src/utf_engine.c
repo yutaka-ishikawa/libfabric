@@ -23,6 +23,8 @@ extern void	tofu_catch_rma_rmtnotify(void *cntx);
 
 extern int scntr2idx(struct utf_send_cntr *scp);
 
+extern void utf_showstadd();
+
 #include "utf_msgmacro.h"
 
 /* needs to fi it */
@@ -102,11 +104,20 @@ show_info()
 }
 
 void
-utf_tofu_error()
+utf_tofu_error(int rc)
 {
+    int	i;
     char msg[1024];
     utofu_get_last_error(msg);
-    utf_printf("%s: utofu error: %s\n", __func__, msg);
+    utf_printf("%s: utofu error: rc(%d) %s\n", __func__, rc, msg);
+    utf_showstadd();
+    for (i = 0; i < 3; i++) {
+	utf_printf("utf_dbg_info[%d].cmd    = %d\n", i, utf_dbg_info[i].cmd);
+	utf_printf("utf_dbg_info[%d].rsatdd = 0x%lx\n", i, utf_dbg_info[i].rstadd);
+	utf_printf("utf_dbg_info[%d].etc    = 0x%lx\n", i, utf_dbg_info[i].etc);
+	utf_printf("utf_dbg_info[%d].file   = %s\n", i, utf_dbg_info[i].file);
+	utf_printf("utf_dbg_info[%d].line   = %d\n", i, utf_dbg_info[i].line);
+    }
     show_info();
     abort();
 }
@@ -224,7 +235,7 @@ utf_done_rget(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
     utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 		     UTOFU_ARMW_OP_OR, SCNTR_OK,
 		     stadd + SCNTR_RGETDONE_OFFST, sidx, 0);
-    DBG_UTF_CMDINFO(UTF_CMD_ARMW4, stadd + SCNTR_RGETDONE_OFFST);
+    DBG_UTF_CMDINFO(UTF_DBG_RENG, UTF_CMD_ARMW4, stadd + SCNTR_RGETDONE_OFFST, sidx);
     if (req->bufstadd) {
 	utf_mem_dereg(vcqh, req->bufstadd);
 	req->bufstadd = 0;
@@ -281,6 +292,7 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		 * pkt->hdr.size is defined by the sender */
 		req->rmtstadd = *(utofu_stadd_t*) pkt->msgdata;
 		init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
+		req->rsize = 0;
 		utf_do_rget(vcqh, ursp, R_DO_RNDZ);
 		/* state is now R_DO_RNDZ */
 	    } else {/* eager */
@@ -344,7 +356,13 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	DEBUG(DLEVEL_ADHOC) {
 	    utf_printf("%s: R_DO_RNDZ ursp->req(%p) -->\n", __func__, ursp->req);
 	}
-	utf_done_rget(vcqh, ursp);
+	req = ursp->req;
+	if (req->rsize < req->hdr.size) { /* continue to get data */
+	    utf_do_rget(vcqh, ursp, R_DO_RNDZ);
+	    break;
+	} else { /* finish */
+	    utf_done_rget(vcqh, ursp);
+	}
 	/* Falls through. */
     case R_DONE:
 	req = ursp->req;
@@ -502,9 +520,11 @@ progress:
 		 * So 14 byte payload is here  */
 		remote_piggysend(vcqh, rvcqid, &minfo->sndbuf->msgbdy,
 				 recvstadd, ssize, usp->mypos, flgs, minfo);
+		DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_PUT_PIGGY, recvstadd, minfo);
 	    } else {
 		remote_put(vcqh, rvcqid, minfo->sndstadd,
 			   recvstadd, ssize, usp->mypos, flgs, minfo);
+		DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_PUT, recvstadd, minfo);
 	    }
 	    /* recvoff, psize, usize, state */
 	    utf_setup_state(usp, ssize, ssize, MSG_CALC_EAGER_USIZE(ssize), S_DONE_EGR);
@@ -519,6 +539,7 @@ progress:
 	case SNDCNTR_INPLACE_EAGER:
 	    remote_put(vcqh, rvcqid, minfo->sndstadd,
 		       recvstadd, ssize, usp->mypos, flgs, 0);
+	    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_PUT, recvstadd, minfo);
 	    /* recvoff, psize, usize, state */
 	    utf_setup_state(usp, ssize, ssize, MSG_CALC_EAGER_USIZE(ssize), S_DO_EGR);
 	    if (usp->usize == minfo->msghdr.size) {
@@ -530,6 +551,7 @@ progress:
 	    usp->rgetwait = 0; usp->rgetdone = 0;
 	    remote_put(vcqh, rvcqid, minfo->sndstadd,
 		       recvstadd, ssize, usp->mypos, flgs, 0);
+	    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_PUT, recvstadd, minfo);
 	    /* recvoff, psize, usize, state */ /* usize does not matter */
 	    utf_setup_state(usp, ssize, ssize, MSG_EAGER_SIZE, S_REQ_RDVR);
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
@@ -578,6 +600,7 @@ progress:
 	    }
 	    remote_put(vcqh, rvcqid, minfo->sndstadd,
 		       recvstadd, ssize, usp->mypos, flgs, 0);
+	    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_PUT, recvstadd, minfo);
 	    /* recvoff, psize, usize, state */
 	    utf_update_state(usp, ssize, ssize, usize, S_DO_EGR);
 	    if (minfo->msghdr.size == usp->usize) {
@@ -600,11 +623,14 @@ progress:
 		       __func__, evnt_symbol[evt], usp->rgetwait);
 	}
 	/*
-	 * EVT_RMT_GET is generated as a result of receiver's get operation.
+	 * EVT_LCL is generated as a result of request to receiver (put).
 	 * EVT_RMT_RGETDON is generated as a result of receiver's ack operation.
+	 * EVT_RMT_GET is generated as a result of receiver's get operation.
+	 *	 now supressed 2020/05/10
 	 */
-	usp->rgetwait |= (evt == EVT_RMT_RGETDON) ? 1 : 0 ;
-	usp->rgetwait |= (evt == EVT_RMT_GET) ? 2 : 0 ;
+	usp->rgetwait |= (evt == EVT_LCL) ? 1 : 0 ;
+	usp->rgetwait |= (evt == EVT_RMT_RGETDON) ? 2 : 0 ;
+	// usp->rgetwait |= (evt == EVT_RMT_GET) ? 4 : 0 ;
 	if (usp->rgetwait == 3) { /* remote completion from the receiver */
 	    usp->state = S_RDVDONE;
 	} else {
@@ -682,7 +708,7 @@ utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 	utf_remote_add(vcqh, usp->rvcqid,
 		       UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE,
 		       -1, erbstadd, usp->mypos, 0);
-	DBG_UTF_CMDINFO(UTF_CMD_ADD, erbstadd);
+	DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_ADD, erbstadd, usp->mypos);
 	usp->state = S_REQ_ROOM;
 	sndmgt_set_examed(dst, egrmgt);
 	return 0;
@@ -799,6 +825,7 @@ utf_rmwrite_engine(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp)
 	/* real data sent */
 	remote_put(vcqh, cq->rvcqid, cq->lstadd, cq->rstadd, cq->len,
 		   EDAT_RMA | ridx, cq->utf_flgs, cq);
+	DBG_UTF_CMDINFO(UTF_DBG_RMAENG, UTF_CMD_PUT, cq->rstadd, ridx);
 #if 0
 	/* meta info sent */
 	if (cq->fi_flags & FI_TRANSMIT_COMPLETE) {
@@ -832,7 +859,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
     rc = utofu_poll_mrq(vcqh, 0, &mrq_notice);
     if (rc == UTOFU_ERR_NOT_FOUND) return rc;
     if (rc != UTOFU_SUCCESS) {
-	utf_tofu_error();
+	utf_tofu_error(rc);
 	/* never return */
 	return rc;
     }
@@ -912,7 +939,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	    utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 			     UTOFU_ARMW_OP_OR, SCNTR_OK,
 			     stadd + SCNTR_RST_RECVRESET_OFFST, sidx, 0);
-	    DBG_UTF_CMDINFO(UTF_CMD_ARMW4, stadd + SCNTR_RST_RECVRESET_OFFST);
+	    DBG_UTF_CMDINFO(UTF_DBG_RENG, UTF_CMD_ARMW4, stadd + SCNTR_RST_RECVRESET_OFFST, sidx);
 	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: RST sent src(%d) rvcq(%lx) flg(%lx) stadd(%lx) edata(%d)\n",
 					   __func__, EMSG_HDR(msgp).src, ursp->svcqid, ursp->flags, stadd, sidx);
 	    cur_av = av;
@@ -1033,7 +1060,7 @@ utf_tcqprogress(utofu_vcq_hdl_t vcqh)
 
     rc = utofu_poll_tcq(vcqh, 0, &cbdata);
     if (rc != UTOFU_ERR_NOT_FOUND && rc != UTOFU_SUCCESS) {
-	utf_tofu_error();
+	utf_tofu_error(rc);
     }
     return rc;
 }
@@ -1055,7 +1082,7 @@ utf_progress(void *av, utofu_vcq_hdl_t vcqh)
     }
     do {
 	rc1 = utf_mrqprogress(av, vcqh);
-	rc2 = utf_tcqprogress(vcqh);
+	while ((rc2 = utf_tcqprogress(vcqh)) == UTOFU_SUCCESS);
 	progressed++;
     } while (rc1 == UTOFU_SUCCESS && progressed < 10);
 #if 0
@@ -1077,7 +1104,7 @@ utf_progress(void *av, utofu_vcq_hdl_t vcqh)
 		utfslist_append(&utf_pcmd_save, &upu->slst);
 	    } else if (rc != UTOFU_SUCCESS) {
 		/* error */
-		utf_tofu_error();
+		utf_tofu_error(rc);
 		/* never return */
 	    } else {
 		utf_pcmd_free(upu);

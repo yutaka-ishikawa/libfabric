@@ -39,8 +39,9 @@
  *	Skylake&KNL: 64 Byte
  *	A64FX: 512 Byte
  */
-
+#define TOFU_PUTGET_SIZE	16777215
 #define MSG_SIZE	1920
+#define RMA_MAX_SIZE	(8*1024*1024)	/* 8 MiB (8388608 B) */
 //#define MSG_PEERS	12	/* must be smaller than 2^7 (edata) */
 #define MSG_PEERS	120	/* must be smaller than 2^7 (edata) */
 #define TOFU_ALIGN	256

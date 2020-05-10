@@ -76,15 +76,29 @@ extern void utofu_get_last_error(const char*);
     if (utf_initialized == 0) return -1;				\
 } while (0);
 
-#define DBG_UTF_CMDINFO(cmd, rstadd)	\
-{					\
-    dbg_tofu_cmd = cmd;			\
-    dbg_tofu_rstadd = rstadd;		\
-    dbg_tofu_file = __FILE__;		\
-    dbg_tofu_line = __LINE__;		\
+struct utf_dbg_info {
+    uint64_t	rstadd;
+    char	*file;
+    uint64_t	etc;
+    int		cmd;
+    int		line;
+};
+
+extern struct utf_dbg_info	utf_dbg_info[10];
+#define DBG_UTF_CMDINFO(idx, cm, addr, val)	\
+{						\
+    utf_dbg_info[idx].cmd = cm;			\
+    utf_dbg_info[idx].rstadd = addr;		\
+    utf_dbg_info[idx].etc = (uint64_t) val;	\
+    utf_dbg_info[idx].file = __FILE__;		\
+    utf_dbg_info[idx].line = __LINE__;		\
 } while (0);
 
-extern int	dbg_tofu_cmd;
-extern uint64_t	dbg_tofu_rstadd;
-extern char	*dbg_tofu_file;
-extern int	dbg_tofu_line;
+#define UTOFU_MSIZE_CHECK(size)						\
+{									\
+    if (size > TOFU_PUTGET_SIZE) {					\
+	utf_printf("%s: reqsize(0x%lx) TOFU_PUTGET_SIZE(0x%lx)\n",	\
+		   __func__, size, TOFU_PUTGET_SIZE);			\
+	abort();							\
+    }									\
+} while (0);
