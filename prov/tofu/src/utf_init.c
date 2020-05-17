@@ -5,8 +5,8 @@
 #include "utf_conf.h"
 #include "utf_externs.h"
 #include "utf_errmacros.h"
-#include "utf_sndmgt.h"
 #include "utf_queue.h"
+#include "utf_sndmgt.h"
 
 size_t	utf_pig_size;	/* piggyback size is globally defined */
 int	utf_dflag;
@@ -130,7 +130,7 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
     utf_recvbuf_init(vcqh, nprocs);
 #endif
     /* sender control is allocated */
-    utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT, RMA_MDAT_ENTSIZE);
+    utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT + 1, RMA_MDAT_ENTSIZE);
     /*
      * Do we need to synchronize ? 2020/05/08
      * We observed the following error on 64 node

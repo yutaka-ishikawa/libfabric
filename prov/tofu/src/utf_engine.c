@@ -47,8 +47,8 @@ static char *sstate_symbol[] =
 	"S_REQ_RDVR", "S_RDVDONE", "S_DONE", "S_WAIT_BUFREADY" };
 
 static char *evnt_symbol[] = {
-    "EVT_START", "EVT_LCL", "EVT_RMT_RGETDON", "EVT_RMT_RECVRST",
-    "EVT_RMT_GET", "EVT_CONT", "EVT_END"
+    "EVT_START", "EVT_LCL", "EVT_LCL_REQ", "EVT_RMT_RGETDON", "EVT_RMT_RECVRST",
+    "EVT_RMT_GET", "EVT_RMT_CHNRDY", "EVT_RMT_CHNUPDT", "EVT_CONT", "EVT_END"
 };
 
 static inline utofu_stadd_t utf_sndctr_stadd()
@@ -413,12 +413,59 @@ utf_update_state(struct utf_send_cntr *usp, int off, size_t psz, size_t usz, int
     usp->state = nst;	/* next state */
 }
 
+
+static inline uint64_t
+make_chain_addr(int rank, int mypos)
+{
+    union chain_addr	addr;
+    addr.rank_sidx = 0; addr.rank = myrank; addr.sidx = mypos;
+    return addr.rank_sidx;
+}
+
+/*
+ * Set myinfo into the last rank in chain mode
+ * As a result of this operation,
+ *	EVT_LCL is gnerated in the local sendengine
+ *	EVT_RMT_CHNUPDT is generated in the remote side sendengine
+ */
+static inline void
+utf_chain_set_tail(void *av, utofu_vcq_id_t vcqh, int myrank, uint64_t addrinfo,
+		   int mypos, struct utf_send_msginfo *minfo)
+{
+    union chain_addr last_rank;
+    uint64_t	data;
+    utofu_vcq_id_t	rvcqid;
+    uint64_t		flags;
+    last_rank.rank_sidx = addrinfo;
+    data = make_chain_addr(myrank, mypos);
+    tofufab_resolve_addrinfo(av, last_rank.rank, &rvcqid, &flags);
+    remote_piggysend(vcqh, rvcqid, &data, SCNTR_CHAIN_NXT(last_rank.sidx),
+		     sizeof(uint64_t), mypos, flags, minfo);
+}
+
+/*
+ * Ready to send flag in chain mode is set to the remote process
+ * As a result of this operation, 
+ *	no local event is generated.
+ *	EVT_RMT_CHNRDY is gerated in the remote side sendengine.
+ */
+static inline void
+utf_chain_inform_ready(void *av, utofu_vcq_hdl_t vcqh, union chain_addr addr, int mypos,
+		       struct utf_send_msginfo	*minfo)
+{
+    utofu_vcq_id_t	rvcqid;
+    uint64_t	flgs;
+    tofufab_resolve_addrinfo(av, addr.rank, &rvcqid, &flgs);
+    utf_remote_add(vcqh, rvcqid, flgs, 1, SCNTR_CHAIN_NXT(addr.sidx),
+		   mypos, minfo);
+}
+
 /*
  * sender engine
  *		
  */
 void
-utf_sendengine(utofu_vcq_id_t vcqh, struct utf_send_cntr *usp, uint64_t rslt, int evt)
+utf_sendengine(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp, uint64_t rslt, int evt)
 {
     utfslist_entry		*slst;
     struct utf_send_msginfo	*minfo;
@@ -453,20 +500,49 @@ progress:
     case S_NONE: /* never comes */
 	break;
     case S_REQ_ROOM:
-	if ((int64_t)rslt >= 0) {
-	    //utf_printf("%s: YI*** set sendok for dst(%d) and index(%d))\n",  __func__, usp->dst, (unsigned)rslt);
-	    sndmgt_set_sndok(usp->dst, egrmgt);
-	    sndmgt_set_index(usp->dst, egrmgt, rslt);
+	switch (evt) {
+	case EVT_LCL_REQ: /* a result of remote_add (armw8)  in MSGMODE_AGGR
+			   * or utf_remote_cswap8 (armw8) in MSGMODE_CHND */
+	    if (usp->smode == MSGMODE_AGGR) { /* aggressive recv allocation */
+		if ((int64_t)rslt >= 0) {
+		    sndmgt_set_sndok(usp->dst, egrmgt);
+		    sndmgt_set_index(usp->dst, egrmgt, rslt);
+		    usp->state = S_HAS_ROOM;
+		    usp->recvoff = 0;
+		    DEBUG(DLEVEL_PROTOCOL) {
+			utf_printf("\tRoom is available in remote rank %d. usp(%p)->recvoff(%d)\n", usp->dst, usp, usp->recvoff);
+		    }
+		    goto s_has_room;
+		} else {
+		    /* No room in remote rank */
+		    utf_printf("No room in remote rank\n");
+		    /* how to do */
+		}
+	    } else { /* sender chaining, MSGMODE_CHND */
+		if ((int64_t)rslt == -1) { /* success */
+		    goto myturn;
+		} else {
+		    /* put my address to the tail of chain */
+		    utf_chain_set_tail(av, vcqh, myrank, rslt, usp->mypos, minfo);
+		    /* waiting, state is still the same */
+		    break;
+		}
+	    }
+	    break;
+	case EVT_LCL:
+	    /* result of the utf_chain_set_tail, ignore */
+	    break;
+	case EVT_RMT_CHNRDY:/* as a result of remote_armw4 to CHAIN_RDY */
+	myturn:
+	    /* remote recv buf index is always EGRCHAIN_RECVPOS */
+	    /* sendok flag is never set */
+	    sndmgt_set_index(usp->dst, egrmgt, EGRCHAIN_RECVPOS);
 	    usp->state = S_HAS_ROOM;
 	    usp->recvoff = 0;
-	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("\tRoom is available in remote rank %d. usp(%p)->recvoff(%d)\n", usp->dst, usp, usp->recvoff);
-	    }
 	    goto s_has_room;
-	} else {
-	    /* No room in remote rank */
-	    utf_printf("No room in remote rank\n");
-	    /* how to do */
+	default:
+	    utf_printf("%s: something wrong evt(%d)\n", __func__, evt);
+	    abort();
 	}
 	break;
     case S_HAS_ROOM: /* 3 */
@@ -619,6 +695,74 @@ progress:
 	}
 	/* Falls through. */
     case S_DONE_EGR:
+	if (usp->smode == MSGMODE_CHND) {
+	    if (usp->chn_next.rank_sidx == 0) {
+		/* I'm last entry, reset the remote entry */
+		uint64_t	flgs = 0;
+		uint64_t	oval = make_chain_addr(myrank, usp->mypos);
+		uint64_t	nval = -1LL;
+		/* This is the Compare and Swap */
+		utf_remote_cswap(vcqh, usp->rvcqid, flgs,
+				 oval, nval, EGRCHAIN_RECV_CHNTAIL, usp->mypos, minfo);
+		usp->state = S_DONE_FINALIZE1_1;
+		DBG_UTF_CMDINFO(UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL);
+		/* 
+		 * EVT_LCL_REQ in the sendengine.
+		 * checking the swapped data in the FINALIZE1 state
+		 * No event in the receiver side, ignore UTOFU_RMT_ARMW event
+		 */
+	    } else {
+		/* inform ready to the next rank */
+		utf_chain_inform_ready(av, vcqh, usp->chn_next, usp->mypos, minfo);
+		usp->state = S_DONE_FINALIZE2;
+	    }
+	    break;
+	} else {
+	    goto going_done;
+	}
+    case S_DONE_FINALIZE1_1:
+    {
+	/*  
+	 * two types events: we can receive
+	 *	EVT_LCL_REQ (utf_remote_cswap in local)
+	 *	EVT_RMT_CHNUPDT (utf_chain_set_tail in a remote)
+	 */
+	union chain_addr chaddr;
+	chaddr.rank_sidx = rslt;
+	if (evt == EVT_LCL_REQ) {
+	    if (chaddr.rank == myrank) { /* nobody changed */
+		/* no EVT_RMT_CHNUPDT event will be received */
+		goto finalize;
+	    }
+	    /* somebody will update my chain area */
+	    /* after receiving EVT_RMT_CHNUPDT, needs reaction */
+	    usp->state = S_DONE_FINALIZE1_2;
+	} else if (evt == EVT_RMT_CHNUPDT) {
+	    /* this is a race condition, somebody get my info
+	     * during this finalization, and update my chain */
+	    /* inform ready to the next rank */
+	    usp->state = S_DONE_FINALIZE1_3;
+	} else {
+	    utf_printf("%s: something wrong evt(%d)\n", __func__, evt);
+	    abort();
+	}
+	break;
+    }
+    case S_DONE_FINALIZE1_2:
+	assert(evt == EVT_RMT_CHNUPDT);
+	goto finalize1;
+    case S_DONE_FINALIZE1_3:
+	assert(evt == EVT_LCL_REQ);
+    finalize1:
+	/* inform ready to the next rank */
+	utf_chain_inform_ready(av, vcqh, usp->chn_next, usp->mypos, minfo);
+	usp->state = S_DONE_FINALIZE2;
+	break;
+    case S_DONE_FINALIZE2: /* as a result of remote_add to inform to the next rank */
+    finalize:/* real finalization for chain mode */
+	/* update mode for future use */
+	sndmg_update_chainmode(usp->dst, egrmgt);
+going_done:
     {
 	struct utf_msgreq	*req = minfo->mreq;
 
@@ -662,7 +806,7 @@ progress:
 }
 
 int
-utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
+utf_send_start(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 {
     int	dst = usp->dst;
     /* DO NOT RESET HERE */
@@ -679,12 +823,31 @@ utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 		       "\trvcqid(%lx) remote stadd(%lx)\n",
 		       __func__, dst, usp->mypos, usp->rvcqid, erbstadd);
 	}
-	utf_remote_add(vcqh, usp->rvcqid,
-		       UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE,
-		       -1, erbstadd, usp->mypos, 0);
-	DBG_UTF_CMDINFO(UTF_CMD_ADD, erbstadd);
+	usp->smode = sndmgt_get_smode(usp->dst, egrmgt);
+	if (usp->smode == MSGMODE_CHND) {
+	    /* swap tail address of request chain */
+	    uint64_t	flgs = 0;
+	    uint64_t	val = make_chain_addr(myrank, usp->mypos);
+	    utf_remote_swap(vcqh, usp->rvcqid, flgs,
+			    val, EGRCHAIN_RECV_CHNTAIL, usp->mypos, usp);
+	    DBG_UTF_CMDINFO(UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL);
+	    /* 
+	     * EVT_LCL_REQ in the sendengine.
+	     *		checking the swapped data in the FINALIZE1 state
+	     * No event in the receiver side, ignore UTOFU_RMT_ARMW event
+	     */
+	} else { /* receive buffer is allocated aggressively */
+	    uint64_t	flgs = UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE;
+	    utf_remote_add(vcqh, usp->rvcqid, flgs,
+			   -1, erbstadd, usp->mypos, 0);
+	    DBG_UTF_CMDINFO(UTF_CMD_ADD, erbstadd);
+	    /* 
+	     * EVT_LCL_REQ in the sendengine.
+	     * No event in the receiver side, ignore UTOFU_RMT_ARMW event
+	     */
+	    sndmgt_set_examed(dst, egrmgt);
+	}
 	usp->state = S_REQ_ROOM;
-	sndmgt_set_examed(dst, egrmgt);
 	return 0;
     } else if (sndmgt_isset_sndok(dst, egrmgt) != 0) {
 	//utf_printf("%s: YI** Has a received room in rank %d: send control(%d)\n",
@@ -695,11 +858,12 @@ utf_send_start(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 		     __func__, dst, usp->mypos);
 	}
 	usp->state = S_HAS_ROOM;
-	utf_sendengine(vcqh, usp, 0, EVT_START);
+	utf_sendengine(av, vcqh, usp, 0, EVT_START);
 	return 0;
     } else {
 	utf_printf("%s: ERROR!!!! dst(%d)\n", __func__, dst);
 	abort();
+	return 0; /* never come */
     }
 }
 
@@ -858,7 +1022,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	    break;
 	}
 	usp = utf_idx2scntr(sidx);
-	utf_sendengine(vcqh, usp, 0, EVT_LCL);
+	utf_sendengine(av, vcqh, usp, 0, EVT_LCL);
 	break;
     }
     case UTOFU_MRQ_TYPE_RMT_PUT: /* 1 */
@@ -868,11 +1032,18 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	struct utf_recv_cntr	*ursp = &rcntr[entry];
 	int			sidx = mrq_notice.edata;
 	struct utf_msgbdy	*msgp;
+	int	evtype;
 
 	if (sidx & EDAT_RMA) {
 	    ursp = &rcntr[sidx & ~EDAT_RMA];
 	    utf_rma_rmtcq(vcqh, mrq_notice, ursp);
 	    break;
+	}
+	if (is_scntr(mrq_notice.rmt_stadd, &evtype)) {
+	    struct utf_send_cntr *usp;
+	    usp = utf_idx2scntr(sidx);
+	    assert(evtype == EVT_RMT_CHNRDY);
+	    utf_sendengine(av, vcqh, usp, mrq_notice.rmt_stadd, EVT_RMT_CHNUPDT);
 	}
 	ursp = &rcntr[entry];
 	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_UTOFU|DLEVEL_ADHOC) {
@@ -966,7 +1137,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		     mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
 	}
 	usp = utf_idx2scntr(sidx);
-	utf_sendengine(vcqh, usp, mrq_notice.rmt_stadd, EVT_RMT_GET);
+	utf_sendengine(av, vcqh, usp, mrq_notice.rmt_stadd, EVT_RMT_GET);
     }
 	break;
     case UTOFU_MRQ_TYPE_LCL_ARMW:/* 4 */
@@ -982,9 +1153,11 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		     __func__, mrq_notice.edata, mrq_notice.rmt_value, usp);
 	}
 	if (is_scntr(mrq_notice.rmt_stadd, &evtype)) {
-	    /* this is for a receiver's remote OR operation  */
-	} else {
-	    utf_sendengine(vcqh, usp, mrq_notice.rmt_value, EVT_LCL);
+	    /* this is for a receiver's remote OR operation
+	     * except for EVT_RMT_CHNRDY */
+	} else { /* accessing erbstadd area, erecv_buf's header  */
+	    //utf_sendengine(vcqh, usp, mrq_notice.rmt_value, EVT_LCL);
+	    utf_sendengine(av, vcqh, usp, mrq_notice.rmt_value, EVT_LCL_REQ);
 	}
 	break;
     }
@@ -1005,7 +1178,7 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		utf_printf("%s: MRQ_TYPE_RMT_ARMW: edata(%d) rmt_value(0x%lx) evtype(%s)\n",
 			   __func__, mrq_notice.edata, mrq_notice.rmt_value, evnt_symbol[evtype]);
 	    }
-	    utf_sendengine(vcqh, usp, mrq_notice.rmt_value, evtype);
+	    utf_sendengine(av, vcqh, usp, mrq_notice.rmt_value, evtype);
 	} else if (is_recvbuf(mrq_notice.rmt_value)) {
 	    /*
 	     * This is the result of recvbuf assess by the sender

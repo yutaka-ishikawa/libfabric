@@ -195,6 +195,54 @@ utf_remote_add(utofu_vcq_hdl_t vcqh,
     return 0;
 }
 
+int
+utf_remote_swap(utofu_vcq_hdl_t vcqh,
+	       utofu_vcq_id_t rvcqid, unsigned long flgs, uint64_t val,
+	       utofu_stadd_t rstadd, uint64_t edata, void *cbdata)
+{
+    char	desc[128];
+    size_t	sz;
+
+    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
+	| UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
+	| UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
+	| UTOFU_ONESIDED_FLAG_STRONG_ORDER;
+	    /* | UTOFU_MRQ_TYPE_LCL_ARMW; remote notification */
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("remote_swap: val(%ld) rvcqid(%lx)\n", val, rvcqid);
+    }
+    UTOFU_CALL(1, utofu_prepare_armw8,
+	       vcqh, rvcqid,
+	       UTOFU_ARMW_OP_SWAP,
+	       val, rstadd, edata, flgs, desc, &sz);
+    UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+    return 0;
+}
+
+int
+utf_remote_cswap(utofu_vcq_hdl_t vcqh,
+		 utofu_vcq_id_t rvcqid, unsigned long flgs,
+		 uint64_t old_val, uint64_t new_val,
+		 utofu_stadd_t rstadd, uint64_t edata, void *cbdata)
+{
+    char	desc[128];
+    size_t	sz;
+
+    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
+	| UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
+	| UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
+	| UTOFU_ONESIDED_FLAG_STRONG_ORDER;
+	    /* | UTOFU_MRQ_TYPE_LCL_ARMW; remote notification */
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("remote_cswap: old_val(%ld) new_val(%ld) rvcqid(%lx)\n", old_val, new_val, rvcqid);
+    }
+    UTOFU_CALL(1, utofu_prepare_cswap8,
+	       vcqh, rvcqid,
+	       old_val, new_val, rstadd, edata, flgs, desc, &sz);
+    UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+    return 0;
+}
+
 
 int
 utf_remote_armw4(utofu_vcq_hdl_t vcqh,
@@ -336,7 +384,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
     }
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
     if (ohead == NULL) { /* this is the first entry */
-	rc = utf_send_start(vcqh, usp);
+	rc = utf_send_start(0, vcqh, usp);
     }
     return rc;
 err4:

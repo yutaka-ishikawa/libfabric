@@ -14,7 +14,7 @@ extern void utf_sndminfo_free(struct utf_send_msginfo *smp);
 extern void	utf_vcqidtab_init();
 extern void	utf_scntr_init(utofu_vcq_hdl_t, int nprocs, int scntr_entries, int rmacntr_entries);
 extern void	utf_egrsbuf_fin(utofu_vcq_hdl_t);
-extern int	utf_send_start(utofu_vcq_hdl_t, struct utf_send_cntr *usp);
+extern int	utf_send_start(void *av, utofu_vcq_hdl_t, struct utf_send_cntr *usp);
 extern int	utf_rmwrite_engine(utofu_vcq_id_t, struct utf_send_cntr *usp);
 extern void	utf_recvbuf_init(utofu_vcq_id_t, int nprocs);
 extern void	utf_sndminfo_init(utofu_vcq_hdl_t, int entries);
@@ -43,6 +43,14 @@ extern int	remote_get(utofu_vcq_hdl_t vcqh,
 			   utofu_vcq_id_t rvcqid, utofu_stadd_t lstadd,
 			   utofu_stadd_t rstadd, size_t len, uint64_t edata,
 			   unsigned long flgs, void *cbdata);
+extern int	utf_remote_swap(utofu_vcq_hdl_t vcqh,
+				utofu_vcq_id_t rvcqid, unsigned long flgs, uint64_t val,
+				utofu_stadd_t rstadd, uint64_t edata, void *cbdata);
+extern int	utf_remote_cswap(utofu_vcq_hdl_t vcqh,
+				 utofu_vcq_id_t rvcqid, unsigned long flgs,
+				 uint64_t old_val, uint64_t new_val,
+				 utofu_stadd_t rstadd, uint64_t edata, void *cbdata);
+
 extern struct utf_send_cntr *utf_idx2scntr(int idx);
 extern struct utf_msgbdy *utf_recvbuf_get(int idx);
 extern void	utf_msgreq_init();

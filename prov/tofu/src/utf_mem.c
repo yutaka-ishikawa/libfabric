@@ -284,6 +284,8 @@ is_scntr(utofu_stadd_t val, int *evtype)
 	    *evtype = EVT_RMT_RGETDON;
 	} else if (off == SCNTR_RST_RECVRESET_OFFST) {
 	    *evtype = EVT_RMT_RECVRST;
+	} else if (off == SCNTR_CHN_NEXT_OFFST) {
+	    *evtype = EVT_RMT_CHNRDY;
 	} else {
 	    utf_printf("%s: val(0x%lx) sndctrstadd(0x%lx) off(0x%lx)\n",
 		     __func__, val, sndctrstadd, off);
@@ -423,7 +425,9 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
     UTOFU_CALL(1, utofu_reg_mem_with_stag,
 	       vcqh, (void *)erbuf, sizeof(struct erecv_buf),
 	       TAG_ERBUF, 0, &erbstadd);
-    erbuf->header.cntr = MSG_PEERS - 1;
+    /* MSG_PEERS - 1 is reserved for the chain mode */
+    erbuf->header.cntr = MSG_PEERS - 2;
+    erbuf->header.chntail.rank_sidx = (uint64_t) -1LL;
 
     /* here is a dynamic memory allocation */
     rc = posix_memalign((void*) &egrmgt, 256, sizeof(sndmgt)*nprocs);

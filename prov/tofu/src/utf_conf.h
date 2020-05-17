@@ -41,8 +41,9 @@
  */
 
 #define MSG_SIZE	1920
-//#define MSG_PEERS	12	/* must be smaller than 2^7 (edata) */
+//#define MSG_PEERS	12	/* must be smaller than 2^6 (edata) */
 #define MSG_PEERS	120	/* must be smaller than 2^7 (edata) */
+#define EGRCHAIN_RECVPOS (MSG_PEERS - 1) /* used for chain mode */
 #define TOFU_ALIGN	256
 /* Stearing tag */
 #define TAG_SNDCTR	12

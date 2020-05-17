@@ -15,11 +15,14 @@
  */
 #define EVT_START	0
 #define EVT_LCL		1
-#define EVT_RMT_RGETDON	2	/* remote armw operation */
-#define EVT_RMT_RECVRST	3	/* remote armw operation */
-#define EVT_RMT_GET	4	/* remote get operation */
-#define EVT_CONT	5
-#define EVT_END		6
+#define EVT_LCL_REQ	2	/* local armw operation (swap) */
+#define EVT_RMT_RGETDON	3	/* remote armw operation */
+#define EVT_RMT_RECVRST	4	/* remote armw operation */
+#define EVT_RMT_GET	5	/* remote get operation */
+#define EVT_RMT_CHNRDY	6	/* ready in request chain mode */
+#define EVT_RMT_CHNUPDT	7
+#define EVT_CONT	8
+#define EVT_END		9
 
 #ifdef UTF_NATIVE
 #pragma pack(1)
@@ -48,6 +51,9 @@ struct utf_msghdr { /* 40 Byte */
 #define MSG_CALC_EAGER_USIZE(ssz) ((ssz) - MSGHDR_SIZE - sizeof(uint16_t))
 #define MSG_EAGERONLY	0
 #define MSG_RENDEZOUS	1
+#define MSGMODE_CHND	0
+#define MSGMODE_AGGR	1
+#define MSGMODE_THR	4
 
 #pragma pack(1)
 struct utf_hpacket {
@@ -403,7 +409,11 @@ typedef enum sstate {
     S_REQ_RDVR		= 7,
     S_RDVDONE		= 8,
     S_DONE		= 9,
-    S_WAIT_BUFREADY	= 10
+    S_WAIT_BUFREADY	= 10,
+    S_DONE_FINALIZE1_1	= 11,
+    S_DONE_FINALIZE1_2	= 12,
+    S_DONE_FINALIZE1_3	= 13,
+    S_DONE_FINALIZE2	= 14,
 } sstate;
 
 enum {
@@ -420,6 +430,7 @@ enum {
 #define SCNTR_RGETDONE_OFFST		0x0
 #define SCNTR_RST_RECVRESET_OFFST	0x4
 #define SCNTR_RST_RMARESET_OFFST	0x8
+#define SCNTR_CHN_NEXT_OFFST		0x10
 
 #define SCNTR_ADDR_CNTR_FIELD(sidx)	\
     (utf_sndctr_stadd() + sizeof(struct utf_send_cntr)*(sidx))
@@ -436,14 +447,24 @@ struct utf_rma_cmplinfo {
     struct utf_rma_mdat	info[RMA_MDAT_ENTSIZE];
 };
 
+union chain_addr {
+    struct {
+	uint64_t rdy:1,
+	         rank:31,
+		 sidx:32;
+    };
+    uint64_t	      rank_sidx;
+};
+
 #pragma pack(1)
-struct utf_send_cntr {	/* 92 Byte */
+struct utf_send_cntr {	/* 120 Byte */
     uint32_t		rgetdone:1,	/* remote get done */
 			ineager: 1,	/* */
 			rgetwait:2,	/* */
 			state: 4,	/* upto 15 states */
-			ostate: 4,
-			mypos: 20;	/* */
+			ostate: 4,	/* old state */
+			smode: 1,	/* MSGMODE_CHND or MSGMODE_AGGR */
+			mypos: 19;	/* */
 					/*  +4 =  4 Byte */
     uint32_t		rcvreset: 1,	/* ready for resetting recv offset */
 			recvoff: 31;	/*  +4 =  8 Byte */
@@ -451,14 +472,15 @@ struct utf_send_cntr {	/* 92 Byte */
 			rmawait: 1,	/* Wait for reseting */
 			rmaoff: 30;	/*  +4 = 12 Byte */
     uint32_t		dst;		/*  +4 = 16 Byte */
-    uint64_t		flags;		/*  +8 = 24 Byte */
-    utofu_vcq_id_t	rvcqid;		/*  +8 = 32 Byte */
-    size_t		psize;		/* packet-level sent size  +8=40 Byte */
-    size_t		usize;		/* user-level sent size +8=48*/
-    utfslist		smsginfo;	/* +16 = 64 Byte */
-    utfslist		rmawaitlst;	/* +16 = 80 Byte */
+    union chain_addr	chn_next;	/*  +8 = 24 Byte */
+    uint64_t		flags;		/*  +8 = 32 Byte */
+    utofu_vcq_id_t	rvcqid;		/*  +8 = 40 Byte */
+    size_t		psize;		/* packet-level sent size  +8=48 Byte */
+    size_t		usize;		/* user-level sent size +8=56*/
+    utfslist		smsginfo;	/* +16 = 72 Byte */
+    utfslist		rmawaitlst;	/* +16 = 88 Byte */
     union {
-	uint8_t		desc[32];	/* +32 = 112 Byte */
+	uint8_t		desc[32];	/* +32 = 120 Byte */
 	utfslist_entry	slst;		/* for free list */
     };
 };
@@ -501,9 +523,10 @@ struct utf_rma_cq {
 #define UTF_CMD_ARMW4	1
 #define UTF_CMD_ARMW8	2
 #define UTF_CMD_ADD	3
-#define UTF_CMD_PUT_PIGGY	4
-#define UTF_CMD_PUT		5
-#define UTF_CMD_GET		6
+#define UTF_CMD_PUT_PIGGY 4
+#define UTF_CMD_PUT	5
+#define UTF_CMD_GET	6
+#define UTF_CMD_SWAP	7
 
 #pragma pack(1)
 struct utf_pending_utfcmd {
@@ -548,6 +571,9 @@ struct utf_send_cntr {	/* 128 Byte */
 #define MSGBUF_SIZE	(MSG_SIZE*10)	/* 1920 * 10 */
 #define MSGBUF_THR	(MSG_SIZE*5)
 union recv_head {
+    struct {
+	union chain_addr chntail;	/* tail address of request chain */
+    };
     uint64_t cntr;
     char	 pad[256];
 };
@@ -559,5 +585,10 @@ struct erecv_buf {
    ((addr - erbstadd - sizeof(union recv_head) - 1)/MSGBUF_SIZE)
 #define ERECV_LENGTH(addr)	\
    (addr - (erbstadd + sizeof(union recv_head) + ERECV_INDEX(addr)*MSGBUF_SIZE))
+#define EGRCHAIN_RECV_CHNTAIL (erbstadd + (uint64_t) &((struct erecv_buf*)0)->header.chntail)
+#define SCNTR_CHAIN_CNTR(pos)					\
+    (utf_sndctr_stadd() + sizeof(struct utf_send_cntr)*(pos))
+#define SCNTR_CHAIN_NXT(pos)					\
+    (SCNTR_CHAIN_CNTR(pos) + SCNTR_CHN_NEXT_OFFST)
 
 #define ERB_CNTR	0

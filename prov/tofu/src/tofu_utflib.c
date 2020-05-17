@@ -472,7 +472,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     //fi_tofu_dbgvalue = ohead;
     if (ohead == NULL) { /* this is the first entry */
-	rc = utf_send_start(vcqh, usp);
+	rc = utf_send_start(av, vcqh, usp);
 	if (rc != 0) {
 	    fc = FI_EIO;
 	}

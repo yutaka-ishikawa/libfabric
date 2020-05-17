@@ -10,9 +10,10 @@
 typedef struct sndmgt { /* 4 byte */
     uint8_t	examed:1,
 		sndok:1,
-		index:6;	/* 1B: idx: index of receiver's buf array */
-    utofu_path_id_t pathid;	/* 1 byte */
-    uint16_t	rsrv;		/* 2 byte */
+		mode:6; /* 1B */
+    uint8_t	index;	/* 1B: idx: index of receiver's buf array */
+    utofu_path_id_t pathid;	/* 1 B */
+    uint8_t	count;		/* 1 B */
 } sndmgt;
 
 static inline sndmgt*
@@ -76,6 +77,21 @@ static inline uint8_t sndmgt_get_pathid(int pos, sndmgt *bp)
     return bp[pos].pathid;
 }
 
+static inline int
+sndmgt_get_smode(int pos, sndmgt *bp)
+{
+    return bp[pos].mode;
+}
+
+static inline int
+sndmg_update_chainmode(int pos, sndmgt *bp)
+{
+    bp[pos].count++;
+    if (bp[pos].count >= MSGMODE_THR) {
+	bp[pos].mode = MSGMODE_CHND;
+    }
+    return bp[pos].mode;
+}
 
 #ifdef SNDMGT_TEST
 #include <stdio.h>
