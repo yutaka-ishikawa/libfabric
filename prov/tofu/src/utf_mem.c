@@ -569,8 +569,9 @@ void
 utf_showstadd()
 {
     utf_printf("***** st-addresses *****\n"
-	     "erbstadd (erbuf):        %lx (receiver buffer for eager)\n"
-	     "egsbfstadd (utf_egsbuf): %lx (sender buffer for eager)\n"
-	     "egrmgtstadd (egrmgt):   %lx (array of sndmgt)\n",
-	     erbstadd, egsbfstadd, egrmgtstadd);
+	       "erbstadd (erbuf)           : %lx (receiver buffer for eager)\n"
+	       "egsbfstadd (utf_egsbuf)    : %lx (sender buffer for eager)\n"
+	       "egrmgtstadd (egrmgt)       : %lx (array of sndmgt)\n",
+	       "sndctrstadd (utf_send_cntr): %lx (sender control structure)\n",
+	       erbstadd, egsbfstadd, egrmgtstadd, sndctrstadd);
 }

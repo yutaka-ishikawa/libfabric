@@ -171,7 +171,7 @@ int fi_tofu_cntrl(int cmd, ...)
 {
     extern void utf_show_recv_cntr(FILE*);
     va_list	ap;
-    int     iarg1;
+    int     iarg1, iarg2;
     int		rc = 0;
     va_start(ap, cmd);
     switch (cmd) {
@@ -185,6 +185,14 @@ int fi_tofu_cntrl(int cmd, ...)
     case 2:
         iarg1 = va_arg(ap, int);
         utf_show_recv_cntr(iarg1 == 1 ? stdout : stderr);
+        break;
+    case 3:
+        iarg1 = va_arg(ap, int);
+        iarg2 = va_arg(ap, int);
+        if (iarg2 == myrank) {
+            utf_show_recv_cntr(iarg1 == 1 ? stdout : stderr);
+        }
+        break;
     }
     va_end(ap);
     return rc;

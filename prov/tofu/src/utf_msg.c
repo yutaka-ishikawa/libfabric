@@ -34,7 +34,7 @@ utf_show_msgmode(FILE *fp)
     fprintf(fp, "MSGMODE is %s\n", md);
 }
 
-extern void	utf_tofu_error();
+extern void	utf_tofu_error(int);
 
 int
 remote_piggysend(utofu_vcq_hdl_t vcqh,
@@ -83,9 +83,13 @@ remote_put(utofu_vcq_hdl_t vcqh,
 		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len,
 		   cbdata, lstadd, rstadd, edata);
     }
+    UTOFU_MSIZE_CHECK(len);
     return 0;
 }
 
+/*
+ * remote_get does not include UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE.
+ */
 int
 remote_get(utofu_vcq_hdl_t vcqh,
 	   utofu_vcq_id_t rvcqid, utofu_stadd_t lstadd, utofu_stadd_t rstadd,
@@ -96,7 +100,7 @@ remote_get(utofu_vcq_hdl_t vcqh,
 
     flgs |= UTOFU_ONESIDED_FLAG_TCQ_NOTICE
     	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
-	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
+	//| UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
     UTOFU_CALL(1, utofu_prepare_get,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
@@ -107,6 +111,7 @@ remote_get(utofu_vcq_hdl_t vcqh,
 	utf_printf("remote_get: desc size(%ld) vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
 		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len, cbdata, lstadd, rstadd);
     }
+    UTOFU_MSIZE_CHECK(len);
     return 0;
 }
 
@@ -179,7 +184,8 @@ utf_remote_add(utofu_vcq_hdl_t vcqh,
     char	desc[128];
     size_t	sz;
 
-    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
+//    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
+    flgs |= UTOFU_ONESIDED_FLAG_TCQ_NOTICE
 	| UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	| UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	| UTOFU_ONESIDED_FLAG_STRONG_ORDER;
@@ -244,6 +250,14 @@ utf_remote_cswap(utofu_vcq_hdl_t vcqh,
 }
 
 
+/*
+ * utf_remote_armw4 is used to implement
+ *   (1) In the sender enging
+ *	1) getting the receiver's buffer area
+ *   (2) In the receiver enging
+ *	1) reset for eager buffer
+ *	2) remote get completion notification to the remote
+ */
 int
 utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 		 utofu_vcq_id_t rvcqid, unsigned long flgs,
@@ -251,9 +265,8 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 		 utofu_stadd_t rstadd, uint64_t edata, void *cbdata)
 {
     int	rc;
-    /* local mrq notification is supressed */
-//    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE*/
-      flgs |= UTOFU_ONESIDED_FLAG_TCQ_NOTICE
+//    flgs |= 0    /*UTOFU_ONESIDED_FLAG_TCQ_NOTICE */
+    flgs |= UTOFU_ONESIDED_FLAG_TCQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
@@ -268,7 +281,7 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 	return 0;
     } else  if (rc == UTOFU_ERR_BUSY) {
 	utf_printf("%s: ERROR\n", __func__); printf("%s: ERROR\n", __func__); fflush(stdout);
-	utf_tofu_error();
+	utf_tofu_error(rc);
 #if 0
 	/* Needs to reissuue later, so adding pending list */
 	struct utf_pending_utfcmd	*upu = utf_pcmd_alloc();
@@ -283,7 +296,7 @@ utf_remote_armw4(utofu_vcq_hdl_t vcqh,
 #endif
     } else {
 	utf_printf("%s: ERROR\n", __func__); printf("%s: ERROR\n", __func__); fflush(stdout);
-	utf_tofu_error();
+	utf_tofu_error(rc);
 	/* never return */
     }
     return 0; /* never come */

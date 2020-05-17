@@ -460,11 +460,11 @@ union chain_addr {
 struct utf_send_cntr {	/* 120 Byte */
     uint32_t		rgetdone:1,	/* remote get done */
 			ineager: 1,	/* */
-			rgetwait:2,	/* */
+			rgetwait:3,	/* */
 			state: 4,	/* upto 15 states */
 			ostate: 4,	/* old state */
 			smode: 1,	/* MSGMODE_CHND or MSGMODE_AGGR */
-			mypos: 19;	/* */
+			mypos: 18;	/* */
 					/*  +4 =  4 Byte */
     uint32_t		rcvreset: 1,	/* ready for resetting recv offset */
 			recvoff: 31;	/*  +4 =  8 Byte */
@@ -520,13 +520,18 @@ struct utf_rma_cq {
     void		*fi_ucontext;
 };
 
-#define UTF_CMD_ARMW4	1
-#define UTF_CMD_ARMW8	2
-#define UTF_CMD_ADD	3
-#define UTF_CMD_PUT_PIGGY 4
-#define UTF_CMD_PUT	5
-#define UTF_CMD_GET	6
+#define UTF_DBG_RENG	0
+#define UTF_DBG_SENG	1
+#define UTF_DBG_RMAENG	2
+#define UTF_DBG_RGET	3
+#define UTF_CMD_ARMW4		1
+#define UTF_CMD_ARMW8		2
+#define UTF_CMD_ADD		3
+#define UTF_CMD_PUT_PIGGY	4
+#define UTF_CMD_PUT		5
+#define UTF_CMD_GET		6
 #define UTF_CMD_SWAP	7
+
 
 #pragma pack(1)
 struct utf_pending_utfcmd {
