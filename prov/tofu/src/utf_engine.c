@@ -731,7 +731,7 @@ progress:
 		utf_remote_cswap(vcqh, usp->rvcqid, flgs,
 				 oval, nval, EGRCHAIN_RECV_CHNTAIL, usp->mypos, minfo);
 		usp->state = S_DONE_FINALIZE1_1;
-		DBG_UTF_CMDINFO(UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL);
+		DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL, usp->mypos);
 		/* 
 		 * EVT_LCL_REQ in the sendengine.
 		 * checking the swapped data in the FINALIZE1 state
@@ -856,7 +856,7 @@ utf_send_start(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 	    uint64_t	val = make_chain_addr(myrank, usp->mypos);
 	    utf_remote_swap(vcqh, usp->rvcqid, flgs,
 			    val, EGRCHAIN_RECV_CHNTAIL, usp->mypos, usp);
-	    DBG_UTF_CMDINFO(UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL);
+	    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL, usp->mypos);
 	    /* 
 	     * EVT_LCL_REQ in the sendengine.
 	     *		checking the swapped data in the FINALIZE1 state
@@ -866,7 +866,7 @@ utf_send_start(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 	    uint64_t	flgs = UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE;
 	    utf_remote_add(vcqh, usp->rvcqid, flgs,
 			   -1, erbstadd, usp->mypos, 0);
-	    DBG_UTF_CMDINFO(UTF_CMD_ADD, erbstadd);
+	    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_ADD, erbstadd, usp->mypos);
 	    /* 
 	     * EVT_LCL_REQ in the sendengine.
 	     * No event in the receiver side, ignore UTOFU_RMT_ARMW event

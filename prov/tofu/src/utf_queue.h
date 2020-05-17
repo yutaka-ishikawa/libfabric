@@ -530,7 +530,7 @@ struct utf_rma_cq {
 #define UTF_CMD_PUT_PIGGY	4
 #define UTF_CMD_PUT		5
 #define UTF_CMD_GET		6
-#define UTF_CMD_SWAP	7
+#define UTF_CMD_SWAP		7
 
 
 #pragma pack(1)
