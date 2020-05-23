@@ -218,7 +218,7 @@ tofu_ictx_close(struct tofu_ctx *ctx)
     if (ctx->ctx_enb != 0) {
         struct tofu_sep     *sep = ctx->ctx_sep;
 	assert(sep->sep_myvcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
-        utf_finalize(sep->sep_myvcqh);
+        utf_finalize(ctx->ctx_av, sep->sep_myvcqh);
     }
 bad:
     return uc;

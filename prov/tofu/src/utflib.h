@@ -11,4 +11,5 @@ extern int	utf_send(utofu_vcq_hdl_t, int dst,
 extern int	utf_recv(int src, size_t size, int tag, void *buf, int *req);
 extern int	utf_test(void*, utofu_vcq_hdl_t, int reqid);
 extern int	utf_wait(void*, utofu_vcq_hdl_t, int reqid);
-extern void	utf_finalize(utofu_vcq_hdl_t);
+extern void	utf_finalize(void*, utofu_vcq_hdl_t);
+extern void	utf_chnclean(void*, utofu_vcq_hdl_t);

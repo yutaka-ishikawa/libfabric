@@ -100,7 +100,8 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
     /* receive buffer is allocated here, 2020/05/08 
      * size of sndmgt is 4 * 158976 * 4 = about 2.5 MB
      */
-    utf_recvbuf_init(vcqh, MAX_NODE*4);
+    i = utf_getenvint("UTF_TRANSMODE");
+    utf_recvbuf_init(vcqh, MAX_NODE*4, i);
     return 0;
 }
 
@@ -124,6 +125,7 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
     }
     if (myrank == 0) {
 	utf_show_msgmode(stderr);
+	utf_show_transmode(stderr);
     }
 #if 0 /* moving to the 1st phase */
     /* receive buffer is allocated */
@@ -141,10 +143,12 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
 }
 
 void
-utf_finalize(utofu_vcq_hdl_t vcqh)
+utf_finalize(void *av, utofu_vcq_hdl_t vcqh)
 {
     utf_printf("%s: vcqh(%lx) initialized(%d)\n", __func__, vcqh, utf_initialized);
     if (utf_initialized == 0) return;
+    /* waiting if the MSGMODE_CHND chain is clean up */
+    utf_chnclean(av, vcqh);
     utf_egrsbuf_fin(vcqh);
     utf_stadd_free(vcqh);
     UTOFU_CALL(0, utofu_free_vcq, vcqh);

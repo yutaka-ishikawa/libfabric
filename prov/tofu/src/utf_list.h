@@ -92,6 +92,18 @@ utfslist_remove2(utfslist *lst, utfslist_entry *cur, utfslist_entry *prev)
     return cur->next;
 }
 
+#ifdef USE_UTFSLIST_NEXT
+static utfslist_entry *
+utfslist_next(utfslist *lst)
+{
+    if (lst->head) {
+	return lst->head->next;
+    } else {
+	return NULL;
+    }
+}
+#endif
+
 #define utfslistent_remove(prev, cur)   (prev)->next = (cur)->next
 #define utfslistent_next(lst)	(lst)->next
 #define utfslist_head(lst)		((lst)->head)

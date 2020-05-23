@@ -8,6 +8,7 @@
 /* For Sender Side remote index of receiver buffer */
 sndmgt		 *egrmgt;	/* array of sndmgt keeping remote index of eager receiver buffer */
 utofu_stadd_t	egrmgtstadd;	/* stadd of sndmgt */
+static int	utf_transmode;
 
 /* For Sender-side Eager Buffer */
 static struct utf_egr_sbuf	*utf_egsbuf;
@@ -284,7 +285,7 @@ is_scntr(utofu_stadd_t val, int *evtype)
 	    *evtype = EVT_RMT_RGETDON;
 	} else if (off == SCNTR_RST_RECVRESET_OFFST) {
 	    *evtype = EVT_RMT_RECVRST;
-	} else if (off == SCNTR_CHN_NEXT_OFFST) {
+	} else if (off == SCNTR_CHN_READY_OFFST) {
 	    *evtype = EVT_RMT_CHNRDY;
 	} else {
 	    utf_printf("%s: val(0x%lx) sndctrstadd(0x%lx) off(0x%lx)\n",
@@ -412,7 +413,7 @@ is_recvbuf(utofu_stadd_t val) {
 }
 
 void
-utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
+utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs, int mode)
 {
     int  rc;
     long algn = sysconf(_SC_PAGESIZE);
@@ -426,8 +427,10 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
 	       vcqh, (void *)erbuf, sizeof(struct erecv_buf),
 	       TAG_ERBUF, 0, &erbstadd);
     /* MSG_PEERS - 1 is reserved for the chain mode */
-    erbuf->header.cntr = MSG_PEERS - 2;
-    erbuf->header.chntail.rank_sidx = (uint64_t) -1LL;
+    erbuf->header.cntr = RECV_BUFCNTR_INIT;
+    erbuf->header.chntail.rank = -1;
+    erbuf->header.chntail.sidx = -1;
+    erbuf->header.chntail.recvoff = 0;
 
     /* here is a dynamic memory allocation */
     rc = posix_memalign((void*) &egrmgt, 256, sizeof(sndmgt)*nprocs);
@@ -439,8 +442,23 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs)
 	       TAG_EGRMGT, 0, &egrmgtstadd);
 
     utf_printf("%s: erbuf(%p) erbstadd(%lx)\n", __func__, erbuf, erbstadd);
+    if (mode == MSGMODE_AGGR) {
+	int	i;
+	for (i = 0; i < nprocs; i++) {
+	    egrmgt[i].mode = MSGMODE_AGGR;
+	}
+	utf_transmode = MSGMODE_AGGR;
+    } else {
+	utf_transmode = MSGMODE_CHND;
+    }
 }
- 
+
+void
+utf_show_transmode(FILE *fp)
+{
+    fprintf(fp, "TRANSMODE is %s\n",
+	    utf_transmode == MSGMODE_CHND ? "Chained" : "Aggressive");
+}
 
 void
 erecvbuf_printcntr()
@@ -457,6 +475,12 @@ erecvbuf_dump(int idx, int cnt)
     utf_printf("erbuf entry(%d)\t", idx);
     for(i = 0; i < cnt; i++) printf(":%d", bp[i]);
     printf("\n"); fflush(stdout);
+}
+
+int
+utf_recvbuf_is_chain_clean()
+{
+    return IS_CHAIN_EMPTY(erbuf->header.chntail);
 }
 
 struct utf_msgbdy *
