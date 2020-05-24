@@ -27,6 +27,7 @@ static struct utf_send_cntr	*utf_scntrp;
 utofu_stadd_t	sndctrstadd, sndctrstaddend;
 static int	utf_scntrsize;
 static utfslist	utf_scntrfree;
+static utfslist	utf_scntrbusy;
 static uint16_t	*rank2scntridx; /* destination rank to sender control index */
 /* For RMA */
 static struct utf_rma_cmplinfo	*utf_rmacmplip;
@@ -261,6 +262,7 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
 	utfslist_append(&utf_scntrfree, &utf_scntrp[i].slst);
 	utf_scntrp[i].mypos = i;
     }
+    utfslist_init(&utf_scntrbusy, NULL);
     /* rank2scntridx table is allocated */
     rank2scntridx = utf_malloc(sizeof(uint16_t)*nprocs);
     SYSERRCHECK_EXIT(rank2scntridx, ==, NULL, "Not enough memory");
@@ -285,7 +287,13 @@ is_scntr(utofu_stadd_t val, int *evtype)
 	    *evtype = EVT_RMT_RGETDON;
 	} else if (off == SCNTR_RST_RECVRESET_OFFST) {
 	    *evtype = EVT_RMT_RECVRST;
-	} else if (off == SCNTR_CHN_READY_OFFST) {
+	} else if (off == SCNTR_CHN_NEXT_OFFST + sizeof(uint64_t)) {
+	    /* This happens in a result of remote put operation.
+	     * rmt_stadd is advanced by size of uint64_t in remote result */
+	    *evtype = EVT_RMT_CHNUPDT;
+	} else if (off == SCNTR_CHN_READY_OFFST + sizeof(uint64_t)) {
+	    /* This happens in a result of remote put operation.
+	     * rmt_stadd is advanced by size of uint64_t in remote result */
 	    *evtype = EVT_RMT_CHNRDY;
 	} else {
 	    utf_printf("%s: val(0x%lx) sndctrstadd(0x%lx) off(0x%lx)\n",
@@ -313,12 +321,24 @@ utf_scntr_free(int idx)
 {
     struct utf_send_cntr *head;
     uint16_t	headpos;
-
+    utfslist_entry	*cur, *prev;
+    int	found = 0;
     headpos = rank2scntridx[idx];
     if (headpos != (uint16_t) -1) {
 	head = &utf_scntrp[headpos];
 	utfslist_insert(&utf_scntrfree, &head->slst);
 	rank2scntridx[idx] = -1;
+	utfslist_foreach2(&utf_scntrbusy, cur, prev) {
+	    if (cur == &head->busy) {
+		utfslist_remove2(&utf_scntrbusy, cur, prev);
+		found = 1;
+		break;
+	    }
+	}
+	if (found != 1) {
+	    utf_printf("%s: internal error\n", __func__);
+	    abort();
+	}
     }
 }
 
@@ -394,6 +414,7 @@ utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 	scp->state = S_NONE;
 	scp->flags = UTOFU_ONESIDED_FLAG_PATH(flgs);
 	scp->rvcqid = rvcqid;
+	utfslist_insert(&utf_scntrbusy, &scp->busy);
 	DEBUG(DLEVEL_UTOFU) {
 	    utf_printf("%s: flag_path(%0x)\n", __func__, scp->flags);
 	}
@@ -401,6 +422,12 @@ utf_scntr_alloc(int dst, utofu_vcq_id_t rvcqid, uint64_t flgs)
 err:
     // utf_printf("%s: dst(%d) scp(%p) headpos(0x%x) -1(0x%x)\n", __func__, dst, scp, headpos, (uint16_t)-1);
     return scp;
+}
+
+utfslist *
+utf_scntr_busy()
+{
+    return &utf_scntrbusy;
 }
 
 int
@@ -442,14 +469,14 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs, int mode)
 	       TAG_EGRMGT, 0, &egrmgtstadd);
 
     utf_printf("%s: erbuf(%p) erbstadd(%lx)\n", __func__, erbuf, erbstadd);
-    if (mode == MSGMODE_AGGR) {
+    if (mode == TRANSMODE_AGGR) {
 	int	i;
 	for (i = 0; i < nprocs; i++) {
-	    egrmgt[i].mode = MSGMODE_AGGR;
+	    egrmgt[i].mode = TRANSMODE_AGGR;
 	}
-	utf_transmode = MSGMODE_AGGR;
+	utf_transmode = TRANSMODE_AGGR;
     } else {
-	utf_transmode = MSGMODE_CHND;
+	utf_transmode = TRANSMODE_CHND;
     }
 }
 
@@ -457,7 +484,7 @@ void
 utf_show_transmode(FILE *fp)
 {
     fprintf(fp, "TRANSMODE is %s\n",
-	    utf_transmode == MSGMODE_CHND ? "Chained" : "Aggressive");
+	    utf_transmode == TRANSMODE_CHND ? "Chained" : "Aggressive");
 }
 
 void

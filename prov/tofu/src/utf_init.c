@@ -147,7 +147,7 @@ utf_finalize(void *av, utofu_vcq_hdl_t vcqh)
 {
     utf_printf("%s: vcqh(%lx) initialized(%d)\n", __func__, vcqh, utf_initialized);
     if (utf_initialized == 0) return;
-    /* waiting if the MSGMODE_CHND chain is clean up */
+    /* waiting if the TRANSMODE_CHND chain is clean up */
     utf_chnclean(av, vcqh);
     utf_egrsbuf_fin(vcqh);
     utf_stadd_free(vcqh);

@@ -51,9 +51,9 @@ struct utf_msghdr { /* 40 Byte */
 #define MSG_CALC_EAGER_USIZE(ssz) ((ssz) - MSGHDR_SIZE - sizeof(uint16_t))
 #define MSG_EAGERONLY	0
 #define MSG_RENDEZOUS	1
-#define MSGMODE_CHND	0
-#define MSGMODE_AGGR	1
-#define MSGMODE_THR	10	/* max is 255 (1B) */
+#define TRANSMODE_CHND	0
+#define TRANSMODE_AGGR	1
+#define TRANSMODE_THR	10	/* max is 255 (1B) */
 
 #pragma pack(1)
 struct utf_hpacket {
@@ -491,7 +491,10 @@ struct utf_send_cntr {	/* 128 Byte */
     utfslist		rmawaitlst;	/* +16 = 96 Byte */
     union {
 	uint8_t		desc[32];	/* +32 = 128 Byte */
-	utfslist_entry	slst;		/* for free list */
+	struct {
+	    utfslist_entry	slst;	/* for free list */
+	    utfslist_entry	busy;
+	};
     };
 };
 

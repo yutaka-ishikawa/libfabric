@@ -87,8 +87,8 @@ static inline int
 sndmg_update_chainmode(int pos, sndmgt *bp)
 {
     bp[pos].count++;
-    if (bp[pos].count >= MSGMODE_THR) {
-	bp[pos].mode = MSGMODE_AGGR;
+    if (bp[pos].count >= TRANSMODE_THR) {
+	bp[pos].mode = TRANSMODE_AGGR;
     }
     return bp[pos].mode;
 }

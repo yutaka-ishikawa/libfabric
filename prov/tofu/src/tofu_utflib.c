@@ -4,8 +4,8 @@
 #include "tofu_impl.h"
 #include "tofu_addr.h"
 #include "utf_conf.h"
-#include "utf_externs.h"
 #include "utf_errmacros.h"
+#include "utf_externs.h"
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
 #include <rdma/fabric.h>
@@ -468,6 +468,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     }
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
+    utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
     DEBUG(DLEVEL_ADHOC) utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     //fi_tofu_dbgvalue = ohead;
