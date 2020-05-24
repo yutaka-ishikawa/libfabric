@@ -473,7 +473,8 @@ struct utf_send_cntr {	/* 128 Byte */
 			state: 4,	/* upto 15 states */
 			ostate: 4,	/* old state */
 			smode: 1,	/* MSGMODE_CHND or MSGMODE_AGGR */
-			mypos: 18;	/* */
+			evtupdt: 1,	/* receive event update */
+			mypos: 17;	/* must be */
 					/*  +4 =  4 Byte */
     uint32_t		rcvreset: 1,	/* ready for resetting recv offset */
 			recvoff: 31;	/*  +4 =  8 Byte */

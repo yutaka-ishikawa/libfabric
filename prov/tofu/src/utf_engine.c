@@ -526,9 +526,12 @@ utf_sendengine(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp, uint64
 	utf_recv_info_init(usp);
 	return;
     }
-    if (usp->state < S_DONE_FINALIZE1_1 && evt == EVT_RMT_CHNUPDT) {
-	utf_printf("%s: remote process set next field\n", __func__);
-	return;
+    if (evt == EVT_RMT_CHNUPDT) {
+	usp->evtupdt = 1;
+	if (usp->state < S_DONE_FINALIZE1_1) {
+	    utf_printf("%s: remote process set next field\n", __func__);
+	    return;
+	}
     }
     slst = utfslist_head(&usp->smsginfo);
     minfo = container_of(slst, struct utf_send_msginfo, slst);
@@ -842,7 +845,12 @@ progress:
 	usp->state = S_DONE_FINALIZE2;
 	break;
     case S_DONE_FINALIZE2: /* as a result of remote_add to inform to the next rank */
+	if (usp->evtupdt == 0) {
+	    utf_printf("%s: waiting to handle EVT_RMT_CHNUPDT\n", __func__);
+	    break;
+	}
     finalize:/* real finalization for chain mode */
+	utf_printf("%s: DONE_FINALIZE2 and now state is S_NONE\n", __func__);
 	DEBUG(DLEVEL_CHAIN) {
 	    utf_printf("%s: DONE_FINALIZE2 and now state is S_NONE\n", __func__);
 	}
@@ -1134,8 +1142,8 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	if (is_scntr(mrq_notice.rmt_stadd, &evtype)) {
 	    struct utf_send_cntr *usp;
 	    usp = utf_idx2scntr(sidx);
-	    utf_printf("%s: RMT_PUT usp->state(%s:%d) evtype(%s:%d)\n", __func__,
-		       sstate_symbol[usp->state], usp->state, evnt_symbol[evtype], evtype);
+	    utf_printf("%s: RMT_PUT usp->state(%s:%d) evtype(%s:%d) sidx(%d)\n", __func__,
+		       sstate_symbol[usp->state], usp->state, evnt_symbol[evtype], evtype, sidx);
 	    utf_sendengine(av, vcqh, usp, mrq_notice.rmt_stadd, evtype);
 	    break;
 	}
