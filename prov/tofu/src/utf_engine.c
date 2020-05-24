@@ -473,14 +473,15 @@ utf_chain_set_tail(void *av, utofu_vcq_id_t vcqh, int rank, uint64_t addrinfo,
     last_rank.rank_sidx = addrinfo;
     data = make_chain_addr(rank, mypos, 0);
     tofufab_resolve_addrinfo(av, last_rank.rank, &rvcqid, &flags);
-    remote_piggysend(vcqh, rvcqid, &data, SCNTR_CHAIN_NXT(last_rank.sidx),
-		     sizeof(uint64_t), mypos, flags, minfo);
+    /* sindex is remote one */
+    remote_piggysend_nolevt(vcqh, rvcqid, &data, SCNTR_CHAIN_NXT(last_rank.sidx),
+			    sizeof(uint64_t), last_rank.sidx, flags, minfo);
 }
 
 /*
  * Ready to send flag in chain mode is set to the remote process
  * As a result of this operation, 
- *	EVT_LCL is generated.
+ *	EVT_LCL is generated.	NOT GENERATED 2020/05/25
  *	EVT_RMT_CHNRDY is gerated in the remote side sendengine.
  */
 static inline void
@@ -495,9 +496,10 @@ utf_chain_inform_ready(void *av, utofu_vcq_hdl_t vcqh,
     ready.recvoff = usp->recvoff;
     tofufab_resolve_addrinfo(av, usp->chn_next.rank, &rvcqid, &flgs);
     utf_printf("%s: rank(%d) sidx(%d) recvoff(%d) remote_stad(%lx)\n", __func__, usp->chn_next.rank, usp->chn_next.sidx, usp->recvoff, SCNTR_CHAIN_READY(usp->chn_next.sidx));
-    remote_piggysend(vcqh, rvcqid, &ready,
-		     SCNTR_CHAIN_READY(usp->chn_next.sidx),
-		     sizeof(uint64_t),  usp->mypos, flgs, minfo);
+    /* sindex is remote one */
+    remote_piggysend_nolevt(vcqh, rvcqid, &ready,
+			    SCNTR_CHAIN_READY(usp->chn_next.sidx),
+			    sizeof(uint64_t),  usp->chn_next.sidx, flgs, minfo);
 }
 
 /*
@@ -577,7 +579,7 @@ progress:
 		    // utf_printf("%s: EVT_LCL_REQ recvoff(%d)\n", __func__, usp->recvoff);
 		    goto s_has_room;
 		} else {
-		    utf_printf("%s: chain mode: wait, put my address to %s\n", __func__, chain_addr_string(rslt));
+		    utf_printf("%s: chain mode: wait, put my address sidx(%d) to %s\n", __func__, usp->mypos, chain_addr_string(rslt));
 		    /* put my address to the tail of chain */
 		    utf_chain_set_tail(av, vcqh, myrank, rslt, usp->mypos, minfo);
 		    /* waiting, state is still the same */
@@ -798,6 +800,7 @@ progress:
 	    utf_printf("%s: calling inform_ready in S_DONE_EGR, going to S_DONE_FINALIZE2\n", __func__);
 	    utf_chain_inform_ready(av, vcqh, usp, minfo);
 	    usp->state = S_DONE_FINALIZE2;
+	    goto done_finalize2; /* 2020/05/25 */
 	}
 	break;
     case S_DONE_FINALIZE1_1:
@@ -841,10 +844,12 @@ progress:
 	/* inform ready to the next rank */
 	utf_printf("%s: calling inform_ready in S_DONE_FINALIZE1_2|3, going to S_DONE_FINALIZE2\n", __func__);
 	utf_chain_inform_ready(av, vcqh, usp, minfo);
-	usp->chn_ready.data = 0; /* reset for future use */
+	// usp->chn_ready.data = 0; /* reset for future use */
 	usp->state = S_DONE_FINALIZE2;
-	break;
+	// break;    2020/05/25
+	/* Falls through. */ /* 2020/05/25 */
     case S_DONE_FINALIZE2: /* as a result of remote_add to inform to the next rank */
+    done_finalize2:
 	if (usp->evtupdt == 0) {
 	    utf_printf("%s: waiting to handle EVT_RMT_CHNUPDT\n", __func__);
 	    break;
@@ -854,6 +859,10 @@ progress:
 	DEBUG(DLEVEL_CHAIN) {
 	    utf_printf("%s: DONE_FINALIZE2 and now state is S_NONE\n", __func__);
 	}
+	/* reset chain fields */
+	usp->chn_ready.data = 0; 
+	usp->chn_next.rank_sidx = 0;
+	usp->evtupdt = 0;
 	/* update mode for future use */
 	sndmg_update_chainmode(usp->dst, egrmgt);
     going_done:

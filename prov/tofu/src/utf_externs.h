@@ -36,6 +36,10 @@ extern int	remote_piggysend(utofu_vcq_hdl_t vcqh,
 				 utofu_vcq_id_t rvcqid, void *data,
 				 utofu_stadd_t rstadd, size_t len,
 				 uint64_t edata, unsigned long flgs, void *cb);
+extern int	remote_piggysend_nolevt(utofu_vcq_hdl_t vcqh,
+				 utofu_vcq_id_t rvcqid, void *data,
+				 utofu_stadd_t rstadd, size_t len,
+				 uint64_t edata, unsigned long flgs, void *cb);
 extern int	remote_put(utofu_vcq_hdl_t vcqh,
 			   utofu_vcq_id_t rvcqid, utofu_stadd_t lstadd,
 			   utofu_stadd_t rstadd, size_t len, uint64_t edata,

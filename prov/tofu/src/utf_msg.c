@@ -58,6 +58,27 @@ remote_piggysend(utofu_vcq_hdl_t vcqh,
     return 0;
 }
 
+int
+remote_piggysend_nolevt(utofu_vcq_hdl_t vcqh,
+			utofu_vcq_id_t rvcqid, void *data,  utofu_stadd_t rstadd,
+			size_t len, uint64_t edata, unsigned long flgs, void *cbdata)
+{
+    char	desc[128];
+    size_t	sz;
+
+    flgs |= UTOFU_ONESIDED_FLAG_TCQ_NOTICE
+	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
+	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
+    UTOFU_CALL(1, utofu_prepare_put_piggyback,
+	       vcqh, rvcqid, data, rstadd, len, edata, flgs, desc, &sz);
+    assert(sz <= 128);
+    UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+    DEBUG(DLEVEL_UTOFU) {
+	utf_printf("remote_piggyback: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
+    }
+    return 0;
+}
+
 extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqi);
 
 int
