@@ -31,6 +31,7 @@ _tofu_files =				\
 	    prov/tofu/src/utf_msgmacro.h \
 	    prov/tofu/src/utf_queue.h	\
 	    prov/tofu/src/utf_sndmgt.h	\
+	    prov/tofu/src/utf_engine.h	\
 	    prov/tofu/src/utf_debug.c \
 	    prov/tofu/src/utf_engine.c \
 	    prov/tofu/src/utf_init.c \

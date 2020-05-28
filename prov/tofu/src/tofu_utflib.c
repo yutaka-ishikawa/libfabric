@@ -468,8 +468,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     }
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
-    utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
-    DEBUG(DLEVEL_ADHOC) utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
+    DEBUG(DLEVEL_CHAIN|DLEVEL_ADHOC) utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
     // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
     //fi_tofu_dbgvalue = ohead;
     if (ohead == NULL) { /* this is the first entry */
@@ -507,6 +506,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	ignore = msg->ignore;
     utfslist *uexplst;
 
+    utf_printf("%s: src(%ld)\n", __func__, src);
     //utf_printf("%s: ctx(%p)->ctx_recv_cq(%p)\n", __func__, ctx, ctx->ctx_recv_cq);
     //R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
     //ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
@@ -550,7 +550,8 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED;
 	    req->rsize = 0;
-	    utf_do_rget(vcqh, ursp, R_DO_RNDZ);
+	    utf_printf("YIRGET10: ursp(%p)->sidx(%ld)\n", ursp, ursp->sidx);
+	    utf_rget_do(vcqh, ursp, R_DO_RNDZ);
 	    /* ursp->state is changed to R_DO_RNDZ */
 	    //remote_get(vcqh, ursp->svcqid, req->bufstadd,
 	    //           req->rmtstadd, msgsize, ursp->sidx, ursp->flags, 0);

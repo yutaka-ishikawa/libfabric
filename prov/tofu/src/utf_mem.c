@@ -4,6 +4,7 @@
 #include "utf_errmacros.h"
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
+#include "utf_engine.h"
 
 /* For Sender Side remote index of receiver buffer */
 sndmgt		 *egrmgt;	/* array of sndmgt keeping remote index of eager receiver buffer */
@@ -234,7 +235,7 @@ utf_egrsbuf_alloc(utofu_stadd_t	*stadd)
 
 /*
  * The maximum size of utf_send_cntr comes from
- *   - the length of the mypos field of struct utf_send_cntr, now uint16_t.
+ *   - the length of the mypos field of struct utf_send_cntr, now 17 bit.
  *	that keeps the index of the utf_scntrp array.
  *   - the length of the rank2scntridx's type, now uint16_t.
  */
@@ -261,6 +262,7 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
     for (i = 0; i < scntr_entries; i++) {
 	utfslist_append(&utf_scntrfree, &utf_scntrp[i].slst);
 	utf_scntrp[i].mypos = i;
+	utf_reset_chain_info(&utf_scntrp[i]);
     }
     utfslist_init(&utf_scntrbusy, NULL);
     /* rank2scntridx table is allocated */

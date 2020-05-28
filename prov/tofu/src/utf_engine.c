@@ -9,6 +9,7 @@
 #ifndef UTF_NATIVE
 #include <ofi_iov.h>
 #include "tofu_debug.h"
+#include "utf_engine.h"
 #endif
 
 extern int	tofufab_resolve_addrinfo(void *, int rank,
@@ -63,6 +64,7 @@ static inline utofu_stadd_t utf_sndctr_stadd()
     return sndctrstadd;
 }
 
+static utfslist	utf_slistrget;
 
 void
 utf_engine_init()
@@ -72,15 +74,35 @@ utf_engine_init()
 	rcntr[i].state = R_NONE;
 	rcntr[i].mypos = i;
 	rcntr[i].initialized = 0;
+	rcntr[i].dflg = 0;
 	vcqrcntr[i] = 0;
 	// utfslist_init(&rcntr[i].rget_cqlst, NULL);
     }
+    utfslist_init(&utf_slistrget, NULL);
+}
+
+static struct utf_recv_cntr	*
+find_rget_recvcntr(utofu_vcq_id_t vcqid)
+{
+    utfslist_entry	*cur;
+    struct utf_recv_cntr *ursp;
+    utf_printf("%s: vcqid(%lx)\n", __func__, vcqid);
+    utfslist_foreach(&utf_slistrget, cur) {
+	ursp = container_of(cur, struct utf_recv_cntr, rget_slst);
+	utf_printf("%s: ursp(%p)->svcqid(%lx) vcqid(%lx)\n", __func__, ursp, ursp->svcqid, vcqid);
+	if (ursp->svcqid == vcqid) goto find;
+    }
+    ursp = 0;
+find:
+    return ursp;
 }
 
 struct utf_recv_cntr	*
 vcqid2recvcntr(utofu_vcq_id_t vcqid)
 {
     int	i;
+
+    utf_printf("%s: vcqid(%lx)\n", __func__, vcqid);
     for (i = 0; i < MSG_PEERS; i++) {
 	if (vcqrcntr[i] == vcqid) {
 	    return &rcntr[i];
@@ -88,6 +110,7 @@ vcqid2recvcntr(utofu_vcq_id_t vcqid)
     }
     return NULL;
 }
+
 
 static void *cur_av;
 
@@ -167,7 +190,7 @@ utfgen_uexplst_add(struct utf_hpacket *pkt, struct utf_msgreq *req)
 static inline void
 init_recv_cntr_remote_info(struct utf_recv_cntr *ursp, void *av, int src, int sidx)
 {
-    if (ursp->initialized == 0) {
+    if (ursp->initialized == 0 || ursp->mypos == EGRCHAIN_RECVPOS) {
 	int rc;
 	rc = tofufab_resolve_addrinfo(av, src, &ursp->svcqid, &ursp->flags);
 	if (rc != 0) {
@@ -235,7 +258,7 @@ eager_copy_and_check(struct utf_recv_cntr *ursp,
 }
 
 static inline void
-utf_done_rget(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
+utf_rget_done(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
 {
     struct utf_msgreq *req = ursp->req;
     int sidx = ursp->sidx;
@@ -247,6 +270,7 @@ utf_done_rget(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
      * notification to the sender: local mrq notification is supressed
      * currently local notitication is enabled
      */
+    utf_printf("YIRGET3: rget_done src(%d) svcqid(%lx) pos(%d)\n", req->hdr.src, ursp->svcqid, ursp->mypos);
     utf_remote_armw4(vcqh, ursp->svcqid, ursp->flags,
 		     UTOFU_ARMW_OP_OR, SCNTR_OK,
 		     stadd + SCNTR_RGETDONE_OFFST, sidx, 0);
@@ -257,6 +281,31 @@ utf_done_rget(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
     }
     req->rsize = req->hdr.size;
     req->status = REQ_DONE;
+}
+
+static inline struct utf_recv_cntr *
+utf_rget_progalloc(struct utf_recv_cntr *ursp)
+{
+    struct utf_recv_cntr	*cpcntr;
+    cpcntr = utf_malloc(sizeof(struct utf_recv_cntr));
+    memcpy(cpcntr, ursp, sizeof(struct utf_recv_cntr));
+    cpcntr->dflg = 1;
+    utfslist_append(&utf_slistrget, &cpcntr->rget_slst);
+    utf_printf("%s: Chainmode temp ursp is allocated(%p)\n", __func__, cpcntr);
+    return cpcntr;
+}
+
+static inline void
+utf_rget_progfree(struct utf_recv_cntr *ursp)
+{
+    if (utf_slistrget.head == &ursp->rget_slst) {
+	utfslist_remove(&utf_slistrget);
+	utf_free(ursp);
+    } else {
+	/* We do not expect this happen */
+	utf_printf("%s: something wrong\n", __func__);
+	abort();
+    }
 }
 
 /*
@@ -280,6 +329,8 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
     struct utf_msgreq	*req;
     struct utf_hpacket	*pkt = &msgp->payload.h_pkt;
 
+    utf_printf("%s: ursp(%p)->state(%s:%d)\n",
+	       __func__, ursp, rstate_symbol[ursp->state], ursp->state);
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("%s: ursp(%p)->state(%s:%d)\n",
 		   __func__, ursp, rstate_symbol[ursp->state], ursp->state);
@@ -308,7 +359,17 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 		req->rmtstadd = *(utofu_stadd_t*) pkt->msgdata;
 		init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
 		req->rsize = 0;
-		utf_do_rget(vcqh, ursp, R_DO_RNDZ);
+		utf_printf("YIRGET: src(%d) svcqid(%lx) pos(%d) sidx(%ld)\n", req->hdr.src, ursp->svcqid, ursp->mypos, sidx);
+		if (ursp->mypos == EGRCHAIN_RECVPOS) {
+		    /* ursp is copied to another erecv, and
+		     * EGRCHAIN_RECVPOS ursp is now ready to receive another message */
+		    req->rcntr = utf_rget_progalloc(ursp);
+		    init_recv_cntr_remote_info(req->rcntr, av, req->hdr.src, sidx);
+		    utf_rget_do(vcqh, req->rcntr, R_DO_RNDZ);
+		    ursp->state = R_NONE; ursp->req = NULL;
+		} else {
+		    utf_rget_do(vcqh, ursp, R_DO_RNDZ);
+		}
 		/* state is now R_DO_RNDZ */
 	    } else {/* eager */
 		if (eager_copy_and_check(ursp, req, msgp) == R_DONE) {
@@ -339,17 +400,26 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	    case PKT_RENDZ:
 		/* register it to unexpected queue */
 		utfgen_uexplst_add(pkt, req);
-		req->rcntr = ursp;
 		req->rmtstadd = *(utofu_stadd_t*) pkt->msgdata;
 		req->status = REQ_WAIT_RNDZ;
-		ursp->state = R_WAIT_RNDZ;
-		init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
-		/* state is now R_WAIT_RNDZ */
+		utf_printf("YIRGET2: src(%d) svcqid(%lx) pos(%d)\n", req->hdr.src, ursp->svcqid, ursp->mypos);
+		if (ursp->mypos == EGRCHAIN_RECVPOS) {
+		    /* ursp is copied to another erecv, and
+		     * EGRCHAIN_RECVPOS ursp is now ready to receive another message */
+		    req->rcntr = utf_rget_progalloc(ursp);
+		    init_recv_cntr_remote_info(req->rcntr, av, req->hdr.src, sidx);
+		    ursp->state = R_NONE; ursp->req = NULL;
+		} else {
+		    /* state is now R_WAIT_RNDZ */
+		    init_recv_cntr_remote_info(ursp, av, req->hdr.src, sidx);
+		    req->rcntr = ursp;
+		    ursp->state = R_WAIT_RNDZ;
+		}
 		break;
 	    }
 	}
 	/* state is now  R_DO_RNDZ | R_BODY | R_WAIT_RNDZ 
-	 *             | R_DO_WRITE | R_DO_READ */
+	 *             | R_DO_WRITE | R_DO_READ | R_NONE(takeover) */
     }
 	break;
     case R_BODY:
@@ -365,23 +435,25 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	abort();
 	break;
     case R_DO_WRITE:
-	utf_done_rget(vcqh, ursp);
+	utf_rget_done(vcqh, ursp);
 	goto reset_state;
     case R_DO_RNDZ: /* R_DO_RNDZ --> R_DONE */
 	DEBUG(DLEVEL_ADHOC) {
 	    utf_printf("%s: R_DO_RNDZ ursp->req(%p) -->\n", __func__, ursp->req);
 	}
 	req = ursp->req;
+	utf_printf("YIRGETXX: req(%p)->rsize(%ld) req->hdr.size(%ld)\n", req, req->rsize, req->hdr.size);
 	if (req->rsize < req->hdr.size) { /* continue to get data */
-	    utf_do_rget(vcqh, ursp, R_DO_RNDZ);
+	    utf_rget_do(vcqh, ursp, R_DO_RNDZ);
 	    break;
 	} else { /* finish */
-	    utf_done_rget(vcqh, ursp);
+	    utf_rget_done(vcqh, ursp);
 	}
 	/* Falls through. */
     case R_DONE:
 	req = ursp->req;
     done:
+	utf_printf("YIRGET8: receive done src(%d) reqtype(%d)\n", req->hdr.src, req->type);
 	if (req->type == REQ_RECV_EXPECTED) {
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: Expected message arrived (idx=%d)\n", __func__,
@@ -395,7 +467,12 @@ utf_recvengine(void *av, utofu_vcq_id_t vcqh,
 	}
     reset_state:
 	/* reset the state */
-	ursp->state = R_NONE; ursp->req = NULL;
+	if (ursp->dflg) {
+	    utf_printf("%s: Chainmode ursp(%p) is free\n", __func__, ursp);
+	    utf_rget_progfree(ursp);
+	} else {
+	    ursp->state = R_NONE; ursp->req = NULL;
+	}
 	break;
     case R_HEAD:
     default:
@@ -407,7 +484,7 @@ static inline utofu_stadd_t
 calc_recvstadd(struct utf_send_cntr *usp, uint64_t ridx, size_t ssize)
 {
     utofu_stadd_t	recvstadd = 0;
-    if (usp->recvoff >= (MSGBUF_SIZE - MSG_SIZE)) {
+    if (IS_MSGBUF_FULL(usp)) {
 	/* buffer full */
 	//utf_printf("%s: YI** WAIT usp->rcvreset(%d) usp->recvoff(%d)\n", __func__, usp->rcvreset, usp->recvoff);
 	usp->ostate = usp->state;
@@ -476,6 +553,12 @@ utf_chain_set_tail(void *av, utofu_vcq_id_t vcqh, int rank, uint64_t addrinfo,
     /* sindex is remote one */
     remote_piggysend_nolevt(vcqh, rvcqid, &data, SCNTR_CHAIN_NXT(last_rank.sidx),
 			    sizeof(uint64_t), last_rank.sidx, flags, minfo);
+    utf_printf("%s: chain mode: put rank(%d) sidx(%d) into %s (EVT_RMT_CHNUPDT)\n",
+	       __func__, rank, mypos, chain_addr_string(addrinfo));
+    DEBUG(DLEVEL_CHAIN) {
+	utf_printf("%s: chain mode: put rank(%d) sidx(%d) into %s (EVT_RMT_CHNUPDT)\n",
+		   __func__, rank, mypos, chain_addr_string(addrinfo));
+    }
 }
 
 /*
@@ -495,11 +578,40 @@ utf_chain_inform_ready(void *av, utofu_vcq_hdl_t vcqh,
     ready.rdy = 1;
     ready.recvoff = usp->recvoff;
     tofufab_resolve_addrinfo(av, usp->chn_next.rank, &rvcqid, &flgs);
-    utf_printf("%s: rank(%d) sidx(%d) recvoff(%d) remote_stad(%lx)\n", __func__, usp->chn_next.rank, usp->chn_next.sidx, usp->recvoff, SCNTR_CHAIN_READY(usp->chn_next.sidx));
+    utf_printf("%s: rank(%d) sidx(%d) recvoff(%d) remote_stad(%lx) usp->evtupdt(%d) usp->expevtupdt(%d)\n",
+	       __func__, usp->chn_next.rank, usp->chn_next.sidx, usp->recvoff,
+	       SCNTR_CHAIN_READY(usp->chn_next.sidx), usp->evtupdt, usp->expevtupdt);
+    DEBUG(DLEVEL_CHAIN) {
+	utf_printf("%s: rank(%d) sidx(%d) recvoff(%d) remote_stad(%lx)\n",
+		   __func__, usp->chn_next.rank, usp->chn_next.sidx, usp->recvoff,
+		   SCNTR_CHAIN_READY(usp->chn_next.sidx));
+    }
+    usp->chn_informed = 1;
     /* sindex is remote one */
     remote_piggysend_nolevt(vcqh, rvcqid, &ready,
 			    SCNTR_CHAIN_READY(usp->chn_next.sidx),
 			    sizeof(uint64_t),  usp->chn_next.sidx, flgs, minfo);
+}
+
+static inline void
+utf_reset_recv_chntail(utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp, 
+		       struct utf_send_msginfo *minfo)
+{
+    uint64_t	flgs = 0;
+    uint64_t	oval = make_chain_addr(myrank, usp->mypos, 0);
+    uint64_t	nval = make_chain_addr(-1, -1, usp->recvoff);
+    /* new value has the last recvoff */
+    DEBUG(DLEVEL_CHAIN) {
+	utf_printf("%s: dst(%d) DONE_EGR|RDVDONE: oval.rank(%d) oval.sidx(%d) "
+		   "nval.rank(%d) nval.sidx(0x%x) nval.recvoff(%d) going to issue remote_cswap\n",
+		   __func__, usp->dst, ((union chain_addr)oval).rank,
+		   ((union chain_addr)oval).sidx, ((union chain_addr)nval).rank,
+		   ((union chain_addr)nval).sidx, ((union chain_addr)nval).recvoff);
+    }
+    /* This is the Compare and Swap */
+    utf_remote_cswap(vcqh, usp->rvcqid, flgs,
+		     oval, nval, EGRCHAIN_RECV_CHNTAIL, usp->mypos, minfo);
+    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL, usp->mypos);
 }
 
 /*
@@ -512,13 +624,15 @@ utf_sendengine(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp, uint64
     utfslist_entry		*slst;
     struct utf_send_msginfo	*minfo;
 
-    utf_printf("%s: usp(%p)->state(%s:%d), evt(%s:%d) rcvreset(%d) recvoff(%d) dst(%d)\n",
-	       __func__, usp, sstate_symbol[usp->state], usp->state, evnt_symbol[evt],
-	       evt, usp->rcvreset, usp->recvoff, usp->dst);
-    DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("%s: usp(%p)->state(%s:%d), evt(%s:%d) rcvreset(%d) recvoff(%d) dst(%d)\n",
-		   __func__, usp, sstate_symbol[usp->state], usp->state, evnt_symbol[evt],
-		   evt, usp->rcvreset, usp->recvoff, usp->dst);
+    utf_printf("%s: dst(%d) usp(%p)->state(%s:%d), smode(%s) evt(%s:%d) rcvreset(%d) recvoff(%d) sidx(%d)\n",
+	       __func__, usp->dst, usp, sstate_symbol[usp->state], usp->state,
+	       usp->smode == TRANSMODE_CHND ? "Chained" : "Aggressive",  evnt_symbol[evt],
+	       evt, usp->rcvreset, usp->recvoff, usp->mypos);
+    DEBUG(DLEVEL_CHAIN|DLEVEL_ADHOC|DLEVEL_PROTOCOL) {
+	utf_printf("%s: dst(%d) usp(%p)->state(%s:%d), smode(%s) evt(%s:%d) rcvreset(%d) recvoff(%d) sidx(%d)\n",
+		   __func__, usp->dst, usp, sstate_symbol[usp->state], usp->state,
+		   usp->smode == TRANSMODE_CHND ? "Chained" : "Aggressive",  evnt_symbol[evt],
+		   evt, usp->rcvreset, usp->recvoff, usp->mypos);
     }
     if (evt == EVT_RMT_RECVRST && usp->state != S_WAIT_BUFREADY) {
 	DEBUG(DLEVEL_ADHOC) utf_printf("%s: RST dst(%d) set(%d) recvoff(%d) st(%s)\n", __func__, usp->dst, usp->rcvreset, usp->recvoff, sstate_symbol[usp->state]);
@@ -530,8 +644,11 @@ utf_sendengine(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp, uint64
     }
     if (evt == EVT_RMT_CHNUPDT) {
 	usp->evtupdt = 1;
-	if (usp->state < S_DONE_FINALIZE1_1) {
-	    utf_printf("%s: remote process set next field\n", __func__);
+	if (usp->state < S_REQ_RDVR) {
+	    DEBUG(DLEVEL_CHAIN) {
+		utf_printf("%s: remote process set next field (%s)\n",
+			   __func__, chain_addr_string(usp->chn_next.rank_sidx));
+	    }
 	    return;
 	}
     }
@@ -571,7 +688,7 @@ progress:
 		}
 	    } else { /* sender chaining, TRANSMODE_CHND */
 		// utf_printf("%s: result = %s\n", __func__, chain_addr_string(rslt));
-		if (IS_CHAIN_EMPTY(rslt)) { /* success */
+		if (IS_CHAIN_EMPTY((union chain_addr)rslt)) { /* success */
 		    sndmgt_set_sndok(usp->dst, egrmgt);
 		    sndmgt_set_index(usp->dst, egrmgt, EGRCHAIN_RECVPOS);
 		    usp->state = S_HAS_ROOM;
@@ -579,7 +696,6 @@ progress:
 		    // utf_printf("%s: EVT_LCL_REQ recvoff(%d)\n", __func__, usp->recvoff);
 		    goto s_has_room;
 		} else {
-		    utf_printf("%s: chain mode: wait, put my address sidx(%d) to %s\n", __func__, usp->mypos, chain_addr_string(rslt));
 		    /* put my address to the tail of chain */
 		    utf_chain_set_tail(av, vcqh, myrank, rslt, usp->mypos, minfo);
 		    /* waiting, state is still the same */
@@ -680,6 +796,24 @@ progress:
 			 minfo->sndbuf->msgbdy.payload.h_pkt.hdr.size,
 			 minfo->sndbuf->msgbdy.ptype);
 	    }
+	    if (usp->smode == TRANSMODE_CHND) {
+		if (IS_CHAIN_EMPTY(usp->chn_next)) { /* I'm last entry, reset the remote entry */
+		    utf_reset_recv_chntail(vcqh, usp, minfo);
+		    /* EVT_LCL_REQ will be generated in the sendengine */
+		} else {
+		    /* inform ready to the next rank */
+		    DEBUG(DLEVEL_CHAIN) {
+			utf_printf("%s: calling inform_ready in S_DONE_EGR, going to S_DONE_FINALIZE2\n", __func__);
+		    }
+		    utf_chain_inform_ready(av, vcqh, usp, minfo);
+		    /* no event will be generated in the local side for the above operation */
+		    if (usp->evtupdt == 0) {
+			/* if usp->evtupdt == 0, EVT_RMT_CHNUPDT will be received later */
+			usp->expevtupdt = 1;
+		    }
+		}
+	    }
+	    /* next state is S_REQ_RDVR */
 	    break;
 	default:
 	    utf_printf("%s: BUG!!! Unknown ctrltype(%d)\n", __func__, minfo->cntrtype);
@@ -740,21 +874,43 @@ progress:
 		       __func__, evnt_symbol[evt], usp->rgetwait);
 	}
 	/*
+	 * EVT_LCL_REQ is generated as a result of utf_reset_recv_chntail in TRANMODE_CHND.
 	 * EVT_LCL is generated as a result of request to receiver (put).
+	 * EVT_RMT_CHNUPDT can be generated as a result of remote set.
 	 * EVT_RMT_RGETDON is generated as a result of receiver's ack operation.
 	 * EVT_RMT_GET is generated as a result of receiver's get operation.
 	 *	 now supressed 2020/05/10
 	 */
-	usp->rgetwait |= (evt == EVT_LCL) ? 1 : 0 ;
-	usp->rgetwait |= (evt == EVT_RMT_RGETDON) ? 2 : 0 ;
-	// usp->rgetwait |= (evt == EVT_RMT_GET) ? 4 : 0 ;
-	if (usp->rgetwait == 3) { /* remote completion from the receiver */
+	switch (evt) {
+	case EVT_LCL_REQ:
+	case EVT_RMT_CHNUPDT:
+	    break;
+	case EVT_LCL:
+	    usp->rgetwait |= 1;
+	    break;
+	case EVT_RMT_RGETDON:
+	    usp->rgetwait |= 2;
+	    break;
+	default:
+	    utf_printf("%s: protocol error evt(%s)\n", __func__, evnt_symbol[evt]);
+	    abort();
+	    break;
+	}
+	if (usp->chn_informed == 0 && usp->evtupdt != 0) {
+	    /* we have not expected EVT_RMT_CHNUPDT, but received */
+	    utf_chain_inform_ready(av, vcqh, usp, minfo);
+	}
+	if (usp->rgetwait == 3
+	    && (usp->expevtupdt == 0
+		|| (usp->expevtupdt && usp->evtupdt))) { /* remote completion from the receiver */
+	    /* utf_reset_chain_info will be called later */
 	    usp->state = S_RDVDONE;
 	} else {
 	    break;
 	}
 	/* Falls through. */
     case S_RDVDONE:
+	utf_printf("%s: S_RDVDONE usrstadd(%lx) bufstadd(%lx)\n", __func__, minfo->usrstadd, minfo->mreq->bufstadd);
 	DEBUG(DLEVEL_ADHOC) utf_printf("%s: S_RDVDONE usrstadd(%lx) bufstadd(%lx)\n", __func__, minfo->usrstadd, minfo->mreq->bufstadd);
 	if (minfo->usrstadd) {
 	    utf_mem_dereg(vcqh, minfo->usrstadd);
@@ -769,38 +925,37 @@ progress:
 	     * or smode is TRANSMODE_AGGR */
 	    goto going_done;
 	}
+	/* Here is for TRANSMODE_CHND */
+	/* checking if the receiver's buffer is full */
+	if (IS_MSGBUF_FULL(usp)) {
+	    utf_printf("%s: YI!!!!!!!!!!!!!!!! RECEIVER'S BUFFER FULL\n", __func__);
+	    usp->ostate = usp->state; /* S_RDVDONE or S_DONE_EGR */
+	    usp->state = S_WAIT_BUFREADY;
+	    break;
+	}
 	/* the receiver's buffer is now free */
 	sndmgt_clr_examed(usp->dst, egrmgt);
 	sndmgt_clr_sndok(usp->dst, egrmgt);
-	if (usp->chn_next.rank_sidx == 0) {
-	    /* I'm last entry, reset the remote entry */
-	    uint64_t	flgs = 0;
-	    uint64_t	oval = make_chain_addr(myrank, usp->mypos, 0);
-	    uint64_t	nval = make_chain_addr(-1, -1, usp->recvoff);
-	    /* new value has the last recvoff */
-	    DEBUG(DLEVEL_CHAIN) {
-		utf_printf("%s: DONE_EGR|RDVDONE: oval.rank(%d) oval.sidx(%d) "
-			   "nval.rank(%d) nval.sidx(0x%x) nval.recvoff(%d) going to issue remote_cswap\n",
-			   __func__, ((union chain_addr)oval).rank,
-			   ((union chain_addr)oval).sidx, ((union chain_addr)nval).rank,
-			   ((union chain_addr)nval).sidx, ((union chain_addr)nval).recvoff);
-	    }
-	    /* This is the Compare and Swap */
-	    utf_remote_cswap(vcqh, usp->rvcqid, flgs,
-			     oval, nval, EGRCHAIN_RECV_CHNTAIL, usp->mypos, minfo);
-	    usp->state = S_DONE_FINALIZE1_1;
-	    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL, usp->mypos);
-	    /* 
-	     * EVT_LCL_REQ in the sendengine.
-	     * checking the swapped data in the FINALIZE1 state
-	     * No event in the receiver side, ignore UTOFU_RMT_ARMW event
-	     */
+	if (usp->state == S_RDVDONE) {
+	    goto finalize;
 	} else {
-	    /* inform ready to the next rank */
-	    utf_printf("%s: calling inform_ready in S_DONE_EGR, going to S_DONE_FINALIZE2\n", __func__);
-	    utf_chain_inform_ready(av, vcqh, usp, minfo);
-	    usp->state = S_DONE_FINALIZE2;
-	    goto done_finalize2; /* 2020/05/25 */
+	    if (IS_CHAIN_EMPTY(usp->chn_next)) { /* I'm last entry, reset the remote entry */
+		utf_reset_recv_chntail(vcqh, usp, minfo);
+		usp->state = S_DONE_FINALIZE1_1;
+		/* 
+		 * EVT_LCL_REQ in the sendengine.
+		 * checking the swapped data in the FINALIZE1 state
+		 * No event in the receiver side, ignore UTOFU_RMT_ARMW event
+		 */
+	    } else {
+		/* inform ready to the next rank */
+		DEBUG(DLEVEL_CHAIN) {
+		    utf_printf("%s: calling inform_ready in S_DONE_EGR, going to S_DONE_FINALIZE2\n", __func__);
+		}
+		utf_chain_inform_ready(av, vcqh, usp, minfo);
+		usp->state = S_DONE_FINALIZE2;
+		goto done_finalize2; /* 2020/05/25 */
+	    }
 	}
 	break;
     case S_DONE_FINALIZE1_1:
@@ -821,7 +976,7 @@ progress:
 		/* no EVT_RMT_CHNUPDT event will be received */
 		goto finalize;
 	    }
-	    /* somebody will update my chain area */
+	    /* somebody, will update / has updated, my chain area, but not yet receive the event */
 	    /* after receiving EVT_RMT_CHNUPDT, needs reaction */
 	    usp->state = S_DONE_FINALIZE1_2;
 	} else if (evt == EVT_RMT_CHNUPDT) {
@@ -842,7 +997,9 @@ progress:
 	assert(evt == EVT_LCL_REQ);
     finalize1:
 	/* inform ready to the next rank */
-	utf_printf("%s: calling inform_ready in S_DONE_FINALIZE1_2|3, going to S_DONE_FINALIZE2\n", __func__);
+	DEBUG(DLEVEL_CHAIN) {
+	    utf_printf("%s: calling inform_ready in S_DONE_FINALIZE1_2|3, going to S_DONE_FINALIZE2\n", __func__);
+	}
 	utf_chain_inform_ready(av, vcqh, usp, minfo);
 	// usp->chn_ready.data = 0; /* reset for future use */
 	usp->state = S_DONE_FINALIZE2;
@@ -851,24 +1008,24 @@ progress:
     case S_DONE_FINALIZE2: /* as a result of remote_add to inform to the next rank */
     done_finalize2:
 	if (usp->evtupdt == 0) {
-	    utf_printf("%s: waiting to handle EVT_RMT_CHNUPDT\n", __func__);
+	    DEBUG(DLEVEL_CHAIN) {
+		utf_printf("%s: waiting to handle EVT_RMT_CHNUPDT\n", __func__);
+	    }
 	    break;
 	}
     finalize:/* real finalization for chain mode */
-	utf_printf("%s: DONE_FINALIZE2 and now state is S_NONE\n", __func__);
 	DEBUG(DLEVEL_CHAIN) {
-	    utf_printf("%s: DONE_FINALIZE2 and now state is S_NONE\n", __func__);
+	    utf_printf("%s: dst(%d) DONE_FINALIZE2 and now state is S_NONE\n", __func__, usp->dst);
 	}
-	/* reset chain fields */
-	usp->chn_ready.data = 0; 
-	usp->chn_next.rank_sidx = 0;
-	usp->evtupdt = 0;
+	/* reset chain info */
+	utf_reset_chain_info(usp);
 	/* update mode for future use */
 	sndmg_update_chainmode(usp->dst, egrmgt);
     going_done:
     {
 	struct utf_msgreq	*req = minfo->mreq;
 
+	utf_printf("%s: S_EDONE dst(%d)\n", __func__, usp->dst);
 	DEBUG(DLEVEL_ADHOC) utf_printf("%s: S_EDONE dst(%d)\n", __func__, usp->dst);
 	req->status = REQ_DONE;
 	minfo->mreq = NULL;
@@ -884,8 +1041,8 @@ progress:
 	/* next waiting message */
 	slst = utfslist_head(&usp->smsginfo);
 	if (slst != NULL) {
-	    usp->state = S_HAS_ROOM;
 	    minfo = container_of(slst, struct utf_send_msginfo, slst);
+	    usp->state = S_HAS_ROOM;
 	    evt = EVT_CONT;
 	    DEBUG(DLEVEL_CHAIN) {
 		utf_printf("%s: next waiting request minfo(%p)\n", __func__, minfo);
@@ -893,6 +1050,7 @@ progress:
 	    if (sndmgt_isset_examed(usp->dst, egrmgt) == 0) {
 		/* restart */
 		utf_send_start(av, vcqh, usp);
+		break;
 	    } else {
 		goto progress;
 	    }
@@ -920,11 +1078,13 @@ utf_send_start(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 {
     int	dst = usp->dst;
 
+    utf_printf("%s: dst(%d) examed(%d)\n", __func__, dst, sndmgt_isset_examed(dst, egrmgt));
     if (sndmgt_isset_examed(dst, egrmgt) == 0) {
 	/*
 	 * checking availability
 	 *   edata: usp->mypos for mrqprogress
 	 */
+	utf_printf("YIRGET4: 1 dst(%d)\n", dst);
 	DEBUG(DLEVEL_ADHOC) utf_printf("%s: 1\n", __func__);
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: Request a room to rank %d: send control(%d)\n"
@@ -936,6 +1096,7 @@ utf_send_start(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
 	    /* swap tail address of request chain */
 	    uint64_t	flgs = 0;
 	    uint64_t	val = make_chain_addr(myrank, usp->mypos, 0);
+	    utf_printf("YIRGET41: rvcqid(%lx)\n", usp->rvcqid);
 	    utf_remote_swap(vcqh, usp->rvcqid, flgs,
 			    val, EGRCHAIN_RECV_CHNTAIL, usp->mypos, usp);
 	    DBG_UTF_CMDINFO(UTF_DBG_SENG, UTF_CMD_SWAP, EGRCHAIN_RECV_CHNTAIL, usp->mypos);
@@ -960,6 +1121,7 @@ utf_send_start(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp)
     } else if (sndmgt_isset_sndok(dst, egrmgt) != 0) {
 	//utf_printf("%s: YI** Has a received room in rank %d: send control(%d)\n",
 	//	   __func__, dst, usp->mypos);
+	utf_printf("%s: 2\n", __func__);
 	DEBUG(DLEVEL_ADHOC) utf_printf("%s: 2\n", __func__);
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: Has a received room in rank %d: send control(%d)\n",
@@ -1151,8 +1313,6 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	if (is_scntr(mrq_notice.rmt_stadd, &evtype)) {
 	    struct utf_send_cntr *usp;
 	    usp = utf_idx2scntr(sidx);
-	    utf_printf("%s: RMT_PUT usp->state(%s:%d) evtype(%s:%d) sidx(%d)\n", __func__,
-		       sstate_symbol[usp->state], usp->state, evnt_symbol[evtype], evtype, sidx);
 	    utf_sendengine(av, vcqh, usp, mrq_notice.rmt_stadd, evtype);
 	    break;
 	}
@@ -1165,9 +1325,10 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		       mrq_notice.vcq_id, entry, ursp->recvoff, sidx);
 	}
 	DEBUG(DLEVEL_CHAIN) {
-	    utf_printf("%s: src(%d) ERECV_LENGTH(mrq_notice.rmt_value)=%d recvoff(%d) sidx(%d)\n",
+	    utf_printf("%s: src(%d) ERECV_LENGTH(mrq_notice.rmt_value)=%d "
+		       "recvoff(%d) sidx(%d) entry(%d) state(%s:%d)\n",
 		       __func__, ursp->hdr.src, ERECV_LENGTH(mrq_notice.rmt_value),
-		       ursp->recvoff, sidx);
+		       ursp->recvoff, sidx, entry, rstate_symbol[ursp->state], ursp->state);
 	}
 	if (ERECV_LENGTH(mrq_notice.rmt_value) < ursp->recvoff) {
 	    /* the data might be the top */
@@ -1182,12 +1343,13 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	msgp = (struct utf_msgbdy *) ((char*)msgp + ursp->recvoff);
 	{
 	    size_t	msz = msgp->psize;
+	    utf_printf("YIRGETXXXXXX RMT_PUT\n");
 	    utf_recvengine(av, vcqh, ursp, msgp, sidx);
 	    /* handling message buffer here in the receiver side */
 	    ursp->recvoff += msz;
 	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: src(%d) msz(%d) recvoff(%d) ent(%d)\n", __func__, EMSG_HDR(msgp).src, msz, ursp->recvoff - msz, entry);
 	}
-	if (ursp->rst_sent == 0 && ursp->recvoff >= (MSGBUF_SIZE - MSG_SIZE)) {
+	if (ursp->rst_sent == 0 && IS_MSGBUF_FULL(ursp)) {
 	    utofu_stadd_t	stadd = SCNTR_ADDR_CNTR_FIELD(sidx);
 	    /* rcvreset field is set */
 	    init_recv_cntr_remote_info(ursp, av, EMSG_HDR(msgp).src, sidx);
@@ -1212,12 +1374,21 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
     }
     case UTOFU_MRQ_TYPE_LCL_GET: /* 2 */
     {
-	int	sidx = mrq_notice.edata;
-	struct utf_recv_cntr	*ursp = vcqid2recvcntr(mrq_notice.vcq_id);
+	uint8_t	sidx = mrq_notice.edata;
+	struct utf_recv_cntr	*ursp;
+
+	utf_printf("%s: LCL_GET sidx(0x%x)\n", __func__, sidx);
 	if (sidx & EDAT_RMA) {
-	    /* RMA operation */
-	    utf_rma_lclcq(mrq_notice, UTF_RMA_READ);
-	    break;
+	    if (sidx == EDAT_RGET) {
+		/* remote get in Chain mode */
+		ursp = find_rget_recvcntr(mrq_notice.vcq_id);
+	    } else {
+		/* RMA operation */
+		utf_rma_lclcq(mrq_notice, UTF_RMA_READ);
+		break;
+	    }
+	} else {
+	    ursp = vcqid2recvcntr(mrq_notice.vcq_id);
 	}
 	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS) {
 	    utf_printf("%s: MRQ_TYPE_LCL_GET: vcq_id(%lx) edata(%d) "
@@ -1225,14 +1396,16 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 		       __func__, mrq_notice.vcq_id, mrq_notice.edata,
 		       mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
 	}
-	if (ursp->state != R_DO_RNDZ
-	    && ursp->state != R_DO_WRITE) {
-	    utf_printf("%s: protocol error, expecting R_DO_RNDZ or R_DO_WRITE but %s\n"
+	if (ursp == NULL
+	    || (ursp->state != R_DO_RNDZ
+		&& ursp->state != R_DO_WRITE)) {
+	    utf_printf("%s: ursp(%p) protocol error, expecting R_DO_RNDZ or R_DO_WRITE but %s\n"
 		       "\tMRQ_TYPE_LCL_GET: vcq_id(%lx) edata(%d) "
 		       "lcl_stadd(%lx) rmt_stadd(%lx)\n",
-		       __func__, rstate_symbol[ursp->state],
+		       __func__, ursp, ursp != NULL ? rstate_symbol[ursp->state] : "",
 		       mrq_notice.vcq_id, mrq_notice.edata,
 		       mrq_notice.lcl_stadd, mrq_notice.rmt_stadd);
+	    abort();
 	    break;
 	}
 	utf_recvengine(av, vcqh, ursp, NULL, sidx);
@@ -1262,13 +1435,20 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	 * edata is index of sender engine */
 	struct utf_send_cntr *usp;
 	int	evtype;
-	int	sidx = mrq_notice.edata;
-	usp = utf_idx2scntr(sidx);
+	uint8_t	sidx = mrq_notice.edata;
+
+	if (sidx == EDAT_RGET) {
+	    /* as a result of utf_rget_done, ignore */
+	    break;
+	} else {
+	    usp = utf_idx2scntr(sidx);
+	}
 	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_UTOFU) {
 	    utf_printf("%s: MRQ_LCL_ARM: edata(%d) rmt_val(%ld) usp(%p) RST ?\n",
 		     __func__, mrq_notice.edata, mrq_notice.rmt_value, usp);
 	}
 	if (is_scntr(mrq_notice.rmt_stadd, &evtype)) {
+	    /* as a result of utf_rget_done, ignore */
 	    /* this is for a receiver's remote OR operation
 	     * except for EVT_RMT_CHNRDY */
 	} else { /* accessing erbstadd area, erecv_buf's header  */
@@ -1395,7 +1575,8 @@ utf_chnclean(void *av, utofu_vcq_hdl_t vcqh)
     slst = utf_scntr_busy();
     utfslist_foreach(slst, cur) {
 	struct utf_send_cntr	*usp = container_of(cur, struct utf_send_cntr, busy);
-	utf_printf("%s: usp(%p)->state(%s)\n", __func__, usp, sstate_symbol[usp->state]);
+	utf_printf("%s: usp(%p)->state(%s) dst(%d) egrmgt.count(%d)\n",
+		   __func__, usp, sstate_symbol[usp->state], usp->dst, egrmgt[usp->dst].count);
 	while (usp->state != S_DONE) {
 	    utf_progress(av, vcqh);
 	}

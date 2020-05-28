@@ -132,6 +132,7 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
     utf_recvbuf_init(vcqh, nprocs);
 #endif
     /* sender control is allocated */
+    /* SND_EGR_BUFENT is max peers */
     utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT + 1, RMA_MDAT_ENTSIZE);
     /*
      * Do we need to synchronize ? 2020/05/08

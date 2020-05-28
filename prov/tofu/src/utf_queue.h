@@ -7,6 +7,7 @@
  *
  */
 #define EDAT_RMA	0x80	/* MSB is used to identify RMA operations */
+#define EDAT_RGET	0xff
 //#define EDAT_RMA	0x40
 //#define EDAT_RMA	0x10
 
@@ -377,7 +378,7 @@ typedef enum rstate {
     R_DO_RNDZ		= 5,
     R_DO_READ		= 6,
     R_DO_WRITE		= 7,
-    R_DONE		= 8,
+    R_DONE		= 8
 } rstate;
 	
 
@@ -386,7 +387,8 @@ typedef enum rstate {
  */
 struct utf_recv_cntr {
     uint8_t	state;		/* rstate */
-    uint8_t	initialized;	/* flag for sender's rendezous info  */
+    uint8_t	initialized:4,	/* flag for sender's rendezous info  */
+		dflg:4;		/* dynamic allocation or not in chain mode */
     uint8_t	rst_sent;	/* reset request is sent to the sender */
     uint8_t	mypos;		/* my position of recv_cntr pool */
     uint32_t	recvoff;	/* for eager message */
@@ -395,6 +397,7 @@ struct utf_recv_cntr {
     utofu_vcq_id_t	svcqid;	/* rendezous: sender's vcqid */
     uint64_t		flags;	/* rendezous: sender's flags */
     int		sidx;		/* rendezous: sender's sidx */
+    utfslist_entry	rget_slst;/* rendezous: list of rget progress */
     //utfslist	rget_cqlst;	/* CQ for remote get operation in UTF level */
 };
 
@@ -457,7 +460,7 @@ union chain_addr {
     uint64_t	      rank_sidx;
 };
 #define RANK_ALL1	0x7fffff
-#define IS_CHAIN_EMPTY(val)    (((union chain_addr)(val)).rank == RANK_ALL1)
+#define IS_CHAIN_EMPTY(val)    ((val).rank == RANK_ALL1)
 
 union chain_rdy {
     uint64_t	rdy:1,
@@ -470,11 +473,13 @@ struct utf_send_cntr {	/* 128 Byte */
     uint32_t		rgetdone:1,	/* remote get done */
 			ineager: 1,	/* */
 			rgetwait:3,	/* */
-			state: 4,	/* upto 15 states */
-			ostate: 4,	/* old state */
+			state: 5,	/* upto 31 states */
+			ostate: 5,	/* old state */
 			smode: 1,	/* MSGMODE_CHND or MSGMODE_AGGR */
 			evtupdt: 1,	/* receive event update */
-			mypos: 17;	/* must be */
+			expevtupdt: 1,	/* expect receiving RMT_CHNUPDT event */
+			chn_informed:1,	/* chain_inform_ready issued */
+			mypos: 13;	/* must be larger than 2^7 (edata) */
 					/*  +4 =  4 Byte */
     uint32_t		rcvreset: 1,	/* ready for resetting recv offset */
 			recvoff: 31;	/*  +4 =  8 Byte */
@@ -588,7 +593,8 @@ struct utf_send_cntr {	/* 128 Byte */
 #endif /* 0 */
 
 #define MSGBUF_SIZE	(MSG_SIZE*10)	/* 1920 * 10 */
-#define MSGBUF_THR	(MSG_SIZE*5)
+#define IS_MSGBUF_FULL(usp)	((usp)->recvoff >= (MSGBUF_SIZE - MSG_SIZE))
+//#define MSGBUF_THR	(MSG_SIZE*5)
 union recv_head {
     struct {
 	union chain_addr chntail;	/* tail address of request chain */
