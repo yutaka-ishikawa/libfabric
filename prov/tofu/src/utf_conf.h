@@ -18,6 +18,7 @@
 #define DLEVEL_PROTO_VBG	0x40	/* 64 */
 #define DLEVEL_ADHOC		0x80	/* 128 */
 #define DLEVEL_CHAIN		0x100
+#define DLEVEL_CHAIN2		0x200
 #define DLEVEL_ALL		0xffff
 
 /* 
