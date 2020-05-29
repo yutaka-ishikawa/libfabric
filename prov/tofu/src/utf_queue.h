@@ -409,15 +409,16 @@ typedef enum sstate {
     S_DO_EGR		= 4,
     S_DO_EGR_WAITCMPL	= 5,
     S_DONE_EGR		= 6,
-    S_WAIT_BUFREADY	= 7,	/* smaller than S_REQ_RDVR */
-    S_DO_RDV1		= 8,
-    S_DO_RDV2		= 9,
-    S_RDVDONE		= 10,
-    S_DONE		= 11,
-    S_DONE_FINALIZE1_1	= 12,
-    S_DONE_FINALIZE1_2	= 13,
-    S_DONE_FINALIZE1_3	= 14,
-    S_DONE_FINALIZE2	= 15,
+    S_WAIT_BUFREADY	= 7,	/* smaller than S_REQ_RDV1 */
+    S_REQ_RDV		= 8,
+    S_DO_RDV1		= 9,
+    S_DO_RDV2		= 10,
+    S_RDVDONE		= 11,
+    S_DONE		= 12,
+    S_DONE_FINALIZE1_1	= 13,
+    S_DONE_FINALIZE1_2	= 14,
+    S_DONE_FINALIZE1_3	= 15,
+    S_DONE_FINALIZE2	= 16,
 } sstate;
 
 enum {

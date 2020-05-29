@@ -550,6 +550,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED;
 	    req->rsize = 0;
+	    utf_printf("%s: rget_do req(%p) idx(%d) src(%ld)\n", __func__, req, idx, req->hdr.src);
 	    utf_rget_do(vcqh, ursp, R_DO_RNDZ);
 	    /* ursp->state is changed to R_DO_RNDZ */
 	    //remote_get(vcqh, ursp->svcqid, req->bufstadd,
