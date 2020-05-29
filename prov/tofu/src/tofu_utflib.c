@@ -506,7 +506,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	ignore = msg->ignore;
     utfslist *uexplst;
 
-    utf_printf("%s: src(%ld)\n", __func__, src);
+    DEBUG(DLEVEL_ADHOC|DLEVEL_CHAIN) utf_printf("%s: src(%ld)\n", __func__, src);
     //utf_printf("%s: ctx(%p)->ctx_recv_cq(%p)\n", __func__, ctx, ctx->ctx_recv_cq);
     //R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
     //ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
@@ -550,7 +550,6 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED;
 	    req->rsize = 0;
-	    utf_printf("YIRGET10: ursp(%p)->sidx(%ld)\n", ursp, ursp->sidx);
 	    utf_rget_do(vcqh, ursp, R_DO_RNDZ);
 	    /* ursp->state is changed to R_DO_RNDZ */
 	    //remote_get(vcqh, ursp->svcqid, req->bufstadd,
@@ -597,6 +596,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 		req->fi_ucontext = msg->context;
 	    }
 	}
+	//utf_printf("%s: done src(%d)\n", __func__, src);
 	/* CQ is immediately generated */
 	/* sender's flag or receiver's flag */
 	myflags = req->hdr.flgs | flags;

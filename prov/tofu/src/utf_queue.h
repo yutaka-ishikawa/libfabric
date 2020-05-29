@@ -21,7 +21,7 @@
 #define EVT_RMT_RECVRST	4	/* remote armw operation */
 #define EVT_RMT_GET	5	/* remote get operation */
 #define EVT_RMT_CHNRDY	6	/* ready in request chain mode */
-#define EVT_RMT_CHNUPDT	7
+#define EVT_RMT_CHNUPDT	7	/* next chain is set by remote */
 #define EVT_CONT	8
 #define EVT_END		9
 
@@ -409,14 +409,15 @@ typedef enum sstate {
     S_DO_EGR		= 4,
     S_DO_EGR_WAITCMPL	= 5,
     S_DONE_EGR		= 6,
-    S_REQ_RDVR		= 7,
-    S_RDVDONE		= 8,
-    S_DONE		= 9,
-    S_WAIT_BUFREADY	= 10,
-    S_DONE_FINALIZE1_1	= 11,
-    S_DONE_FINALIZE1_2	= 12,
-    S_DONE_FINALIZE1_3	= 13,
-    S_DONE_FINALIZE2	= 14,
+    S_WAIT_BUFREADY	= 7,	/* smaller than S_REQ_RDVR */
+    S_DO_RDV1		= 8,
+    S_DO_RDV2		= 9,
+    S_RDVDONE		= 10,
+    S_DONE		= 11,
+    S_DONE_FINALIZE1_1	= 12,
+    S_DONE_FINALIZE1_2	= 13,
+    S_DONE_FINALIZE1_3	= 14,
+    S_DONE_FINALIZE2	= 15,
 } sstate;
 
 enum {
@@ -472,14 +473,14 @@ union chain_rdy {
 struct utf_send_cntr {	/* 128 Byte */
     uint32_t		rgetdone:1,	/* remote get done */
 			ineager: 1,	/* */
-			rgetwait:3,	/* */
-			state: 5,	/* upto 31 states */
+			rgetwait:4,	/* */
+			state: 5,	/* up to 31 states */
 			ostate: 5,	/* old state */
 			smode: 1,	/* MSGMODE_CHND or MSGMODE_AGGR */
 			evtupdt: 1,	/* receive event update */
 			expevtupdt: 1,	/* expect receiving RMT_CHNUPDT event */
 			chn_informed:1,	/* chain_inform_ready issued */
-			mypos: 13;	/* must be larger than 2^7 (edata) */
+			mypos: 12;	/* must be larger than 2^7 (edata) */
 					/*  +4 =  4 Byte */
     uint32_t		rcvreset: 1,	/* ready for resetting recv offset */
 			recvoff: 31;	/*  +4 =  8 Byte */

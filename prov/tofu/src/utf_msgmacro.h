@@ -9,22 +9,22 @@ utf_rget_do(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp, int nstate)
     struct utf_msgreq	*req = ursp->req;
     size_t		reqsize = req->hdr.size - req->rsize;
     uint64_t		sidx;
-    DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
-	utf_printf("%s: remote_get  RENDZ reqsize(0x%lx) "
-		   "local stadd(0x%lx) remote stadd(0x%lx) "
-		   "edata(%d) flags(0x%lx) mypos(%d)\n",
-		   __func__, reqsize, req->bufstadd,
-		   req->rmtstadd, ursp->sidx, ursp->flags, ursp->mypos);
-    }
+
     if (reqsize > RMA_MAX_SIZE) {
 	reqsize = RMA_MAX_SIZE;
     }
     sidx = ursp->dflg != 0 ? EDAT_RGET : ursp->sidx;
+    DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
+	utf_printf("%s: remote_get  RENDZ reqsize(0x%lx) "
+		   "local stadd(0x%lx) remote stadd(0x%lx) "
+		   "edata(%d) flags(0x%lx) ursp(%p)->sidx(%d)\n",
+		   __func__, reqsize, req->bufstadd,
+		   req->rmtstadd, sidx, ursp->flags, ursp, ursp->sidx);
+    }
     /*
      * LCL_GET event takes care of EDAT_RMA
      * RMT_GET event dose not take care of edata field
      */
-    utf_printf("%s: remote_get ursp(%p)->sidx(%ld) sidx(%ld)\n", __func__, ursp, ursp->sidx, sidx);
     remote_get(vcqh, ursp->svcqid, req->bufstadd,
 	       req->rmtstadd, reqsize, sidx, ursp->flags, 0);
     DBG_UTF_CMDINFO(UTF_DBG_RENG, UTF_CMD_GET, req->rmtstadd, sidx);
