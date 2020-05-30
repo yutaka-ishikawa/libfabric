@@ -166,11 +166,15 @@ utofu_addr(int rank)
 {
     int			uc;
     utofu_vcq_hdl_t     vcqh;
-    utofu_tni_id_t      tni_id;
+    utofu_tni_id_t      tni_id = 0;
     const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
-    const unsigned long     flags;
+    const unsigned long     flags = 0;
 
     uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
+    if (uc != 0) {
+	printf("%s: utofu_create_vcq_with_cmp_id returns %d\n", __func__, uc);
+	return;
+    }
     {
 	utofu_vcq_id_t vcqi = -1UL;
 	uint8_t abcxyz[8];
