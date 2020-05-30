@@ -22,7 +22,6 @@ main()
     printf("MSG_EAGER_SIZE = %ld\n", MSG_EAGER_SIZE);
     printf("MSG_SIZE = %ld\n", MSG_SIZE);
     printf("MSGBUF_SIZE = %ld\n", MSGBUF_SIZE);
-    printf("MSGBUF_THR = %ld\n", MSGBUF_THR);
     printf("CONF_TOFU_INJECTSIZE = %ld\n", CONF_TOFU_INJECTSIZE);
     if (MSG_EAGER_SIZE < CONF_TOFU_INJECTSIZE) {
 	printf("\t CONF_TOFU_INJECTSIZE(%ld) in tofu_conf.h must be changed\n", CONF_TOFU_INJECTSIZE);

@@ -13,7 +13,7 @@ $(PROGS): $(OBJS)
 	$(CC) -g -o $@ $@.o
 procmap: procmap.o
 #	 $(MPICC) -g -o $@ $@.o -L$(PMIXLIBDIR) -lpmix
-	 $(MPICC) -g -o $@ $@.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom
+	 $(MPICC) -g -o $@ $@.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom -ltofutop
 test_tofuaddr: test_tofuaddr.o tofuaddr.o
 	$(CC) -g -o $@ $^
 tofucapability: tofucapability.o

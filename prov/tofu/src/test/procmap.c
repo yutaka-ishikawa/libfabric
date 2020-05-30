@@ -2,11 +2,11 @@
 #include <pmix_fjext.h>
 #include <process_map_info.h>
 #include <utofu.h>
+#include <jtofu.h>
 #include <stdio.h>
 
 pmix_proc_t	pmix_proc[1];
 pmix_value_t	*pval;
-struct tlib_process_mapinfo	*minfo;
 char	buf1[128], buf2[128], buf3[128];
 int	myrank, nprocs;
 
@@ -47,35 +47,9 @@ string_tofu3d(tlib_tofu3d host, char *buf)
 extern void utofu_addr(int rank);
 extern void show_ranklist(off_t*, int rank);
 
-int
-main(int argc, char **argv)
+void
+show_procmap(struct tlib_process_mapinfo *minfo)
 {
-    int rc;
-    
-    rc = PMIx_Init(pmix_proc, NULL, 0);
-    if (rc != PMIX_SUCCESS) {
-	printf("rc = %d\n", rc); fflush(stdout);
-	exit(-1);
-    }
-    myrank = pmix_proc->rank;
-    pmix_proc->rank= PMIX_RANK_WILDCARD;
-    rc = PMIx_Get(pmix_proc, PMIX_JOB_SIZE, NULL, 0, &pval);
-    if (rc != PMIX_SUCCESS) goto err;
-    nprocs = pval->data.uint32;
-    // PMIx_Fence(pmix_proc, nprocs, NULL, 0);
-    if (myrank != 0) goto finalize;
-
-    usleep(10000);
-    printf("job size = %d\n", nprocs); fflush(stdout);
-    rc = PMIx_Get(pmix_proc, FJPMIX_RANKMAP, NULL, 0, &pval);
-    if (rc != PMIX_SUCCESS | pval->type != PMIX_BYTE_OBJECT) {
-	printf("pval->type = %d mustbe 27\n", pval->type); goto err;
-    }
-    printf("pval->data.bo.bytes(%p) pval->data.bo.size(%ld)\n",
-	   pval->data.bo.bytes, pval->data.bo.size);
-    minfo = (struct tlib_process_mapinfo*) pval->data.bo.bytes;
-
-
     printf("ver_major=%d ver_minor=%d\n", minfo->ver_major, minfo->ver_minor);
     printf("system_size=%x %s\n", minfo->system_size, string_8bit(minfo->system_size, buf1));
     printf("\t%s\n", string_tofu6d(minfo->system_size, buf1));
@@ -143,6 +117,36 @@ main(int argc, char **argv)
     printf("system_size3d=%s\n", string_tofu3d(minfo->system_size3d, buf1));
     printf("system_torus3d=%s\n", string_tofu3d(minfo->system_torus3d, buf1));
     printf("offset_nranklist=0x%lx\n", minfo->offset_nranklist);
+}
+
+int
+main(int argc, char **argv)
+{
+    int rc;
+    struct tlib_process_mapinfo	*minfo;
+    
+    rc = PMIx_Init(pmix_proc, NULL, 0);
+    if (rc != PMIX_SUCCESS) {
+	printf("rc = %d\n", rc); fflush(stdout);
+	exit(-1);
+    }
+    myrank = pmix_proc->rank;
+    pmix_proc->rank= PMIX_RANK_WILDCARD;
+    rc = PMIx_Get(pmix_proc, PMIX_JOB_SIZE, NULL, 0, &pval);
+    if (rc != PMIX_SUCCESS) goto err;
+    nprocs = pval->data.uint32;
+    // PMIx_Fence(pmix_proc, nprocs, NULL, 0);
+    if (myrank != 0) goto finalize;
+
+    printf("job size = %d\n", nprocs); fflush(stdout);
+    rc = PMIx_Get(pmix_proc, FJPMIX_RANKMAP, NULL, 0, &pval);
+    if (rc != PMIX_SUCCESS | pval->type != PMIX_BYTE_OBJECT) {
+	printf("pval->type = %d mustbe 27\n", pval->type); goto err;
+    }
+    printf("pval->data.bo.bytes(%p) pval->data.bo.size(%ld)\n",
+	   pval->data.bo.bytes, pval->data.bo.size);
+    minfo = (struct tlib_process_mapinfo*) pval->data.bo.bytes;
+    show_procmap(minfo);
 
 finalize:
     utofu_addr(myrank);
