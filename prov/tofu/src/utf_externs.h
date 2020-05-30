@@ -89,6 +89,8 @@ struct utf_msgbdy;
 extern void	utf_showpacket(char *msg, struct utf_msgbdy *mbp);
 extern void	utf_setmsgmode(int);
 extern void	utf_show_recv_cntr(FILE*);
+extern void	utf_show_vcqid(void *, FILE*);
+extern void	utf_setav(void*);
 
 extern int	utf_dflag;
 extern int	mypid, myrank;

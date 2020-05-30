@@ -110,7 +110,7 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
  *		We know myrank now
  */
 int
-utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
+utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
 {
     if (utf_dflag > 0) {
 	utf_redirect();
@@ -119,7 +119,7 @@ utf_init_2(utofu_vcq_hdl_t vcqh, int nprocs)
 	    utf_redirect();
 	}
     }
-
+    utf_setav(av);
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: pid(%d) vcqh(%lx) nprocs(%d)\n", __func__, mypid, vcqh, nprocs);
     }
@@ -157,6 +157,10 @@ utf_finalize(void *av, utofu_vcq_hdl_t vcqh)
     /* statistics */
     utf_printf("UTF statiscitcs\n");
     utf_show_recv_cntr(stderr);
+    if (myrank == 0) {
+	fprintf(stderr, "list of vcqid\n");
+	utf_show_vcqid(av, stderr); fflush(stderr);
+    }
 }
 
 int

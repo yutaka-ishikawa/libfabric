@@ -121,7 +121,7 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
     myrank = av->av_sep->sep_myrank;
     nprocs = count;
     /* fastlock_release(&av->av_lck); */
-    utf_init_2(av->av_sep->sep_myvcqh, avtp->nct);
+    utf_init_2(av, av->av_sep->sep_myvcqh, avtp->nct);
 bad:
     return fc;
 }

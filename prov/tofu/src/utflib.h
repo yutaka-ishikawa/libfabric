@@ -2,7 +2,7 @@
 #define UTF_RX_CTX	2
 
 extern int	utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz);
-extern int	utf_init_2(utofu_vcq_hdl_t, int nprocs);
+extern int	utf_init_2(void *av, utofu_vcq_hdl_t, int nprocs);
 extern int	utf_progress(void*, utofu_vcq_hdl_t);
 extern int	utf_rma_progress();
 extern int	utf_send(utofu_vcq_hdl_t, int dst,

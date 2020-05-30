@@ -110,23 +110,28 @@ vcqid2recvcntr(utofu_vcq_id_t vcqid)
     return NULL;
 }
 
-
 static void *cur_av;
+void
+utf_setav(void *av)
+{
+    cur_av = av;
+}
 
 void
-show_info()
+utf_show_vcqid(void *av, FILE *fp)
 {
     int	src, rc;
     utofu_vcq_id_t svcqid;
     uint64_t	flags;
     for (src = 0; src < nprocs; src++) {
-	rc = tofufab_resolve_addrinfo(cur_av, src, &svcqid, &flags);
+	rc = tofufab_resolve_addrinfo(av, src, &svcqid, &flags);
 	if (rc == 0) {
-	    utf_printf("\t: [%d] vcqid(%lx) flags(%lx)\n", src, svcqid, flags);
+	    fprintf(fp, "\t: [%d] vcqid(%lx) flags(%lx)\n", src, svcqid, flags);
 	} else {
-	    utf_printf("\t: [%d] error(%d)\n", src, rc);
+	    fprintf(fp, "\t: [%d] error(%d)\n", src, rc);
 	}
     }
+    fflush(fp);
 }
 
 inline static char *
@@ -155,7 +160,7 @@ utf_tofu_error(int rc)
 	utf_printf("utf_dbg_info[%d].file   = %s\n", i, utf_dbg_info[i].file);
 	utf_printf("utf_dbg_info[%d].line   = %d\n", i, utf_dbg_info[i].line);
     }
-    show_info();
+    utf_show_vcqid(cur_av, stderr);
     abort();
 }
 
@@ -1413,7 +1418,6 @@ utf_mrqprogress(void *av, utofu_vcq_hdl_t vcqh)
 	    DBG_UTF_CMDINFO(UTF_DBG_RENG, UTF_CMD_ARMW4, stadd + SCNTR_RST_RECVRESET_OFFST, sidx);
 	    DEBUG(DLEVEL_CHAIN|DLEVEL_ADHOC) utf_printf("%s: RST sent src(%d) rvcq(%lx) flg(%lx) stadd(%lx) edata(%d)\n",
 							__func__, EMSG_HDR(msgp).src, ursp->svcqid, ursp->flags, stadd, sidx);
-	    cur_av = av;
 	    ursp->rst_sent = 1;
 	} else if (ursp->recvoff > MSGBUF_SIZE) {
 	    utf_printf("%s: receive buffer overrun\n", __func__);
@@ -1623,8 +1627,8 @@ utf_chnclean(void *av, utofu_vcq_hdl_t vcqh)
     slst = utf_scntr_busy();
     utfslist_foreach(slst, cur) {
 	struct utf_send_cntr	*usp = container_of(cur, struct utf_send_cntr, busy);
-	utf_printf("%s: usp(%p)->state(%s) dst(%d) egrmgt.count(%d)\n",
-		   __func__, usp, sstate_symbol[usp->state], usp->dst, egrmgt[usp->dst].count);
+	utf_printf("%s: usp(%p)->state(%s) dst(%d) vcqid(0x%lx) egrmgt.count(%d)\n",
+		   __func__, usp, sstate_symbol[usp->state], usp->dst, usp->rvcqid, egrmgt[usp->dst].count);
 	while (usp->state != S_DONE) {
 	    utf_progress(av, vcqh);
 	}
