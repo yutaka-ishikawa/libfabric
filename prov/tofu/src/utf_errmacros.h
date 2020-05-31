@@ -73,7 +73,7 @@ extern void utofu_get_last_error(const char*);
 } while (0);
 
 #define INITCHECK() do {						\
-    if (utf_initialized == 0) return -1;				\
+    if (utf_initialized_1 == 0 || utf_initialized_2 == 0) return -1;	\
 } while (0);
 
 struct utf_dbg_info {

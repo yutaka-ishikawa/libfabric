@@ -10,7 +10,8 @@
 
 size_t	utf_pig_size;	/* piggyback size is globally defined */
 int	utf_dflag;
-int	utf_initialized;
+int	utf_initialized_1;
+int	utf_initialized_2;
 
 int
 utf_getenvint(char *envp)
@@ -74,7 +75,7 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
 	utf_rcvctx[0].vcqh = vcqh;
 	utf_rcvctx[0].fi_ctx = ctx;
     }
-    if (utf_initialized) {
+    if (utf_initialized_1) {
 	return 0;
     }
     utf_dflag = utf_getenvint("UTF_DEBUG");
@@ -84,7 +85,7 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: vcqh(%lx) pigsz(%ld)\n", __func__, vcqh, pigsz);
     }
-    utf_initialized = 1;
+    utf_initialized_1 = 1;
     utf_pig_size = pigsz;
 
     i = utf_getenvint("UTF_MSGMODE");
@@ -112,6 +113,11 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
 int
 utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
 {
+    utf_printf("%s: av(%p) vcqh(%p) nprocs(%d)\n", __func__, av, vcqh, nprocs);
+    if (utf_initialized_2) {
+	return 0;
+    }
+    utf_initialized_2 = 1;
     if (utf_dflag > 0) {
 	utf_redirect();
     } else {
@@ -146,14 +152,15 @@ utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
 void
 utf_finalize(void *av, utofu_vcq_hdl_t vcqh)
 {
-    utf_printf("%s: vcqh(%lx) initialized(%d)\n", __func__, vcqh, utf_initialized);
-    if (utf_initialized == 0) return;
+    utf_printf("%s: vcqh(%lx) initialized(%d,%d)\n", __func__, vcqh, utf_initialized_1, utf_initialized_2);
+    if (utf_initialized_1 == 0) return;
     /* waiting if the TRANSMODE_CHND chain is clean up */
     utf_chnclean(av, vcqh);
     utf_egrsbuf_fin(vcqh);
     utf_stadd_free(vcqh);
     UTOFU_CALL(0, utofu_free_vcq, vcqh);
-    utf_initialized = 0;
+    utf_initialized_1 = 0;
+    utf_initialized_2 = 0;
     /* statistics */
     utf_printf("UTF statiscitcs\n");
     utf_show_recv_cntr(stderr);

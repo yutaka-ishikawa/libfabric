@@ -63,6 +63,10 @@ static int tofu_sep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    fc = -FI_EBUSY; goto bad;
 	}
 	sep->sep_av_ = av;
+        if (myrank != -1) {
+            R_DBG("sep->sep_myrank is set (%d)", myrank);
+            sep->sep_myrank = myrank;
+        }
 	break;
     default:
 	fc = -FI_ENOSYS; goto bad;

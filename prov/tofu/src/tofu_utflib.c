@@ -372,7 +372,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     vcqh = sep->sep_myvcqh;
     fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
     if (fc != FI_SUCCESS) { rc = fc; goto err1; }
-#if 0
+//#if 0
     {
 	char	buf1[128], buf2[128];
 	R_DBG("YI********* src(%d) = %s dest(%ld) = %s flgs(%ld)",
@@ -380,7 +380,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	      vcqid2string(buf1, 128, ctx->ctx_sep->sep_myvcqid),
 	      dst, vcqid2string(buf2, 128, r_vcqid), flgs);
     }
-#endif
+//#endif
     /* sender control structure is allocated for the destination */
     usp = utf_scntr_alloc(dst, r_vcqid, flgs);
     if (usp == NULL) {

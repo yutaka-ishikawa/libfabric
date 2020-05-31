@@ -94,7 +94,7 @@ extern void	utf_setav(void*);
 
 extern int	utf_dflag;
 extern int	mypid, myrank;
-extern int	utf_initialized;
+extern int	utf_initialized_1, utf_initialized_2;
 extern size_t	utf_pig_size;	/* piggyback size */
 extern utofu_stadd_t	erbstadd;
 extern utofu_stadd_t	egrmgtstadd;

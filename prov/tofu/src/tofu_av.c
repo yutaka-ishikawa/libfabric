@@ -9,6 +9,8 @@
 #include <assert.h>	    /* for assert() */
 #include <string.h>	    /* for memset() */
 
+int tofu_av_named;
+
 extern int
 tofu_impl_uri2name(const void *vuri, size_t index, struct tofu_vname *vnam);
 
@@ -80,6 +82,8 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
         FI_INFO(&tofu_prov, FI_LOG_AV, "Should be FT_ADDR_STR\n");
         fc = -1; goto bad;
     }
+
+    R_DBG("addr(%p) fi_addr(%p) count(%ld)", addr, fi_addr, count);
     /*
      * It is now assumed that all contexts use the same address vector.
      * We should change av_tab[XXX] to av_tab single entry.
@@ -210,31 +214,31 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
     int fc = FI_SUCCESS;
     struct tofu_domain *dom;
     struct tofu_av *av = 0;
+    int     rank, np;
 
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     assert(fid_dom != 0);
-    dom = container_of(fid_dom, struct tofu_domain, dom_fid );
+    dom = container_of(fid_dom, struct tofu_domain, dom_fid);
 
     /* tofu_chck_av_attr */
     if (attr != 0) {
         /* av_type: 1 FI_AV_TABLE
          * name: FI_NAMED_AV_0 */
-#if 0 
         { /* av_type(1) bits(8) count(0) e/n(0) name={"FI_NAMED_AV_0\n" or NULL} */
             char *cp;
             if (attr->name != NULL
                 && (cp = index(attr->name, '\n')) != NULL) {
                 *cp = 0;
             }
-            fprintf(stderr,
-                    "%s():%d\tav_type(%d) bits(%d) count(%ld) e/n(%ld) name=%s\n",
-                    __func__, __LINE__,
-                    attr->type, attr->rx_ctx_bits, attr->count,
-                    attr->ep_per_node, attr->name == 0 ? "NULL": attr->name);
+            R_DBG("av_type(%d) bits(%d) count(%ld) e/n(%ld) name=%s",
+                  attr->type, attr->rx_ctx_bits, attr->count,
+                  attr->ep_per_node, attr->name == 0 ? "NULL": attr->name);
         }
-#endif
 	fc = tofu_chck_av_attr(attr);
-	if (fc != FI_SUCCESS) { goto bad; }
+	if (fc != FI_SUCCESS) goto bad;
+        if (attr->name && tofu_av_named == 0) {
+            fc = -FI_ENOSYS;  goto bad;
+        }
     }
 
     av = calloc(1, sizeof (av[0]));
@@ -242,20 +246,43 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
 	fc = -FI_ENOMEM; goto bad;
     }
     /* initialize av */
-    {
-	av->av_dom = dom;
-	ofi_atomic_initialize32(&av->av_ref, 0);
-	fastlock_init(&av->av_lck);
-	av->av_fid.fid.fclass    = FI_CLASS_AV;
-	av->av_fid.fid.context   = context;
-	av->av_fid.fid.ops       = &tofu_av_fi_ops;
-	av->av_fid.ops           = &tofu_av_ops;
-	/* dlist_init( &av->av_ent ); */
-    }
+    av->av_dom = dom;
+    ofi_atomic_initialize32(&av->av_ref, 0);
+    fastlock_init(&av->av_lck);
+    av->av_fid.fid.fclass    = FI_CLASS_AV;
+    av->av_fid.fid.context   = context;
+    av->av_fid.fid.ops       = &tofu_av_fi_ops;
+    av->av_fid.ops           = &tofu_av_ops;
+    /* dlist_init( &av->av_ent ); */
     /* av */
-    {
-	av->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
+    av->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
+    if (attr->name && tofu_av_named)  {
+        extern struct tofu_vname *utf_get_peers(uint64_t **fi_addr, int *, int *);
+        struct tofu_vname *vnam;
+
+        R_DBGMSG("address vector is now being registered");
         /* at this time av->av_tab cannot be allocated */
+        vnam = utf_get_peers((uint64_t**) &attr->map_addr, &np, &rank);
+        if (vnam) {
+            av->av_tab[0].vnm = vnam;
+            av->av_tab[0].mct = np;
+            av->av_tab[0].nct = np;
+        }
+        R_DBG("attr->map_addr=%p, av->av_tab[0].vnm=%p, nprocs=%d",
+              attr->map_addr, vnam, np);
+        {
+            int i;
+            uint64_t    *addr = (uint64_t*) attr->map_addr;
+            for (i = 0; i < np; i++) {
+                fprintf(stderr, "\t: %ld -> %lx\n", *(addr + i), vnam[i].vcqid);
+            }
+        }
+        /* My rank and nprocs are set here */
+        myrank = rank;
+        // myrank = av->av_sep->sep_myrank; must be set in av_sep field
+        nprocs = np;
+        R_DBG("myrank(%d) nprocs(%d)", myrank, nprocs);
+        /* fastlock_release(&av->av_lck); */
     }
     /* return fid_dom */
     fid_av_[0] = &av->av_fid;

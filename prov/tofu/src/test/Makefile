@@ -6,14 +6,18 @@ MPICH_SRC= ../../../../../mpich/src
 
 PROGS = size_exam size_exam2
 SRCS = size_exam.c size_exam2.c procmap.c tofuaddr.c test_tofuaddr.c tofucapability.c
-OBJS = $(SRCS:.c=.o)
+OBJS = $(SRCS:.c=.o)  utf_procmap.o
 
-all: $(PROGS) procmap test_tofuaddr tofucapability commgroup
+all: $(PROGS) procmap test_tofuaddr tofucapability commgroup testprocmap
 $(PROGS): $(OBJS)
 	$(CC) -g -o $@ $@.o
 procmap: procmap.o
 #	 $(MPICC) -g -o $@ $@.o -L$(PMIXLIBDIR) -lpmix
 	 $(MPICC) -g -o $@ $@.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom -ltofutop
+testprocmap: utf_procmap.o
+	mpicc -g -o testprocmap utf_procmap.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom -ltofutop
+utf_procmap.o: ../utf_procmap.c
+	mpicc $(INCLUDE) -DLIBPROCMAP_TEST -D_GNU_SOURCE -g -c $^
 test_tofuaddr: test_tofuaddr.o tofuaddr.o
 	$(CC) -g -o $@ $^
 tofucapability: tofucapability.o

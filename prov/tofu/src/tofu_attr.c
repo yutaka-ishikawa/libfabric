@@ -448,7 +448,7 @@ tofu_chck_av_attr(const struct fi_av_attr *user_attr)
 
         FI_DBG( &tofu_prov, FI_LOG_AV, "\t%s\n", user_attr->name);
 
-	if (user_attr->name != 0) { fc = -FI_ENOSYS; goto bad; }
+	// if (user_attr->name != 0) { fc = -FI_ENOSYS; goto bad; }
 	if (user_attr->rx_ctx_bits < 0) { fc = -FI_EINVAL; goto bad; }
     }
 

@@ -134,6 +134,11 @@ TOFU_INI
             rdbgf = atoi(cp);
             utf_redirect();
         }
+        cp = getenv("TOFU_NAMED_AV");
+        if (cp) {
+            extern int tofu_av_named;
+            tofu_av_named = atoi(cp);
+        }
     }
 #if 0
 #ifndef TSIM  /* This is only for real-machines, not a simulated environment */

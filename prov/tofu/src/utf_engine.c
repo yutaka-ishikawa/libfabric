@@ -6,6 +6,7 @@
 #define USE_UTFSLIST_NEXT
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
+#include "process_map_info.h"
 #ifndef UTF_NATIVE
 #include <ofi_iov.h>
 #include "tofu_debug.h"
@@ -29,7 +30,7 @@ extern void utf_showstadd();
 
 #include "utf_msgmacro.h"
 
-/* needs to fi it */
+/* needs to fix it */
 struct utf_tofuctx	utf_sndctx[16];
 struct utf_tofuctx	utf_rcvctx[16];
 
@@ -126,7 +127,13 @@ utf_show_vcqid(void *av, FILE *fp)
     for (src = 0; src < nprocs; src++) {
 	rc = tofufab_resolve_addrinfo(av, src, &svcqid, &flags);
 	if (rc == 0) {
-	    fprintf(fp, "\t: [%d] vcqid(%lx) flags(%lx)\n", src, svcqid, flags);
+	    uint8_t coords[8];
+	    uint16_t tni, tcq, cid;
+	    rc = utofu_query_vcq_info(svcqid, coords, &tni, &tcq, &cid);
+	    fprintf(fp, "\t: [%d] vcqid(%lx) flags(%lx), "
+		    "x(%02d) y(%02d) z(%02d) a(%02d) b(%02d) c(%02d) tni(%02d) tcq(%02d) cid(%02d)\n",
+		    src, svcqid, flags,
+		    coords[0], coords[1], coords[2], coords[3], coords[4], coords[5], tni, tcq, cid);
 	} else {
 	    fprintf(fp, "\t: [%d] error(%d)\n", src, rc);
 	}

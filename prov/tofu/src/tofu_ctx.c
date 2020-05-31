@@ -471,6 +471,9 @@ alloc:
     uc = utf_init_1(ctx, class == FI_CLASS_TX_CTX ? UTF_TX_CTX : UTF_RX_CTX,
                     vcqh, ctx->ctx_sep->sep_dom->max_piggyback_size);
 //                  ctx->ctx_av->av_cnt);
+    if (myrank != -1) {
+        utf_init_2(sep->sep_av_, sep->sep_myvcqh, nprocs);
+    }
     ctx->ctx_enb = 1;
 bad:
     return uc;
