@@ -21,7 +21,7 @@ utf_procmap.o: ../utf_procmap.c
 test_tofuaddr: test_tofuaddr.o tofuaddr.o
 	$(CC) -g -o $@ $^
 tofucapability: tofucapability.o
-	$(CC) -g -o $@ $@.o -ltofucom
+	$(MPICC) -g -o $@ $@.o -ltofucom
 commgroup: commgroup.c
 	$(MPICC) -g -I../ -DCOMMGROUP_TEST -DDEBUG -o commgroup commgroup.c
 mpir_test: mpir_test.c
