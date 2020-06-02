@@ -5,10 +5,10 @@ INCLUDE +=-I../../../../include -I../../../../ -I../
 MPICH_SRC= ../../../../../mpich/src
 
 PROGS = size_exam size_exam2
-SRCS = size_exam.c size_exam2.c procmap.c tofuaddr.c test_tofuaddr.c tofucapability.c
+SRCS = size_exam.c size_exam2.c procmap.c tofuaddr.c test_tofuaddr.c tofucapability.c tofuaddr2.c
 OBJS = $(SRCS:.c=.o)  utf_procmap.o
 
-all: $(PROGS) procmap test_tofuaddr tofucapability commgroup testprocmap
+all: $(PROGS) procmap test_tofuaddr tofucapability commgroup testprocmap tofuaddr2
 $(PROGS): $(OBJS)
 	$(CC) -g -o $@ $@.o
 procmap: procmap.o
@@ -22,6 +22,8 @@ test_tofuaddr: test_tofuaddr.o tofuaddr.o
 	$(CC) -g -o $@ $^
 tofucapability: tofucapability.o
 	$(MPICC) -g -o $@ $@.o -ltofucom
+tofuaddr2: tofuaddr2.o
+	$(MPICC) -g -o $@ $@.o
 commgroup: commgroup.c
 	$(MPICC) -g -I../ -DCOMMGROUP_TEST -DDEBUG -o commgroup commgroup.c
 mpir_test: mpir_test.c

@@ -124,7 +124,7 @@ main(int argc, char **argv)
 {
     int rc;
     struct tlib_process_mapinfo	*minfo;
-    
+
     rc = PMIx_Init(pmix_proc, NULL, 0);
     if (rc != PMIX_SUCCESS) {
 	printf("rc = %d\n", rc); fflush(stdout);
