@@ -37,7 +37,8 @@ _tofu_files =				\
 	    prov/tofu/src/utf_init.c \
 	    prov/tofu/src/utf_mem.c \
 	    prov/tofu/src/utf_msg.c \
-	    prov/tofu/src/utf_umem.c
+	    prov/tofu/src/utf_umem.c \
+	    prov/tofu/src/utf_procmap.c
 
 if HAVE_TOFU_DL
 pkglib_LTLIBRARIES += libtofu-fi.la
