@@ -117,7 +117,8 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
 	vnam->vpid = index;
         VNAME_TO_VCQID(vnam, vcqid);
         vnam->vcqid = vcqid;
-        // R_DBG("fi_addr[%ld] = %ld ==> vcaqid(%lx)", ic, fi_addr[ic], vcqid);
+        R_DBG("fi_addr[%ld] = %ld ==> vcqid(%lx)", ic, fi_addr[ic], vcqid);
+        // R_DBG("fi_addr[%ld] = %ld ==> vcqid(%lx)", ic, fi_addr[ic], vcqid);
     }
     /* My rank must be resolved here */
     av->av_sep->sep_myrank
@@ -214,7 +215,7 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
     int fc = FI_SUCCESS;
     struct tofu_domain *dom;
     struct tofu_av *av = 0;
-    int     rank, np;
+    int     rank, np, ppn;
 
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     assert(fid_dom != 0);
@@ -257,24 +258,27 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
     /* av */
     av->av_rxb = (attr == 0)? 0: attr->rx_ctx_bits;
     if (attr->name && tofu_av_named)  {
-        extern struct tofu_vname *utf_get_peers(uint64_t **fi_addr, int *, int *);
+        extern struct tofu_vname *utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp);
         struct tofu_vname *vnam;
 
         R_DBGMSG("address vector is now being registered");
         /* at this time av->av_tab cannot be allocated */
-        vnam = utf_get_peers((uint64_t**) &attr->map_addr, &np, &rank);
+        vnam = utf_get_peers((uint64_t**) &attr->map_addr, &np, &ppn, &rank);
         if (vnam) {
             av->av_tab[0].vnm = vnam;
             av->av_tab[0].mct = np;
             av->av_tab[0].nct = np;
         }
-        R_DBG("attr->map_addr=%p, av->av_tab[0].vnm=%p, nprocs=%d",
-              attr->map_addr, vnam, np);
+        R_DBG("attr->map_addr=%p, av->av_tab[0].vnm=%p, nprocs=%d ppn=%d",
+              attr->map_addr, vnam, np, ppn);
         {
             int i;
             uint64_t    *addr = (uint64_t*) attr->map_addr;
+            char        buf[128];
             for (i = 0; i < np; i++) {
-                fprintf(stderr, "\t: %ld -> %lx\n", *(addr + i), vnam[i].vcqid);
+                fprintf(stderr, "\t: %ld -> %lx (%s)\n", *(addr + i), vnam[i].vcqid,
+                        vcqid2string(buf, 128, vnam[i].vcqid));
+
             }
         }
         /* My rank and nprocs are set here */

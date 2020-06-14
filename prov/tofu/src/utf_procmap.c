@@ -9,6 +9,8 @@
 #include <jtofu.h>
 #include <pmix_fjext.h>
 #include "process_map_info.h"
+#include "utf_externs.h"
+#include "utf_tofu.h"
 #include "tofu_impl.h"
 
 #define LIB_DLCALL(var, funcall, lbl, evar, str) do { \
@@ -53,6 +55,12 @@ static pmix_status_t	(*myPMIx_Finalize)(const pmix_info_t info[], size_t ninfo);
 static pmix_proc_t	pmix_proc[1];
 static pmix_value_t	*pval;
 static pmix_value_t	*pval;
+static int	pmix_myrank, pmix_nprocs;
+static struct tofu_vname *pmix_vnam;
+static struct tlib_process_mapinfo	*minfo;
+static uint64_t		*my_fiaddr;
+static int		my_ppn;
+
 
 static int
 dlib_init()
@@ -112,21 +120,28 @@ show_ranklist(off_t *offset, int nprocs)
 void
 show_procmap(struct tlib_process_mapinfo *minfo, int nprocs)
 {
+    size_t	nent;
+    nent = ((uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_proc)
+	    - (uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_list))/sizeof(struct tlib_ranklist);
     printf("offset_logical_node_list=0x%lx entries=%ld\n",
-	   minfo->offset_logical_node_list,
-	   ((uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_proc)
-	    - (uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_list))/sizeof(struct tlib_ranklist));
-    show_ranklist(&minfo->offset_logical_node_list, nprocs);
+	   minfo->offset_logical_node_list, nent);
+    show_ranklist(&minfo->offset_logical_node_list, nent);
 }
 
-struct tofu_vname *
-utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr)
+static struct tofu_vname *
+utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr, int *ppnp)
 {
     struct tlib_ranklist *rankp;
     size_t	sz, ic;
     struct tofu_vname *vnm;
     uint64_t	*addr;
+    int		nhost;
+    int		ppn;	/* process per node */
 
+    nhost = ((uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_proc)
+	     - (uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_list))/sizeof(struct tlib_ranklist);
+    *ppnp = ppn = nprocs/nhost;
+    fprintf(stderr, "%s: nprocs(%d) ppn(%d) nhost(%d)\n", __func__, nprocs, ppn, nhost);
     rankp = (struct tlib_ranklist*) TLIB_OFFSET2PTR(*(off_t *)&minfo->offset_logical_node_list);
     sz = sizeof(struct tofu_vname)*nprocs;
     vnm = malloc(sz);
@@ -137,49 +152,74 @@ utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr
     }
     addr = *fi_addr;
 
-    for (ic = 0; ic < nprocs; ic++) {
-	struct tofu_coord tc;
-	utofu_tni_id_t	tni = 0;
-	utofu_cq_id_t	cq = 0;
+    for (ic = 0; ic < nhost; ic++) {
 	uint16_t	cid = CONF_TOFU_CMPID;
-	utofu_vcq_id_t  vcqid;
+	int i;
 
-	tc = *(struct tofu_coord*) &((rankp + ic)->physical_addr);
-	vnm[ic].xyzabc[0] = tc.x; vnm[ic].xyzabc[1] = tc.y; vnm[ic].xyzabc[2] = tc.z; vnm[ic].xyzabc[3] = tc.a;
-	vnm[ic].xyzabc[4] = tc.b;  vnm[ic].xyzabc[5] = tc.c;
-	vnm[ic].cid = CONF_TOFU_CMPID;
-	vnm[ic].v = 1;
-	vnm[ic].vpid = ic;
-	utofu_construct_vcq_id(vnm[ic].xyzabc, tni, cq, cid, &vcqid);
-        vnm[ic].vcqid = vcqid;
-	if (addr) addr[ic] = ic;
+	for (i = 0; i < ppn; i++) {
+	    struct tofu_coord tc = *(struct tofu_coord*) &((rankp + ic)->physical_addr);
+	    struct tofu_vname *vnmp = &vnm[ic*ppn + i];
+	    utofu_tni_id_t	tni;
+	    utofu_cq_id_t	cq;
+	    utofu_vcq_id_t  vcqid;
+	    vnmp->xyzabc[0] = tc.x; vnmp->xyzabc[1] = tc.y; vnmp->xyzabc[2] = tc.z;
+	    vnmp->xyzabc[3] = tc.a; vnmp->xyzabc[4] = tc.b; vnmp->xyzabc[5] = tc.c;
+	    vnm->tniq[0] = ((tni << 4) & 0xf0) | (cq & 0x0f);
+	    vnmp->cid = CONF_TOFU_CMPID;
+	    vnmp->v = 1;
+	    vnmp->vpid = ic;
+	    utf_tni_select(ppn, i, &tni, &cq);
+	    if (pmix_myrank == 0) {
+		fprintf(stderr, "[%ld] YI!! ppn(%d) i(%d) tni(%d) cq(%d)\n", ic*ppn + i, ppn, i, tni, cq);
+	    }
+	    utofu_construct_vcq_id(vnmp->xyzabc, tni, cq, cid, &vcqid);
+	    vnmp->vcqid = vcqid;
+	    if (addr) addr[ic*ppn + i] = ic*ppn + i;
+	}
     }
     return vnm;
 }
 
+/*
+ * fi_addr - pointer to tofu vcqhid array
+ * npp - number of processes
+ * ppnp - process per node
+ * rankp - my rank
+ */
 struct tofu_vname *
-utf_get_peers(uint64_t **fi_addr, int *npp, int *rnkp)
+utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp)
 {
-    static int first = 0;
-    int	myrank, nprocs;
-    struct tofu_vname *vnam;
-    struct tlib_process_mapinfo	*minfo;
+    static int notfirst = 0;
     char *errstr;
     int	rc;
 
-    if (first == 0) {
+    if (notfirst) {
+	if (notfirst == -1) {
+	    *fi_addr = NULL;
+	    *npp = 0; *ppnp = 0; *rnkp = -1;
+	    return NULL;
+	}
+	*fi_addr = my_fiaddr;
+	*npp = pmix_nprocs;
+	*ppnp = my_ppn;
+	*rnkp = pmix_myrank;
+	return pmix_vnam;
+    } else {
 	rc = dlib_init();
-	if (rc < 0) return NULL;
-	first = 1;
+	if (rc < 0) {
+	    notfirst = -1;
+	    return NULL;
+	}
+	notfirst = 1;
     }
     LIB_CALL(rc, myPMIx_Init(pmix_proc, NULL, 0),
 	     err, errstr, "PMIx_Init");
 
-    myrank = pmix_proc->rank;
+    pmix_myrank = pmix_proc->rank;
     pmix_proc->rank= PMIX_RANK_WILDCARD;
     LIB_CALL(rc, myPMIx_Get(pmix_proc, PMIX_JOB_SIZE, NULL, 0, &pval),
 	     err, errstr, "Cannot get PMIX_JOB_SIZE");
-    nprocs = pval->data.uint32;
+    pmix_nprocs = pval->data.uint32;
     // printf("nprocs = %d\n", nprocs); fflush(stdout);
 
     LIB_CALL(rc, myPMIx_Get(pmix_proc, FJPMIX_RANKMAP, NULL, 0, &pval),
@@ -188,15 +228,18 @@ utf_get_peers(uint64_t **fi_addr, int *npp, int *rnkp)
     //pval->data.bo.bytes, pval->data.bo.size); fflush(stdout);
 
     minfo = (struct tlib_process_mapinfo*) pval->data.bo.bytes;
-    if (myrank == 0) show_procmap(minfo, nprocs);
+    if (pmix_myrank == 0) show_procmap(minfo, pmix_nprocs);
     LIB_CALL(rc, myPMIx_Finalize(NULL, 0),
 	     err, errstr, "PMIx_Finalize");
 
-    vnam = utf_peers_reg(minfo, nprocs, fi_addr);
-    *npp = nprocs;
-    *rnkp = myrank;
-    return vnam;
+    pmix_vnam = utf_peers_reg(minfo, pmix_nprocs, fi_addr, ppnp);
+    *npp = pmix_nprocs;
+    *rnkp = pmix_myrank;
+    my_fiaddr = *fi_addr;
+    my_ppn = *ppnp;
+    return pmix_vnam;
 err:
+    notfirst = -1;
     fprintf(stderr, "%s\n", errstr);
     return NULL;
 }
@@ -205,7 +248,7 @@ err:
 int
 main(int argc, char **argv)
 {
-    int	nprocs, myrank;
+    int	nprocs, ppn, myrank;
     int rc, np, rank;
     char *cp;
     char *errstr;
@@ -220,17 +263,18 @@ main(int argc, char **argv)
     }
     cp = getenv("TOFU_NAMED_AV");
     if (cp && atoi(cp) != 0) {
-	printf("TOFU_NAMED_AV is reset and run again\n");
-	goto err0;
+	printf("TOFU_NAMED_AV is %d\n", atoi(cp));
+//	printf("TOFU_NAMED_AV is reset and run again\n");
+//	goto err0;
     }
-    vnam = utf_get_peers(&addr, &np, &rank);
+    vnam = utf_get_peers(&addr, &np, &ppn, &rank);
     if (vnam == NULL) {
 	printf("utf_get_peers error\n");
 	goto err0;
     }
     if (myrank == 0) {
 	int	i;
-	printf("\t:nproc = %d\n", np);
+	printf("\t:nproc = %d ppn = %d\n", np, ppn);
 	for (i = 0; i < nprocs; i++) {
 	    utofu_vcq_id_t vcqid;
 	    uint8_t coords[8];
@@ -244,6 +288,7 @@ main(int argc, char **argv)
 	}
     }
 err0:
+    if (myrank == 0) printf("End\n");
     fflush(stdout);
     MPI_Finalize();
     return 0;
