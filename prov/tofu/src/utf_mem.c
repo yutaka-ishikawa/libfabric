@@ -201,6 +201,7 @@ utf_egrsbuf_init(utofu_vcq_hdl_t vcqh, int entries)
     for (i = 0; i < entries; i++) {
 	utfslist_append(&utf_egsbuffree, &utf_egsbuf[i].slst);
     }
+    utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, egsbfstadd);
 }
 
 void
@@ -276,6 +277,8 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
     utf_rmacmplip = (struct utf_rma_cmplinfo*) (((uint64_t) utf_scntrp) + scntr_sz);
     rmacmplistadd = sndctrstadd + scntr_sz;
     memset(utf_rmacmplip, 0, rmacntr_sz);
+
+    utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, sndctrstadd);
 }
 
 int
@@ -370,6 +373,8 @@ utf_sndminfo_init(utofu_vcq_hdl_t vcqh, int entries)
     for (i = 0; i < entries; i++) {
 	utfslist_append(&utf_sndminfofree, &utf_sndminfo_pool[i].slst);
     }
+
+    utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, sndminfostadd);
 }
 
 
@@ -480,6 +485,8 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs, int mode)
     } else {
 	utf_transmode = TRANSMODE_CHND;
     }
+
+    utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, egrmgtstadd);
 }
 
 void
@@ -598,6 +605,7 @@ utf_mem_reg(utofu_vcq_hdl_t vcqh, void *buf, size_t size)
     DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
 	utf_printf("%s: size(%ld/0x%lx) vcqh(%lx) buf(%p) stadd(%lx)\n", __func__, size, size, vcqh, buf, stadd);
     }
+    utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, stadd);
     return stadd;
 }
 

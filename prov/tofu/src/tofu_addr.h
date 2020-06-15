@@ -25,6 +25,8 @@ tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
     }
     assert(av->av_tab[rx_idx].vnm != 0);
     vnam = &av->av_tab[rx_idx].vnm[av_idx];
+#if 0
+    /* now vcqid is also registered in vnam 2020/06/13 */
     uc = utofu_construct_vcq_id(vnam->xyzabc,
 				vnam->tniq[0]>>4,
 				vnam->tniq[0]&0x0f,
@@ -33,6 +35,9 @@ tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
 	R_DBG("utof_construct_vcq_id error: rc(%d)\n", uc);
 	goto bad;
     }
+#else
+    *vcqid = vnam->vcqid;
+#endif
     if (flgs) {
 	utofu_path_id_t	pathid = 0;
 	if ((uc = utofu_get_path_id(*vcqid, &vnam->xyzabc[3], &pathid)) != UTOFU_SUCCESS) {

@@ -114,6 +114,7 @@ extern void rdbg_iovec(const char *func, int lno, size_t, const void *iovec);
 extern char *tank2string(char *buf, size_t sz, uint64_t ui64);
 extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqi);
 extern void dbg_show_utof_vcqh(utofu_vcq_hdl_t vcqh);
+extern void dbg_show_utof_myvcqh(size_t sz, utofu_vcq_hdl_t *vcqh);
 
 /* Copy from mpich/src/mpid/ch4/netmod/ofi/ofi_pre.h */
 enum {

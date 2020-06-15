@@ -49,7 +49,7 @@ static char *rstate_symbol[] =
 static char *sstate_symbol[] =
 {	"S_FREE", "S_NONE", "S_REQ_ROOM", "S_HAS_ROOM",
 	"S_DO_EGR", "S_DO_EGR_WAITCMPL", "S_DONE_EGR",
-	"S_WAIT_BUFREADY", "S_DO_RDV1", "S_DO_RDV2", "S_RDVDONE", "S_DONE",
+	"S_WAIT_BUFREADY", "SREQ_RDV", "S_DO_RDV1", "S_DO_RDV2", "S_RDVDONE", "S_DONE",
 	"S_DONE_FINALIZE1_1", "S_DONE_FINALIZE1_2",
 	"S_DONE_FINALIZE1_3", "S_DONE_FINALIZE2"
 };
@@ -651,6 +651,7 @@ utf_sendengine(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp, uint64
 	return;
     }
     if (evt == EVT_RMT_CHNUPDT) {
+	//utf_printf("YI!!! usp(%p)->state(%d) next(%d)\n", usp, usp->state, usp->chn_next.rank);
 	usp->evtupdt = 1;
 	/* EVT_RMT_CHNUPDT must be hidden during 
 	 * the phase S_REQ_RDV and earlier states */
@@ -1012,12 +1013,17 @@ progress:
 		 */
 	    } else {
 		/* inform ready to the next rank */
-		DEBUG(DLEVEL_CHAIN) {
-		    utf_printf("%s: calling inform_ready in S_DONE_EGR, going to S_DONE_FINALIZE2\n", __func__);
+		utf_printf("YI!!! usp(%p)->evtupdt(%d) evt(%d) next(%d)\n", usp, usp->evtupdt, evt, usp->chn_next.rank);
+		if (usp->evtupdt == 1) {
+		    DEBUG(DLEVEL_CHAIN) {
+			utf_printf("%s: calling inform_ready in S_DONE_EGR, going to S_DONE_FINALIZE2\n", __func__);
+		    }
+		    utf_chain_inform_ready(av, vcqh, usp, minfo);
+		    usp->state = S_DONE_FINALIZE2;
+		    goto done_finalize2; /* 2020/05/25 */
+		} else { /* we will receive RMT_CHNUPDT event and then inform */
+		    usp->state = S_DONE_FINALIZE1_2; /* 2020/06/13 */
 		}
-		utf_chain_inform_ready(av, vcqh, usp, minfo);
-		usp->state = S_DONE_FINALIZE2;
-		goto done_finalize2; /* 2020/05/25 */
 	    }
 	}
 	break;
@@ -1054,6 +1060,7 @@ progress:
 	break;
     }
     case S_DONE_FINALIZE1_2:
+	utf_printf("%s: usp->evtupdt(%d) evt(%d)\n", __func__, usp->evtupdt, evt);
 	assert(evt == EVT_RMT_CHNUPDT);
 	goto finalize1;
     case S_DONE_FINALIZE1_3:
@@ -1062,6 +1069,9 @@ progress:
 	/* inform ready to the next rank */
 	DEBUG(DLEVEL_CHAIN) {
 	    utf_printf("%s: calling inform_ready in S_DONE_FINALIZE1_2|3, going to S_DONE_FINALIZE2\n", __func__);
+	}
+	if (usp->evtupdt == 0) {
+	    utf_printf("YI!!! Wrong !! usp(%p)->evtupdt(%d) evt(%d) next(%d)\n", usp, usp->evtupdt, evt, usp->chn_next.rank);
 	}
 	utf_chain_inform_ready(av, vcqh, usp, minfo);
 	// usp->chn_ready.data = 0; /* reset for future use */

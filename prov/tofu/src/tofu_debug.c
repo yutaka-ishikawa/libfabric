@@ -162,6 +162,38 @@ bad:
     return;
 }
 
+void
+dbg_show_utof_myvcqh(size_t sz, utofu_vcq_hdl_t *vcqh)
+{
+    int uc;
+    utofu_vcq_id_t vcqi = -1UL;
+    uint8_t xyz[8];
+    uint16_t tni[1], tcq[1], cid[1];
+    size_t	ent;
+
+    fprintf(stderr, "MY vcqhs (%ld): \n", sz);
+    for (ent = 0; ent < sz; ent++) {
+	if (vcqh[ent] == 0) break;
+	uc = utofu_query_vcq_id(vcqh[ent], &vcqi);
+	if (uc != UTOFU_SUCCESS) {
+	    fprintf(stderr, "%s: utofu_query_vcq_id error (%d)\n", __func__, uc);
+	    goto bad;
+	}
+	uc = utofu_query_vcq_info(vcqi, xyz, tni, tcq, cid);
+	if (uc != UTOFU_SUCCESS) {
+	    fprintf(stderr, "%s: utofu_query_vcq_id error (%d)\n", __func__, uc);
+	    goto bad;
+	}
+	fprintf(stderr, "\tvcqid(0x%lx) vcqh(0x%lx) "
+		"vcqid(xyzabc(%02d:%02d:%02d:%02d:%02d:%02d), tni(%02d), tcq(%02d), cid(%02d))\n",
+		vcqh[ent], vcqi, xyz[0], xyz[1], xyz[2], xyz[3], xyz[4], xyz[5],
+		tni[0], tcq[0], cid[0]);
+    }
+    fflush(stderr);
+bad:
+    return;
+}
+
 char *tofu_fi_class_string[] = {
 	"FI_CLASS_UNSPEC", "FI_CLASS_FABRIC", "FI_CLASS_DOMAIN", "FI_CLASS_EP",
 	"FI_CLASS_SEP", "FI_CLASS_RX_CTX", "FI_CLASS_SRX_CTX", "FI_CLASS_TX_CTX",

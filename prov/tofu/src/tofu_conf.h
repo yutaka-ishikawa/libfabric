@@ -13,6 +13,7 @@
 #define CONF_TOFU_RMA
 
 #define CONF_TOFU_CMPID         0x7
+//#define CONF_TOFU_CMPID         0x6
 #define CONF_TOFU_CTXC  	8   /* fi_ep_attr . [rt]x_ctx_cnt */
 #define CONF_TOFU_CQSIZE        256
 

@@ -39,6 +39,10 @@ struct tofu_domain {
     utofu_vcq_hdl_t     vcqh[8];
     utofu_tni_id_t      tnis[8];
     size_t              ntni;
+    int                 myvcqidx;
+    utofu_vcq_hdl_t     myvcqh;
+    utofu_vcq_id_t      myvcqid;
+    int                 myrank;
     size_t              max_mtu;
     size_t              max_piggyback_size;
     size_t              max_edata_size;

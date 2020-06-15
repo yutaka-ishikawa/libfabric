@@ -5,6 +5,7 @@
 #include <assert.h>	    /* for assert() */
 #include "tofu_impl.h"
 #include "tofu_macro.h"
+#include "utf_tofu.h"
 #include "utflib.h"
 
 static int tofu_ctx_close(struct fid *fid);
@@ -218,6 +219,14 @@ tofu_ictx_close(struct tofu_ctx *ctx)
     if (ctx->ctx_enb != 0) {
         struct tofu_sep     *sep = ctx->ctx_sep;
 	assert(sep->sep_myvcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
+        {
+            static int notfirst = 0;
+            if (notfirst == 0) {
+                dbg_show_utof_myvcqh(ctx->ctx_sep->sep_dom->ntni,
+                                 ctx->ctx_sep->sep_dom->vcqh);
+                notfirst = 1;
+            }
+        }
         utf_finalize(ctx->ctx_av, sep->sep_myvcqh);
     }
 bad:
@@ -337,7 +346,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		 *   using FI_WRITE.
 		 */
                 cq_priv->cq_ssel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
-                R_DBG("FI_SEND FI_SELECTIVE_COMPLETION(%d)\n", cq_priv->cq_ssel);
+                R_DBG("FI_SEND FI_SELECTIVE_COMPLETION(%d)", cq_priv->cq_ssel);
 		if (ctx_priv->ctx_send_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
 		}
@@ -355,7 +364,7 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		ctx_priv->ctx_recv_cq = cq_priv;
 		tofu_cq_ins_ctx_rx(cq_priv, ctx_priv);
                 cq_priv->cq_rsel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
-                R_DBG("FI_RECV FI_SELECTIVE_COMPLETION(%d)\n", cq_priv->cq_rsel);
+                R_DBG("FI_RECV FI_SELECTIVE_COMPLETION(%d)", cq_priv->cq_rsel);
 	    }
 	    break;
 	default:
@@ -411,6 +420,8 @@ bad:
     return fc;
 }
 
+extern struct tofu_vname *utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp);
+
 /*
  * tofu_ctx_ctrl_enab() is called from tofu_ctx_ctrl() that is
  * implementation of FI_ENABLE on fi_control
@@ -422,6 +433,7 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
     struct tofu_sep     *sep = ctx->ctx_sep;
     struct tofu_domain  *dom;
     utofu_vcq_hdl_t     vcqh;
+    uint64_t        *addr = NULL;
 
     if (ctx->ctx_enb != 0 || sep->sep_dom == 0) {
 	uc = UTOFU_ERR_BUSY; goto bad;
@@ -437,39 +449,55 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
     /* desc_cash */
     /* ictx_ctrl_enab */
     //ictx->nrma = 0;
+#if 0
     if (sep->sep_myvcqidx == -1) {
-        int     i;
-        for (i = 0; i < dom->ntni; i++) {
-            if (dom->vcqh[i] == 0) {
-                utofu_tni_id_t          tni_id;
-                const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
-                const unsigned long     flags =	0
-                                        /* | UTOFU_VCQ_FLAG_THREAD_SAFE */
-                                        /* | UTOFU_VCQ_FLAG_EXCLUSIVE */
-                                        /* | UTOFU_VCQ_FLAG_SESSION_MODE */
-                                        ;
-                tni_id = dom->tnis[i];
-                uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
-                R_DBG("tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx", tni_id, c_id, flags, uc, vcqh);
-                if (uc != UTOFU_SUCCESS) { goto bad; }
-                // dbg_show_utof_vcqh(vcqh);
-                assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
-                dom->vcqh[i] = vcqh;
-                sep->sep_myvcqidx = i;
-                sep->sep_myvcqh = vcqh;
-                utofu_query_vcq_id(vcqh, &sep->sep_myvcqid);
-                /* sep_myrank cannot be determined here */
-                goto alloc;
-            }
+        int     vhent, nent;
+        int     np, ppn, rank, nrnk;
+        utofu_tni_id_t      tni_prim, tni_id;
+        const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
+        const unsigned long     flags =	0
+            /* | UTOFU_VCQ_FLAG_EXCLUSIVE */
+            /* | UTOFU_VCQ_FLAG_THREAD_SAFE */
+            /* | UTOFU_VCQ_FLAG_SESSION_MODE */
+            ;
+
+        utf_get_peers(&addr, &np, &ppn, &rank);
+        fprintf(stderr, "%s: YI!!! ntni(%ld) np(%d) ppn(%d), rank(%d)\n", __func__, dom->ntni, np, ppn, rank);
+
+        /* selecting my primary vcqh */
+        nrnk = rank % ppn;
+        utf_tni_select(ppn, nrnk, &tni_prim, 0);
+        uc = utofu_create_vcq_with_cmp_id(tni_prim, c_id, flags, &vcqh);
+        sep->sep_myvcqidx = tni_prim;
+        sep->sep_myvcqh = vcqh;
+        utofu_query_vcq_id(vcqh, &sep->sep_myvcqid);
+        dom->vcqh[0] = vcqh;
+        fprintf(stderr, "%d: Primary VCQH tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx\n", mypid, tni_prim, c_id, flags, uc, vcqh);
+        for (vhent = 1, nent = 0; nent < dom->ntni; nent++) {
+            tni_id = dom->tnis[nent];
+            if (tni_id == tni_prim) continue;
+            uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
+            fprintf(stderr, "%d: tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx\n", mypid, tni_id, c_id, flags, uc, vcqh);
+            dbg_show_utof_vcqh(vcqh);
+            R_DBG("tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx", tni_id, c_id, flags, uc, vcqh);
+            if (uc != UTOFU_SUCCESS) continue;
+            assert(vcqh != 0); /* XXX : UTOFU_VCQ_HDL_NULL */
+            dom->vcqh[vhent] = vcqh;
+            vhent++;
         }
-        /* no space */
-        uc = UTOFU_ERR_BUSY; goto bad;
     }
-alloc:
+#else
+    sep->sep_myvcqidx = dom->myvcqidx;
+    sep->sep_myvcqh = dom->myvcqh;
+    utofu_query_vcq_id(dom->myvcqh, &sep->sep_myvcqid);
+    fprintf(stderr, "%d: YI!!! my vcqh = %lx\n", mypid, sep->sep_myvcqh);
+    dbg_show_utof_vcqh(sep->sep_myvcqh);
+#endif
     /* initialize utf library */
     /* sep->sep_av_->av_cnt is nproc */
     uc = utf_init_1(ctx, class == FI_CLASS_TX_CTX ? UTF_TX_CTX : UTF_RX_CTX,
-                    vcqh, ctx->ctx_sep->sep_dom->max_piggyback_size);
+                    sep->sep_myvcqh, ctx->ctx_sep->sep_dom->max_piggyback_size);
+    fprintf(stderr, "[%d] YI!!!! ", myrank); dbg_show_utof_vcqh(sep->sep_myvcqh);
 //                  ctx->ctx_av->av_cnt);
     if (myrank != -1) {
         utf_init_2(sep->sep_av_, sep->sep_myvcqh, nprocs);

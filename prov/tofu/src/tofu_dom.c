@@ -2,10 +2,14 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
+#include "utf_tofu.h"
 #include <pmix.h>
 
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
+
+extern struct tofu_vname *
+utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp);
 
 extern int
 tofu_queue_work(struct tofu_domain *domain, void *vp_dw);
@@ -140,8 +144,20 @@ int tofu_domain_open(
     /* Initialization of Tofu NIC */
     {
         utofu_tni_id_t *tnis = 0;
+        uint64_t       *addr = NULL;
         size_t  ntni = 0;
         size_t  ni;
+        int     vhent;
+        int     np, ppn, rank, nrnk;
+        utofu_tni_id_t      tni_prim, tni_id;
+        struct utofu_onesided_caps *cap;
+        utofu_vcq_hdl_t     vcqh;
+        const utofu_cmp_id_t c_id = CONF_TOFU_CMPID;
+        const unsigned long     flags =	0
+            /* | UTOFU_VCQ_FLAG_EXCLUSIVE */
+            /* | UTOFU_VCQ_FLAG_THREAD_SAFE */
+            /* | UTOFU_VCQ_FLAG_SESSION_MODE */
+            ;
         int     uc;
         const size_t mtni = sizeof (dom->tnis) / sizeof (dom->tnis[0]);
 
@@ -149,22 +165,42 @@ int tofu_domain_open(
         //R_DBG("rdbgf(%x) rdbgl(%x) uc(%d) ntni(%ld)", rdbgf, rdbgl, uc, ntni);
         R_DBG0(RDBG_LEVEL1, "uc(%d) ntni(%ld)", uc, ntni);
         if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
-        if (ntni > mtni) {
-            ntni = mtni;
-        }
-        /* copy tnis[] and ntni */
-        for (ni = 0; ni < ntni; ni++) {
-            struct utofu_onesided_caps *cap;
-            dom->tnis[ni] = tnis[ni];
-            utofu_query_onesided_caps(tnis[ni], &cap);
-            R_DBG0(RDBG_LEVEL2, "tnid(%d) num_stags(%d)",
-                   tnis[ni], cap->num_reserved_stags);
-            dom->vcqh[ni] = 0;
-            dom->max_mtu = cap->max_mtu;
-            dom->max_piggyback_size = cap->max_piggyback_size;
-            dom->max_edata_size = cap->max_edata_size;
-        }
+        if (ntni > mtni)  ntni = mtni;
         dom->ntni = ntni;
+        utofu_query_onesided_caps(tnis[0], &cap);
+        R_DBG0(RDBG_LEVEL2, "tnid(%d) num_stags(%d)",
+               tnis[0], cap->num_reserved_stags);
+        dom->max_mtu = cap->max_mtu;
+        dom->max_piggyback_size = cap->max_piggyback_size;
+        dom->max_edata_size = cap->max_edata_size;
+        /**/
+        utf_get_peers(&addr, &np, &ppn, &rank);
+        fprintf(stderr, "%s: YI!!! ntni(%ld) np(%d) ppn(%d), rank(%d)\n", __func__, dom->ntni, np, ppn, rank);
+        /* selecting my primary vcqh */
+        nrnk = rank % ppn;
+        utf_tni_select(ppn, nrnk, &tni_prim, 0);
+        if (tni_prim > ntni) {
+            fprintf(stderr, "%s: YI!!!!! something wrong tni_prim(%d) must be smaller than ntni(%ld)\n",
+                    __func__, tni_prim, ntni);
+        }
+        uc = utofu_create_vcq_with_cmp_id(tni_prim, c_id, flags, &vcqh);
+        dom->tnis[tni_prim] = tni_prim;
+        dom->vcqh[0] = vcqh;
+        dom->myvcqh = vcqh;
+        dom->myrank = rank;
+        dom->myvcqidx = tni_prim;
+        utofu_query_vcq_id(vcqh, &dom->myvcqid);
+        fprintf(stderr, "%d: Primary VCQH tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = 0x%lx\n", mypid, tni_prim, c_id, flags, uc, vcqh);
+        /* copy tnis[] and create vcqh */
+        for (vhent = 1, ni = 0; ni < ntni; ni++) {
+            tni_id = dom->tnis[ni] = tnis[ni];
+            uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
+            fprintf(stderr, "%d: tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx\n", mypid, tni_id, c_id, flags, uc, vcqh);
+            if (uc != UTOFU_SUCCESS) continue;
+            dbg_show_utof_vcqh(vcqh);
+            dom->vcqh[vhent] = vcqh;
+            vhent++;
+        }
         /* free tnis[] */
         if (tnis != 0) {
             free(tnis); tnis = 0;
