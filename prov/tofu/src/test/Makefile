@@ -8,7 +8,7 @@ PROGS = size_exam size_exam2
 SRCS = size_exam.c size_exam2.c procmap.c tofuaddr.c test_tofuaddr.c tofucapability.c tofuaddr2.c
 OBJS = $(SRCS:.c=.o)  utf_procmap.o
 
-all: $(PROGS) procmap test_tofuaddr tofucapability commgroup testprocmap tofuaddr2 show_tofuaddr make_tofuaddr test_multirail
+all: $(PROGS) procmap test_tofuaddr tofucapability commgroup testprocmap tofuaddr2 show_tofuaddr make_tofuaddr test_multirail test_shmem
 $(PROGS): $(OBJS)
 	$(CC) -g -o $@ $@.o
 procmap: procmap.o
@@ -27,11 +27,16 @@ tofuaddr2: tofuaddr2.o
 commgroup: commgroup.c
 	$(MPICC) -g -I../ -DCOMMGROUP_TEST -DDEBUG -o commgroup commgroup.c
 show_tofuaddr: show_tofuaddr.c
-	$(MPICC) -g -I../ $(INCLUDE) -o show_tofuaddr show_tofuaddr.c
+#	$(MPICC) -g -I../ $(INCLUDE) -o show_tofuaddr show_tofuaddr.c
+	mpicc -g -I../ $(INCLUDE) -o show_tofuaddr show_tofuaddr.c -ltofutop -ltofucom
 make_tofuaddr: make_tofuaddr.c
-	$(MPICC) -g -I../ $(INCLUDE) -o make_tofuaddr make_tofuaddr.c
+#	$(MPICC) -g -I../ $(INCLUDE) -o make_tofuaddr make_tofuaddr.c
+	mpicc -g -I../ $(INCLUDE) -o make_tofuaddr make_tofuaddr.c
 test_multirail: test_multirail.c
 	$(MPICC) -g -I../ $(INCLUDE) -o test_multirail test_multirail.c
+test_shmem: test_shmem.c
+	mpicc -g -I../ $(INCLUDE) -o test_shmem test_shmem.c
+#	mpicc -g -o test_shmem test_shmem.c $(HOME)/riken-mpich/lib/libpmix.so -ltofucom -ltofutop
 mpir_test: mpir_test.c
 	$(RIKEN_MPICC) -g -c $@.c \
 	-I$(MPICH_SRC)/mpid/ch4/include -I$(MPICH_SRC)/include \
@@ -45,7 +50,7 @@ mpir_test: mpir_test.c
 	-I$(MPICH_SRC)/mpid/ch4/netmod/include -I$(MPICH_SRC)/mpid/ch4/generic
 	$(RIKEN_MPICC) -g -o $@ $@.o
 clean:
-	rm -f $(PROGS) $(OBJS) show_tofuaddr
+	rm -f $(PROGS) $(OBJS) show_tofuaddr test_shmem
 run-clean:
 	rm -f run-numazu.sh.* run-fugaku.sh.* core.*
 .c.o:

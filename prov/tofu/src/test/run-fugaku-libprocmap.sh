@@ -13,13 +13,13 @@
 #	PJM -L "rscunit=rscunit_ft01,rscgrp=dvsin-r2"
 #PJM -L "rscunit=rscunit_ft01,rscgrp=dvsin-r1"
 #	PJM --mpi "max-proc-per-node=1"
-#	PJM --mpi "max-proc-per-node=4"
+#PJM --mpi "max-proc-per-node=4"
 #	PJM --mpi "max-proc-per-node=6"
 #	PJM --mpi "max-proc-per-node=8"
 #	PJM --mpi "max-proc-per-node=12"
 #	PJM --mpi "max-proc-per-node=16"
 #	PJM --mpi "max-proc-per-node=24"
-#PJM --mpi "max-proc-per-node=48"
+#	PJM --mpi "max-proc-per-node=48"
 #PJM -L proc-core=unlimited
 #------- Program execution -------#
 

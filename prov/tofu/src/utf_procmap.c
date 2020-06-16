@@ -4,6 +4,8 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <dlfcn.h>
+#include <sys/ipc.h>
+#include <sys/shm.h>
 #include <pmix.h>
 #include <utofu.h>
 #include <jtofu.h>
@@ -51,6 +53,9 @@ static pmix_status_t	(*myPMIx_Init)(pmix_proc_t *proc, pmix_info_t info[], size_
 static pmix_status_t	(*myPMIx_Get)(const pmix_proc_t *proc, const char key[],
 				      const pmix_info_t info[], size_t ninfo,
 				      pmix_value_t **val);
+static pmix_status_t	(*myPMIx_Put)(pmix_scope_t scope, const char key[],
+				      pmix_value_t *val);
+static pmix_status_t	(*myPMIx_Commit)(void);
 static pmix_status_t	(*myPMIx_Finalize)(const pmix_info_t info[], size_t ninfo);
 static pmix_proc_t	pmix_proc[1];
 static pmix_value_t	*pval;
@@ -65,11 +70,17 @@ static int		my_ppn;
 static int
 dlib_init()
 {
+    static int	notfirst = 0;
     int	 flag = RTLD_LAZY | RTLD_GLOBAL;
     int rc;
     char *errstr;
     char *lpath = getenv("LIBFJPMIX_PATH");
 
+    if (notfirst) {
+	if (notfirst == -1) return -1;
+	else return 0;
+	notfirst = 1;
+    }
     if (lpath == 0) {
 	lpath = PATH_PMIXLIB;
     }
@@ -81,6 +92,8 @@ dlib_init()
     LIB_DLCALL(myPMIx_Init, dlsym(dlp, "FJPMIx_Init"), err1, errstr, "dlsym FJPMIx_Init");
     LIB_DLCALL(myPMIx_Finalize, dlsym(dlp, "FJPMIx_Finalize"), err1, errstr, "dlsym FJPMIx_Finalize");
     LIB_DLCALL(myPMIx_Get, dlsym(dlp, "FJPMIx_Get"), err1, errstr, "dlsym FJPMIx_Get");
+    LIB_DLCALL(myPMIx_Put, dlsym(dlp, "FJPMIx_Put"), err1, errstr, "dlsym FJPMIx_Put");
+    LIB_DLCALL(myPMIx_Commit, dlsym(dlp, "FJPMIx_Commit"), err1, errstr, "dlsym FJPMIx_Commit");
     LIB_DLCALL2(rc, dlclose(dlp), err1, errstr, "dlclose");
     return 0;
 err1:
@@ -244,6 +257,61 @@ err:
     return NULL;
 }
 
+#define SHMEM_KEY_VAL	"/tmp/"
+#define PMIX_TOFU_SHMEM	"TOFU_SHM"
+
+// sz = sysconf(_SC_PAGESIZE);
+void	*
+utf_shm_init(size_t sz)
+{
+    int	rc;
+    char	*errstr;
+    int	myhrank = (pmix_myrank/my_ppn)*my_ppn;
+    key_t	key;
+    int		shmid;
+    char	buf[128];
+    void	*addr;
+
+    if (pmix_myrank == myhrank) {
+	pmix_value_t	pv;
+	key = ftok(SHMEM_KEY_VAL, 1);
+	shmid = shmget(key, sz, IPC_CREAT | 0666);
+	if (shmid < 0) { perror("error:"); exit(-1); }
+	addr = shmat(shmid, NULL, 0);
+	/* expose SHMEM_KEY_VAL */
+	pv.type = PMIX_STRING;
+	strcpy(buf, SHMEM_KEY_VAL);
+	pv.data.string = buf;
+	pmix_proc->rank = pmix_myrank;
+	myPMIx_Put(PMIX_LOCAL, PMIX_TOFU_SHMEM, &pv);
+	LIB_CALL(rc, myPMIx_Commit(), err, errstr, "PMIx_Commit");
+    } else {
+	pmix_value_t	*pv;
+	pmix_proc->rank = myhrank; // PMIX_RANK_LOCAL_NODE does not work
+	do {
+	    rc = myPMIx_Get(pmix_proc, PMIX_TOFU_SHMEM, NULL, 0, &pv);
+	    usleep(1000);
+	} while (rc == PMIX_ERR_NOT_FOUND);
+	if (rc != PMIX_SUCCESS) {
+	    snprintf(buf, 128, "PMIx_Get error rc(%d)\n", rc); errstr = buf;
+	    goto err;
+	}
+	key = ftok(pv->data.string, 1);
+	shmid = shmget(key, sz, 0);
+	addr = shmat(shmid, NULL, 0);
+    }
+    return addr;
+err:
+    fprintf(stderr, "%s\n", errstr);
+    return NULL;
+}
+
+int
+utf_shm_finalize(void *addr)
+{
+    return shmdt(addr);
+}
+
 #ifdef LIBPROCMAP_TEST
 int
 main(int argc, char **argv)
@@ -288,6 +356,29 @@ main(int argc, char **argv)
 	}
     }
 err0:
+    if (myrank == 0) {
+	printf("Testing Shared Memory\n");
+    }
+    {
+	int	*ip = utf_shm_init(sysconf(_SC_PAGESIZE));
+	int	myhrank = (myrank/my_ppn)*my_ppn;
+	int	i;
+	if (ip == NULL) {
+	    printf("Cannot allocate shared memory\n"); goto err1;
+	}
+	for (i = 0; i < 10; i++) *(ip+myrank*10+i) = myrank+1+i;
+	MPI_Barrier(MPI_COMM_WORLD);
+	if (myrank == myhrank) {
+	    for (i = 0; i < nprocs*10; i++) {
+		if (i%10 == 0)  printf("\n[%d] ", myrank);
+		printf("%04d ", *(ip+i));
+	    }
+	    printf("\n");
+	}
+	rc = utf_shm_finalize(ip);
+	if (rc < 0) perror("utf_shm_finalize:");
+    }
+err1:
     if (myrank == 0) printf("End\n");
     fflush(stdout);
     MPI_Finalize();

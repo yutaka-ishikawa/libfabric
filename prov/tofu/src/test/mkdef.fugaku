@@ -2,4 +2,5 @@ INCLUDE += -I/opt/FJSVxos/devkit/aarch64/rfs/usr/include/FJSVtcs/ple
 CC=/opt/FJSVxos/devkit/aarch64/bin/aarch64-linux-gnu-gcc
 MPICC=mpifccpx
 RIKEN_MPICC=mpicc
+PMIX_INCLUDE=$(HOME)/riken-mpich/include
 ##PMIXLIBDIR=$(HOME)/riken-mpich/lib

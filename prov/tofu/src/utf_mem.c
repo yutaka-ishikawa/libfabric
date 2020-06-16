@@ -626,6 +626,41 @@ utf_stadd_free(utofu_vcq_hdl_t vcqh)
     UTOFU_CALL(0, utofu_dereg_mem, vcqh, egrmgtstadd, 0);
 }
 
+struct cqmgrtab {
+    utofu_vcq_id_t	vcqid;
+    size_t		translen;
+};
+#define CQMGRTAB_SIZE	6	/* number of NIC */
+struct cqmgrtab	*cqsel_stab;
+struct cqmgrtab	*cqsel_rtab;
+
+int
+utf_cqselect_init()
+{
+    size_t	sz = sysconf(_SC_PAGESIZE);
+    cqsel_stab = (struct cqmgrtab*) utf_shm_init(sz);
+    if (cqsel_stab == NULL) {
+	utf_printf("%s: cannot allocate shared memory for CQ management\n", __func__);
+	abort();
+    }
+    cqsel_rtab = cqsel_stab + CQMGRTAB_SIZE;
+    return 0;
+}
+
+int
+utf_cqselect_finalize()
+{
+    if (cqsel_stab) {
+	utf_shm_finalize(cqsel_stab);
+	cqsel_stab = NULL;
+    }
+    if (cqsel_rtab) {
+	utf_shm_finalize(cqsel_rtab);
+	cqsel_rtab = NULL;
+    }
+    return 0;
+}
+
 void
 utf_showstadd()
 {

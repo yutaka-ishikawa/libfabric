@@ -69,6 +69,10 @@ extern void	utf_pcmd_init();
 extern struct utf_rma_cq *utf_rmacq_alloc();
 extern void	utf_rmacq_free(struct utf_rma_cq *cq);
 extern void	utf_setmsgmode(int mode);
+extern void	*utf_shm_init(size_t);
+extern int	utf_shm_finalize(void*);
+extern int	utf_cqselect_init();
+extern int	utf_cqselect_finalize();
 
 /* for debugging */
 extern int	utf_getenvint(char *);

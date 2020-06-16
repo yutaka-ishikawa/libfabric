@@ -58,7 +58,7 @@ rank2tofu_coord(int rank)
 {
     if (rank >= MAX_COORD) {
 	struct tofu_coord tc;
-	tc.dat = -1;
+	tc.dat = (uint32_t) -1;
 	return tc;
     }
     return coord[rank];
@@ -86,7 +86,7 @@ main(int argc, char **argv)
     }
     bp = 0; n = 0; nprocs = 0;
     printf("start\n");
-    while ((sz = getline(&bp, &n, fp)) != -1) {
+    while ((sz = getline(&bp, &n, fp)) != (ssize_t) -1) {
 	//printf("line=(%s)\n", bp);
 	rc = sscanf(bp, "\t: [%d] vcqid(%lx) flags(%d)", &rank, &vcqid, &flgs);
 	if (rc != 3) continue;

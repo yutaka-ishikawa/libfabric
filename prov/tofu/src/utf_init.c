@@ -133,6 +133,7 @@ utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
 	utf_show_msgmode(stderr);
 	utf_show_transmode(stderr);
     }
+    utf_cqselect_init();
 #if 0 /* moving to the 1st phase */
     /* receive buffer is allocated */
     utf_recvbuf_init(vcqh, nprocs);
@@ -159,6 +160,7 @@ utf_finalize(void *av, utofu_vcq_hdl_t vcqh)
     utf_egrsbuf_fin(vcqh);
     utf_stadd_free(vcqh);
     UTOFU_CALL(0, utofu_free_vcq, vcqh);
+    utf_cqselect_finalize();
     utf_initialized_1 = 0;
     utf_initialized_2 = 0;
     /* statistics */
