@@ -15,7 +15,7 @@ procmap: procmap.o
 #	 $(MPICC) -g -o $@ $@.o -L$(PMIXLIBDIR) -lpmix
 	 $(MPICC) -g -o $@ $@.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom -ltofutop
 testprocmap: utf_procmap.o ../utf_tofu.h
-	mpicc -g -o testprocmap utf_procmap.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom -ltofutop
+	mpicc $(INCLUDE) -g -o testprocmap utf_procmap.o $(HOME)/riken-mpich/lib/libpmix.so -ltofucom -ltofutop
 utf_procmap.o: ../utf_procmap.c
 	mpicc $(INCLUDE) -DLIBPROCMAP_TEST -D_GNU_SOURCE -g -c $^
 test_tofuaddr: test_tofuaddr.o tofuaddr.o
@@ -50,9 +50,9 @@ mpir_test: mpir_test.c
 	-I$(MPICH_SRC)/mpid/ch4/netmod/include -I$(MPICH_SRC)/mpid/ch4/generic
 	$(RIKEN_MPICC) -g -o $@ $@.o
 clean:
-	rm -f $(PROGS) $(OBJS) show_tofuaddr test_shmem
+	rm -f $(PROGS) $(OBJS) show_tofuaddr test_shmem utf_procmap.o testprocmap
 run-clean:
-	rm -f run-numazu.sh.* run-fugaku.sh.* core.*
+	rm -f run-numazu.sh.* run-fugaku.sh.* core.* core
 .c.o:
 	$(CC) -c $< $(INCLUDE)
 

@@ -57,6 +57,7 @@ static pmix_status_t	(*myPMIx_Put)(pmix_scope_t scope, const char key[],
 				      pmix_value_t *val);
 static pmix_status_t	(*myPMIx_Commit)(void);
 static pmix_status_t	(*myPMIx_Finalize)(const pmix_info_t info[], size_t ninfo);
+
 static pmix_proc_t	pmix_proc[1];
 static pmix_value_t	*pval;
 static pmix_value_t	*pval;
@@ -87,17 +88,28 @@ dlib_init()
     dlp = dlopen(lpath, flag);
     if (dlp == NULL) {
 	fprintf(stderr, "%s: %s\n", __func__, dlerror());
+	fprintf(stdout, "%s: %s\n", __func__, dlerror());
 	return -1;
     }
-    LIB_DLCALL(myPMIx_Init, dlsym(dlp, "FJPMIx_Init"), err1, errstr, "dlsym FJPMIx_Init");
-    LIB_DLCALL(myPMIx_Finalize, dlsym(dlp, "FJPMIx_Finalize"), err1, errstr, "dlsym FJPMIx_Finalize");
-    LIB_DLCALL(myPMIx_Get, dlsym(dlp, "FJPMIx_Get"), err1, errstr, "dlsym FJPMIx_Get");
-    LIB_DLCALL(myPMIx_Put, dlsym(dlp, "FJPMIx_Put"), err1, errstr, "dlsym FJPMIx_Put");
-    LIB_DLCALL(myPMIx_Commit, dlsym(dlp, "FJPMIx_Commit"), err1, errstr, "dlsym FJPMIx_Commit");
+#ifdef TSIM
+    LIB_DLCALL(myPMIx_Init, dlsym(dlp, "PMIx_Init"), err0, errstr, "dlsym PMIx_Init");
+    LIB_DLCALL(myPMIx_Finalize, dlsym(dlp, "PMIx_Finalize"), err0, errstr, "dlsym PMIx_Finalize");
+    LIB_DLCALL(myPMIx_Get, dlsym(dlp, "PMIx_Get"), err0, errstr, "dlsym PMIx_Get");
+    LIB_DLCALL(myPMIx_Put, dlsym(dlp, "PMIx_Put"), err0, errstr, "dlsym PMIx_Put");
+    LIB_DLCALL(myPMIx_Commit, dlsym(dlp, "PMIx_Commit"), err0, errstr, "dlsym PMIx_Commit");
+#else
+    LIB_DLCALL(myPMIx_Init, dlsym(dlp, "FJPMIx_Init"), err0, errstr, "dlsym FJPMIx_Init");
+    LIB_DLCALL(myPMIx_Finalize, dlsym(dlp, "FJPMIx_Finalize"), err0, errstr, "dlsym FJPMIx_Finalize");
+    LIB_DLCALL(myPMIx_Get, dlsym(dlp, "FJPMIx_Get"), err0, errstr, "dlsym FJPMIx_Get");
+    LIB_DLCALL(myPMIx_Put, dlsym(dlp, "FJPMIx_Put"), err0, errstr, "dlsym FJPMIx_Put");
+    LIB_DLCALL(myPMIx_Commit, dlsym(dlp, "FJPMIx_Commit"), err0, errstr, "dlsym FJPMIx_Commit");
+#endif
+err0:
     LIB_DLCALL2(rc, dlclose(dlp), err1, errstr, "dlclose");
     return 0;
 err1:
     fprintf(stderr, "error %s: %s\n", errstr, dlerror());
+    fprintf(stdout, "error %s: %s\n", errstr, dlerror());
     return -1;
 }
 
@@ -153,7 +165,13 @@ utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr
 
     nhost = ((uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_proc)
 	     - (uint64_t) TLIB_OFFSET2PTR(minfo->offset_logical_node_list))/sizeof(struct tlib_ranklist);
-    *ppnp = ppn = nprocs/nhost;
+    if (nprocs < nhost) {
+	fprintf(stderr, "%s: # of process (%d) is smaller than allocated host (%d)\n",
+		__func__, nprocs, nhost);
+	*ppnp = ppn = 1;
+    } else {
+	*ppnp = ppn = nprocs/nhost;
+    }
     fprintf(stderr, "%s: nprocs(%d) ppn(%d) nhost(%d)\n", __func__, nprocs, ppn, nhost);
     rankp = (struct tlib_ranklist*) TLIB_OFFSET2PTR(*(off_t *)&minfo->offset_logical_node_list);
     sz = sizeof(struct tofu_vname)*nprocs;
@@ -225,10 +243,12 @@ utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp)
 	}
 	notfirst = 1;
     }
+    fprintf(stderr, "%s: calling PMIX_Init\n", __func__); fflush(stderr);
     LIB_CALL(rc, myPMIx_Init(pmix_proc, NULL, 0),
 	     err, errstr, "PMIx_Init");
 
     pmix_myrank = pmix_proc->rank;
+    fprintf(stderr, "%s: pmix_myrank(%d)\n", __func__, pmix_myrank); fflush(stderr);
     pmix_proc->rank= PMIX_RANK_WILDCARD;
     LIB_CALL(rc, myPMIx_Get(pmix_proc, PMIX_JOB_SIZE, NULL, 0, &pval),
 	     err, errstr, "Cannot get PMIX_JOB_SIZE");
@@ -244,7 +264,8 @@ utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp)
     if (pmix_myrank == 0) show_procmap(minfo, pmix_nprocs);
     LIB_CALL(rc, myPMIx_Finalize(NULL, 0),
 	     err, errstr, "PMIx_Finalize");
-
+    printf("%s: [%d] going to register\n", __func__, pmix_myrank);
+    fprintf(stderr, "%s: [%d] going to register\n", __func__, pmix_myrank);
     pmix_vnam = utf_peers_reg(minfo, pmix_nprocs, fi_addr, ppnp);
     *npp = pmix_nprocs;
     *rnkp = pmix_myrank;
@@ -254,6 +275,7 @@ utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp)
 err:
     notfirst = -1;
     fprintf(stderr, "%s\n", errstr);
+    fprintf(stdout, "%s\n", errstr);
     return NULL;
 }
 
@@ -338,7 +360,7 @@ main(int argc, char **argv)
     vnam = utf_get_peers(&addr, &np, &ppn, &rank);
     if (vnam == NULL) {
 	printf("utf_get_peers error\n");
-	goto err0;
+	goto err1;
     }
     if (myrank == 0) {
 	int	i;
@@ -355,10 +377,14 @@ main(int argc, char **argv)
 		   vcqid, coords[0], coords[1], coords[2], coords[3], coords[4], coords[5], tni, tcq, cid);
 	}
     }
-err0:
+    if (ppn == 1) {
+	printf("No Testing Shared Memory because ppn = 1\n");
+	goto end;
+    }
     if (myrank == 0) {
 	printf("Testing Shared Memory\n");
     }
+    MPI_Barrier(MPI_COMM_WORLD);
     {
 	int	*ip = utf_shm_init(sysconf(_SC_PAGESIZE));
 	int	myhrank = (myrank/my_ppn)*my_ppn;
@@ -378,6 +404,7 @@ err0:
 	rc = utf_shm_finalize(ip);
 	if (rc < 0) perror("utf_shm_finalize:");
     }
+end:
 err1:
     if (myrank == 0) printf("End\n");
     fflush(stdout);

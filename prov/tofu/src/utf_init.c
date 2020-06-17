@@ -133,7 +133,7 @@ utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
 	utf_show_msgmode(stderr);
 	utf_show_transmode(stderr);
     }
-    utf_cqselect_init();
+    // utf_cqselect_init();
 #if 0 /* moving to the 1st phase */
     /* receive buffer is allocated */
     utf_recvbuf_init(vcqh, nprocs);
@@ -170,6 +170,10 @@ utf_finalize(void *av, utofu_vcq_hdl_t vcqh)
 	fprintf(stderr, "list of vcqid\n");
 	utf_show_vcqid(av, stderr); fflush(stderr);
     }
+#ifdef TSIM
+    usleep(200000);
+#endif
+    fflush(NULL);
 }
 
 int
