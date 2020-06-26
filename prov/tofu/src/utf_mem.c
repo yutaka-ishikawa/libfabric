@@ -5,6 +5,12 @@
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
 #include "utf_engine.h"
+#include "utf_cqmacro.h"
+
+/* For multi-rail */
+struct cqsel_table	*utf_cqseltab;
+int	utf_nrnk;
+int	utf_mrail;
 
 /* For Sender Side remote index of receiver buffer */
 sndmgt		 *egrmgt;	/* array of sndmgt keeping remote index of eager receiver buffer */
@@ -258,6 +264,23 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
 	       tot_sz, TAG_SNDCTR, 0, &sndctrstadd);
     utf_scntrsize = scntr_entries;
     sndctrstaddend = sndctrstadd + scntr_sz;
+    if (utf_mrail != 0) {
+	/* multi rail */
+	struct tni_info	*tinfo = &utf_cqseltab->node[utf_nrnk];
+	utofu_stadd_t	stadd;
+	
+	for (i = 1; i < tinfo->ntni; i++) {
+	    int	tni = tinfo->idx[i];
+	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqh[tni], (void*) utf_scntrp,
+		       tot_sz, TAG_SNDCTR, 0, &stadd);
+	    if (stadd != sndctrstadd) {
+		utf_printf("%s: the stadd address %lx must be %lx (sndctrstadd)\n",
+			   __func__, stadd, sndctrstadd);
+		abort();
+	    }
+	    utf_printf("\t[%d] vcqh(%lx) vcqid(%lx)\n", tni, tinfo->vcqh[tni], tinfo->vcqid[tni]);
+	}
+    }
 
     utfslist_init(&utf_scntrfree, NULL);
     for (i = 0; i < scntr_entries; i++) {
@@ -476,6 +499,32 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs, int mode)
 	       TAG_EGRMGT, 0, &egrmgtstadd);
 
     utf_printf("%s: erbuf(%p) erbstadd(%lx)\n", __func__, erbuf, erbstadd);
+    if (utf_mrail != 0) {
+	/* multi rail */
+	int	i;
+	struct tni_info	*tinfo = &utf_cqseltab->node[utf_nrnk];
+	utofu_stadd_t	stadd;
+	
+	for (i = 1; i < tinfo->ntni; i++) {
+	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqh[i], (void *)erbuf,
+		       sizeof(struct erecv_buf), TAG_ERBUF, 0, &stadd);
+	    if (stadd != erbstadd) {
+		utf_printf("%s: stadd address %lx must be %lx (erbstadd)\n",
+			   __func__, stadd, erbstadd);
+		abort();
+	    }
+	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqh[i], (void *)egrmgt,
+		       sizeof(sndmgt)*nprocs, TAG_EGRMGT, 0, &stadd);
+	    if (stadd != egrmgtstadd) {
+		utf_printf("%s: stadd address %lx must be %lx (egrmgtstadd)\n",
+			   __func__, stadd, egrmgtstadd);
+		abort();
+	    }
+	    utf_printf("\t[%d] vcqh(%lx) vcqid(%lx)\n", i, tinfo->vcqh[i], tinfo->vcqid[i]);
+
+	}
+    }
+
     if (mode == TRANSMODE_AGGR) {
 	int	i;
 	for (i = 0; i < nprocs; i++) {
@@ -626,37 +675,52 @@ utf_stadd_free(utofu_vcq_hdl_t vcqh)
     UTOFU_CALL(0, utofu_dereg_mem, vcqh, egrmgtstadd, 0);
 }
 
-struct cqmgrtab {
-    utofu_vcq_id_t	vcqid;
-    size_t		translen;
-};
-#define CQMGRTAB_SIZE	6	/* number of NIC */
-struct cqmgrtab	*cqsel_stab;
-struct cqmgrtab	*cqsel_rtab;
-
+#define SHMEM_KEY_VAL_FMT	"/home/users/ea01/ea0103/MPICH-shm"
 int
-utf_cqselect_init()
+utf_cqselect_init(int nrnk, int ntni, utofu_tni_id_t *tnis, utofu_vcq_hdl_t *vcqhp)
 {
+    int	i;
+    size_t	psz = sysconf(_SC_PAGESIZE);
     size_t	sz = sysconf(_SC_PAGESIZE);
-    cqsel_stab = (struct cqmgrtab*) utf_shm_init(sz);
-    if (cqsel_stab == NULL) {
+    struct tni_info	*tinfo;
+
+    sz = ((sizeof(struct cqsel_table) + psz - 1)/sz)*sz;
+    utf_printf("pid(%d) %s: nrnk(%d) ntni(%d) sz(%ld) sizeof(struct cqsel_table)=%ld\n", mypid, __func__, nrnk, ntni, sz, sizeof(struct cqsel_table));
+
+    utf_cqseltab = (struct cqsel_table*) utf_shm_init(sz, SHMEM_KEY_VAL_FMT);
+    if (utf_cqseltab == NULL) {
 	utf_printf("%s: cannot allocate shared memory for CQ management\n", __func__);
 	abort();
     }
-    cqsel_rtab = cqsel_stab + CQMGRTAB_SIZE;
+    utf_nrnk = nrnk;
+    if (nrnk == 0) {
+	memset(utf_cqseltab->snd_len, 0, sizeof(utf_cqseltab->snd_len));
+	memset(utf_cqseltab->rcv_len, 0, sizeof(utf_cqseltab->rcv_len));
+    }
+    tinfo = &utf_cqseltab->node[nrnk];
+    tinfo->ntni = ntni;
+    for (i = 0; i < ntni; i++) {
+	assert(tnis[i] < 6);
+	tinfo->idx[i] = tnis[i];
+	tinfo->vcqh[i] = vcqhp[i];
+	utofu_query_vcq_id(vcqhp[i], &tinfo->vcqid[i]);
+	utf_printf("pid(%d) \t[%d]idx[%d]: vcqh(0x%lx) vcqid(0x%lx)\n", mypid, i, tnis[i],
+		   vcqhp[i], tinfo->vcqid[i]);
+    }
     return 0;
 }
 
 int
 utf_cqselect_finalize()
 {
-    if (cqsel_stab) {
-	utf_shm_finalize(cqsel_stab);
-	cqsel_stab = NULL;
-    }
-    if (cqsel_rtab) {
-	utf_shm_finalize(cqsel_rtab);
-	cqsel_rtab = NULL;
+    int	rc;
+    utf_show_cqtab();
+    if (utf_cqseltab) {
+	rc = utf_shm_finalize(utf_cqseltab);
+	if (rc < 0) {
+	    perror("YIXXXXXXX  SHMEM");
+	}
+	utf_cqseltab = NULL;
     }
     return 0;
 }
@@ -670,4 +734,21 @@ utf_showstadd()
 	       "egrmgtstadd (egrmgt)       : %lx (array of sndmgt)\n",
 	       "sndctrstadd (utf_send_cntr): %lx (sender control structure)\n",
 	       erbstadd, egsbfstadd, egrmgtstadd, sndctrstadd);
+}
+
+void
+utf_show_cqtab()
+{
+    int i;
+    struct tni_info	*tinfo = &utf_cqseltab->node[utf_nrnk];
+    utf_printf("CQ table tinfo(%p) entries(%d) nrank(%d)\n", tinfo, tinfo->ntni, utf_nrnk);
+    for (i = 0; i < tinfo->ntni; i++) {
+	utf_printf("\t[%d]idx[%d]: vcqh(0x%lx) vhcid(0x%lx) busy(%d)\n",
+		   i, tinfo->idx[i], tinfo->vcqh[i], tinfo->vcqid[i], tinfo->bsy[i]);
+    }
+    utf_printf("TNI left message\n");
+    for (i = 0; i < tinfo->ntni; i++) {
+	utf_printf("\t[%d]: send rest(%ld) recv rest(%ld)\n",
+		   i, utf_cqseltab->snd_len[i], utf_cqseltab->rcv_len[i]);
+    }
 }

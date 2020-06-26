@@ -8,6 +8,7 @@
 #include "utf_externs.h"
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
+#include "utf_cqmacro.h"
 #include <rdma/fabric.h>
 
 /*
@@ -370,6 +371,11 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     sep = ctx->ctx_sep;
     av = sep->sep_av_;
     vcqh = sep->sep_myvcqh;
+    {
+	utofu_vcq_id_t	tvcqh;
+	utf_cqselect_send(&tvcqh, msgsize);
+	utf_printf("%s: vcqh(%lx) tvcqh(%lx) msgsize(%ld)\n", __func__, vcqh, tvcqh, msgsize);
+    }
     fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
     if (fc != FI_SUCCESS) { rc = fc; goto err1; }
 //#if 0

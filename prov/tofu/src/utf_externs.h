@@ -69,9 +69,9 @@ extern void	utf_pcmd_init();
 extern struct utf_rma_cq *utf_rmacq_alloc();
 extern void	utf_rmacq_free(struct utf_rma_cq *cq);
 extern void	utf_setmsgmode(int mode);
-extern void	*utf_shm_init(size_t);
+extern void	*utf_shm_init(size_t, char*);
 extern int	utf_shm_finalize(void*);
-extern int	utf_cqselect_init();
+extern int	utf_cqselect_init(int nrnk, int ntni, utofu_tni_id_t *tnis, utofu_vcq_hdl_t *vcqhp);
 extern int	utf_cqselect_finalize();
 
 /* for debugging */
@@ -94,6 +94,7 @@ extern void	utf_showpacket(char *msg, struct utf_msgbdy *mbp);
 extern void	utf_setmsgmode(int);
 extern void	utf_show_recv_cntr(FILE*);
 extern void	utf_show_vcqid(void *, FILE*);
+extern void	utf_show_cqtab();
 extern void	utf_setav(void*);
 
 extern int	utf_dflag;

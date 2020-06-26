@@ -139,6 +139,11 @@ TOFU_INI
             extern int tofu_av_named;
             tofu_av_named = atoi(cp);
         }
+        cp = getenv("UTF_MRAIL");
+        if (cp) {
+            extern int utf_mrail;
+            utf_mrail = atoi(cp);
+        }
     }
 #if 0
 #ifndef TSIM  /* This is only for real-machines, not a simulated environment */
@@ -197,6 +202,12 @@ int fi_tofu_cntrl(int cmd, ...)
         if (iarg2 == myrank) {
             utf_show_recv_cntr(iarg1 == 1 ? stdout : stderr);
         }
+        break;
+    case 4:
+    {
+        extern void utf_show_cqtab();
+        utf_show_cqtab();
+    }
         break;
     }
     va_end(ap);

@@ -171,7 +171,7 @@ dbg_show_utof_myvcqh(size_t sz, utofu_vcq_hdl_t *vcqh)
     uint16_t tni[1], tcq[1], cid[1];
     size_t	ent;
 
-    fprintf(stderr, "MY vcqhs (%ld): \n", sz);
+    fprintf(stderr, "[%d]:%d MY vcqhs (%ld): \n", myrank, mypid, sz);
     for (ent = 0; ent < sz; ent++) {
 	if (vcqh[ent] == 0) break;
 	uc = utofu_query_vcq_id(vcqh[ent], &vcqi);
@@ -184,7 +184,7 @@ dbg_show_utof_myvcqh(size_t sz, utofu_vcq_hdl_t *vcqh)
 	    fprintf(stderr, "%s: utofu_query_vcq_id error (%d)\n", __func__, uc);
 	    goto bad;
 	}
-	fprintf(stderr, "\tvcqid(0x%lx) vcqh(0x%lx) "
+	fprintf(stderr, "\tvcqh(0x%lx) vcqid(0x%lx) "
 		"vcqid(xyzabc(%02d:%02d:%02d:%02d:%02d:%02d), tni(%02d), tcq(%02d), cid(%02d))\n",
 		vcqh[ent], vcqi, xyz[0], xyz[1], xyz[2], xyz[3], xyz[4], xyz[5],
 		tni[0], tcq[0], cid[0]);

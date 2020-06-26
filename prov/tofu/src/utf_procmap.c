@@ -264,8 +264,6 @@ utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp)
     if (pmix_myrank == 0) show_procmap(minfo, pmix_nprocs);
     LIB_CALL(rc, myPMIx_Finalize(NULL, 0),
 	     err, errstr, "PMIx_Finalize");
-    printf("%s: [%d] going to register\n", __func__, pmix_myrank);
-    fprintf(stderr, "%s: [%d] going to register\n", __func__, pmix_myrank);
     pmix_vnam = utf_peers_reg(minfo, pmix_nprocs, fi_addr, ppnp);
     *npp = pmix_nprocs;
     *rnkp = pmix_myrank;
@@ -279,12 +277,11 @@ err:
     return NULL;
 }
 
-#define SHMEM_KEY_VAL	"/tmp/"
 #define PMIX_TOFU_SHMEM	"TOFU_SHM"
 
 // sz = sysconf(_SC_PAGESIZE);
 void	*
-utf_shm_init(size_t sz)
+utf_shm_init(size_t sz, char *mykey)
 {
     int	rc;
     char	*errstr;
@@ -296,13 +293,13 @@ utf_shm_init(size_t sz)
 
     if (pmix_myrank == myhrank) {
 	pmix_value_t	pv;
-	key = ftok(SHMEM_KEY_VAL, 1);
+	strcpy(buf, mykey);
+	key = ftok(buf, 1);
 	shmid = shmget(key, sz, IPC_CREAT | 0666);
 	if (shmid < 0) { perror("error:"); exit(-1); }
 	addr = shmat(shmid, NULL, 0);
 	/* expose SHMEM_KEY_VAL */
 	pv.type = PMIX_STRING;
-	strcpy(buf, SHMEM_KEY_VAL);
 	pv.data.string = buf;
 	pmix_proc->rank = pmix_myrank;
 	myPMIx_Put(PMIX_LOCAL, PMIX_TOFU_SHMEM, &pv);
@@ -335,6 +332,7 @@ utf_shm_finalize(void *addr)
 }
 
 #ifdef LIBPROCMAP_TEST
+#define SHMEM_KEY_VAL	"/home/users/ea01/ea0103/MPICH-testshm"
 int
 main(int argc, char **argv)
 {
@@ -386,16 +384,17 @@ main(int argc, char **argv)
     }
     MPI_Barrier(MPI_COMM_WORLD);
     {
-	int	*ip = utf_shm_init(sysconf(_SC_PAGESIZE));
+	int	*ip = utf_shm_init(sysconf(_SC_PAGESIZE), SHMEM_KEY_VAL);
 	int	myhrank = (myrank/my_ppn)*my_ppn;
+	int	mylrank = myrank % my_ppn;
 	int	i;
 	if (ip == NULL) {
 	    printf("Cannot allocate shared memory\n"); goto err1;
 	}
-	for (i = 0; i < 10; i++) *(ip+myrank*10+i) = myrank+1+i;
+	for (i = 0; i < 10; i++) *(ip+mylrank*10+i) = mylrank+1+i;
 	MPI_Barrier(MPI_COMM_WORLD);
 	if (myrank == myhrank) {
-	    for (i = 0; i < nprocs*10; i++) {
+	    for (i = 0; i < my_ppn*10; i++) {
 		if (i%10 == 0)  printf("\n[%d] ", myrank);
 		printf("%04d ", *(ip+i));
 	    }
@@ -406,6 +405,10 @@ main(int argc, char **argv)
     }
 end:
 err1:
+    {
+	extern int fi_tofu_cntrl(int, ...);
+	fi_tofu_cntrl(4, 0);
+    }
     if (myrank == 0) printf("End\n");
     fflush(stdout);
     MPI_Finalize();

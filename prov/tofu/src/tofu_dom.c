@@ -3,6 +3,8 @@
 
 #include "tofu_impl.h"
 #include "utf_tofu.h"
+#include "utf_externs.h"
+#include "utf_cqmacro.h"
 #include <pmix.h>
 
 #include <stdlib.h>	    /* for calloc(), free */
@@ -41,6 +43,8 @@ static int tofu_domain_close(struct fid *fid)
 
 bad:
     return fc;
+    //ofi_atomic_add32(&dom_priv->dom_ref, 128);
+    //ofi_atomic_sub32(&dom_priv->dom_ref, 128);
 }
 
 /*
@@ -146,7 +150,7 @@ int tofu_domain_open(
         utofu_tni_id_t *tnis = 0;
         uint64_t       *addr = NULL;
         size_t  ntni = 0;
-        size_t  ni;
+        size_t  ni, myni;
         int     vhent;
         int     np, ppn, rank, nrnk;
         utofu_tni_id_t      tni_prim, tni_id;
@@ -184,27 +188,34 @@ int tofu_domain_open(
                     __func__, tni_prim, ntni);
         }
         uc = utofu_create_vcq_with_cmp_id(tni_prim, c_id, flags, &vcqh);
-        dom->tnis[tni_prim] = tni_prim;
+        dom->tnis[0] = tni_prim;
         dom->vcqh[0] = vcqh;
         dom->myvcqh = vcqh;
         dom->myrank = rank;
+        dom->mynrnk = nrnk;
         dom->myvcqidx = tni_prim;
         utofu_query_vcq_id(vcqh, &dom->myvcqid);
         fprintf(stderr, "%d: Primary VCQH tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = 0x%lx\n", mypid, tni_prim, c_id, flags, uc, vcqh);
         /* copy tnis[] and create vcqh */
-        for (vhent = 1, ni = 0; ni < ntni; ni++) {
-            tni_id = dom->tnis[ni] = tnis[ni];
+        for (vhent = 1, myni = 1, ni = 0; ni < ntni; ni++) {
+            tni_id = tnis[ni];
+            if (tni_id == tni_prim) continue;
+            dom->tnis[myni] = tni_id;
             uc = utofu_create_vcq_with_cmp_id(tni_id, c_id, flags, &vcqh);
-            fprintf(stderr, "%d: tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx\n", mypid, tni_id, c_id, flags, uc, vcqh);
+            fprintf(stderr, "%d: CREATE_VCQ tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = %lx\n", mypid, tni_id, c_id, flags, uc, vcqh);
             if (uc != UTOFU_SUCCESS) continue;
             dbg_show_utof_vcqh(vcqh);
             dom->vcqh[vhent] = vcqh;
+            myni++;
             vhent++;
         }
         /* free tnis[] */
         if (tnis != 0) {
             free(tnis); tnis = 0;
         }
+        myrank = rank;
+        utf_cqselect_init(nrnk, dom->ntni, dom->tnis, dom->vcqh);
+        utf_show_cqtab();
     }
     /* return fid_dom */
     fid_dom[0] = &dom->dom_fid;

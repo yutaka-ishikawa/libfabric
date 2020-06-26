@@ -39,10 +39,11 @@ struct tofu_domain {
     utofu_vcq_hdl_t     vcqh[8];
     utofu_tni_id_t      tnis[8];
     size_t              ntni;
-    int                 myvcqidx;
     utofu_vcq_hdl_t     myvcqh;
     utofu_vcq_id_t      myvcqid;
+    int                 myvcqidx;
     int                 myrank;
+    int                 mynrnk;
     size_t              max_mtu;
     size_t              max_piggyback_size;
     size_t              max_edata_size;
@@ -60,10 +61,11 @@ struct tofu_sep {
     struct tofu_av     *sep_av_;
     struct tofu_ctx    *sep_sctx;       /* not used, should be deleted */
     struct tofu_ctx    *sep_rctx;       /* not used, should be deleted */
-    int                 sep_myvcqidx;
     utofu_vcq_hdl_t     sep_myvcqh;     /* copy of sep_dom->vcqh[sep_vcqid] */
-    utofu_vcq_id_t      sep_myvcqid;    /*  */
-    int                 sep_myrank;     /*  */
+    utofu_vcq_id_t      sep_myvcqid;    /* copy of sep_dom->myvcqid */
+    int                 sep_myrank;     /* copy of sep_dom->myrank */
+    int                 sep_myvcqidx;   /* copy of sep_dom->myvcqidx */
+    int                 sep_nrnk;       /* copy of sep_dom->mynrnk */
 };
 
 /*

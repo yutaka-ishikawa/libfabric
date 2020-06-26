@@ -64,8 +64,9 @@ static int tofu_sep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	}
 	sep->sep_av_ = av;
         if (myrank != -1) {
-            R_DBG("sep->sep_myrank is set (%d)", myrank);
-            sep->sep_myrank = myrank;
+            R_DBG("sep->sep_myrank is set myrank(%d) sep->sep_dom->myrank(%d) sep->sep_dom->mynrnk(%d)", 
+                  myrank, sep->sep_dom->myrank, sep->sep_dom->mynrnk);
+            sep->sep_myrank = sep->sep_dom->myrank;
         }
 	break;
     default:
