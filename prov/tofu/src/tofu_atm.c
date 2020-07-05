@@ -164,7 +164,7 @@ tofu_ce_atm_notify_self(struct tofu_ctx *ctx_priv_tx,
                         uint64_t wlen,
                         const struct tofu_atm_arg *aarg)
 {
-    struct fi_cq_tagged_entry cqe[1];
+    // struct fi_cq_tagged_entry cqe[1];
     uint64_t    flags;
 
     R_DBGMSG("YI******\n");

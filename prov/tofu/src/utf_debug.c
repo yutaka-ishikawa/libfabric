@@ -116,3 +116,23 @@ utf_showpacket(char *msg, struct utf_msgbdy *mbp)
 	     (uint64_t) ((struct utf_msgbdy*)(0))->payload.h_pkt.msgdata);
 #endif
 }
+
+void
+utf_show_vcqid_stadd(struct utf_vcqid_stadd *vsp)
+{
+    int	i;
+    utf_printf("VCQID_STADD(%d)\n", vsp->nent);
+    for (i = 0; i < vsp->nent; i++) {
+	utf_printf("\t[%d] vcqid(0x%lx) stadd(0x%lx)\n", i, vsp->vcqid[i], vsp->stadd[i]);
+    }
+}
+
+void
+utf_show_vcqhdl_stadd(struct utf_vcqhdl_stadd *vsp)
+{
+    int	i;
+    utf_printf("VCQHDL_STADD(%d)\n", vsp->nent);
+    for (i = 0; i < vsp->nent; i++) {
+	utf_printf("\t[%d] vcqhdl(0x%lx) stadd(0x%lx)\n", i, vsp->vcqhdl[i], vsp->stadd[i]);
+    }
+}

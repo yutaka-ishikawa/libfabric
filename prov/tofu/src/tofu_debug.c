@@ -1,4 +1,6 @@
 #include <stdint.h>
+#include <utofu.h>
+#include <jtofu.h>
 #include "tofu_impl.h"
 #include "tofu_addr.h"
 

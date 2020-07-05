@@ -56,10 +56,26 @@ struct utf_msghdr { /* 40 Byte */
 #define TRANSMODE_AGGR	1
 #define TRANSMODE_THR	10	/* max is 255 (1B) */
 
+struct utf_vcqhdl_stadd {
+    size_t	nent;
+    uint64_t	vcqhdl[TOFU_NTNI];	/* utofu_vcq_hdl_t */
+    uint64_t	stadd[TOFU_NTNI];	/* utofu_stadd_t */
+};
+
+struct utf_vcqid_stadd {
+    size_t	nent;
+    uint64_t	vcqid[TOFU_NTNI];	/* utofu_vcq_hdl_t */
+    uint64_t	stadd[TOFU_NTNI];	/* utofu_stadd_t */
+    utofu_path_id_t pathid[TOFU_NTNI];  /* path id */
+};
+
 #pragma pack(1)
 struct utf_hpacket {
     struct utf_msghdr	hdr;
-    uint8_t		msgdata[MSG_EAGER_SIZE];
+    union {
+	uint8_t		msgdata[MSG_EAGER_SIZE];
+	struct utf_vcqid_stadd rndzdata;
+    };
 };
 
 /*
@@ -91,6 +107,7 @@ enum {
 #define EMSG_DATA(msgp) ((msgp)->payload.h_pkt.msgdata)
 #define EMSG_SIZE(msgp) ((msgp)->psize - sizeof(uint16_t) - MSGHDR_SIZE)
 #define EMSG_DATAONLY(msgp) ((msgp)->payload.rawdata)
+#define RNDZ_RADDR(msgp)  ((msgp)->payload.h_pkt.rndzdata)
 
 /*
  * 1920 = 18 + 1902
@@ -125,8 +142,8 @@ enum {
 struct utf_msgreq {
     struct utf_msghdr hdr;	/* 16: message header */
     uint8_t	*buf;		/* 24: buffer address */
-    utofu_stadd_t bufstadd;	/* 32: stadd of the buffer address */
-    utofu_stadd_t rmtstadd;	/* 40: stadd of the remote address */
+    //utofu_stadd_t bufstadd;	/* 32: stadd of the receive buffer address */
+    //utofu_stadd_t rmtstadd;	/* 40: stadd of the remote address */
     uint8_t	ustatus;	/* 41: user-level status */
     uint8_t	fistatus;	/* 42: fabric-level status */
     uint8_t	status;		/* 43: utf-level  status */
@@ -146,6 +163,10 @@ struct utf_msgreq {
     size_t	fi_iov_count;
     struct iovec fi_msg[4];	/* TOFU_IOV_LIMIT */
 #endif
+    struct utf_vcqid_stadd rgetsender; /* rendezous: sender's stadd's and vcqid's
+					* constructed by the utf_cqselect_rget_setremote() function */
+    struct utf_vcqhdl_stadd bufinfo; /* rendezous: receiver's stadd's and vcqid's  */
+    utofu_path_id_t pathid[TOFU_NTNI];
 };
 
 struct utf_msglst {
@@ -174,6 +195,7 @@ utf_msgreq2idx(struct utf_msgreq *req)
 }
 
 struct utf_msglst *msl;
+extern int utf_dflag;
 extern void	utf_msglst_free(struct utf_msglst *msl);
 #ifndef UTF_NATIVE /* Fabric */
 extern utfslist	utf_fitag_explst;	/* expected tagged message list */
@@ -387,16 +409,18 @@ typedef enum rstate {
  */
 struct utf_recv_cntr {
     uint8_t	state;		/* rstate */
-    uint8_t	initialized:4,	/* flag for sender's rendezous info  */
-		dflg:4;		/* dynamic allocation or not in chain mode */
+    uint8_t	rdma:1,		/* flag for rndezous mode or not  */
+		rgetcnt:6,	/* # of rget issued */
+		dflg:1;		/* dynamic allocation or not in chain mode */
     uint8_t	rst_sent;	/* reset request is sent to the sender */
     uint8_t	mypos;		/* my position of recv_cntr pool */
     uint32_t	recvoff;	/* for eager message */
     struct utf_msghdr	hdr;	/* received header */
     struct utf_msgreq	*req;	/* The current handle message request */
-    utofu_vcq_id_t	svcqid;	/* rendezous: sender's vcqid */
-    uint64_t		flags;	/* rendezous: sender's flags */
+    utofu_vcq_id_t	svcqid;	/* used for eager transfer mode */
+    uint64_t		flags;	/* used for eager transfer mode */
     int		sidx;		/* rendezous: sender's sidx */
+    void	*av;		/* address vector, struct tofu_av */
     utfslist_entry	rget_slst;/* rendezous: list of rget progress */
     //utfslist	rget_cqlst;	/* CQ for remote get operation in UTF level */
 };
@@ -497,8 +521,9 @@ struct utf_send_cntr {	/* 128 Byte */
     size_t		usize;		/* user-level sent size +8=64*/
     utfslist		smsginfo;	/* +16 = 80 Byte */
     utfslist		rmawaitlst;	/* +16 = 96 Byte */
+    void		*av;		/* +8  = 104 Byte, address vector struct tofu_av */
     union {
-	uint8_t		desc[32];	/* +32 = 128 Byte */
+	uint8_t		desc[32];	/* +32 = 136 Byte */
 	struct {
 	    utfslist_entry	slst;	/* for free list */
 	    utfslist_entry	busy;
@@ -510,14 +535,17 @@ struct utf_send_msginfo { /* msg info */
     struct utf_msghdr	msghdr;		/* message header     +16 = 16 Byte */
     struct utf_egr_sbuf	*sndbuf;	/* send data for eger  +8 = 24 Byte */
     utofu_stadd_t	sndstadd;	/* stadd of sndbuf     +8 = 40 Byte */
-    utofu_stadd_t	usrstadd;	/* stadd of user buf for rdma  +8 = 48 Byte */
     void		*usrbuf;	/* stadd of user buf   +8 = 48 Byte */
-    struct utf_msgreq	*mreq;		/* request struct      +8 = 32 Byte */
-    utfslist_entry		slst;		/* next pointer        +8 = 56 Byte */
-    uint8_t		cntrtype;
+    struct utf_msgreq	*mreq;		/* request struct      +8 = 56 Byte */
+    utfslist_entry	slst;		/* next pointer        +8 = 64 Byte */
+    uint8_t		cntrtype;	/* next pointer        +8 = 72 Byte */
 #ifndef UTF_NATIVE
-    void		*context;	/* for Fabric */
+    void		*context;	/* for Fabric	       +8 = 80 Byte */
 #endif
+    struct utf_vcqid_stadd rgetaddr;	/* (8+8)*6+8 104      +96 =184 Byte
+					 * stadd and vcqid for rget by dest, expose it to dest */
+    utofu_vcq_hdl_t	rgethndl[TOFU_NTNI];	/* vcqhdl of rmavcqid used for memory reg.
+						 *		      +48 =232 Byte */
 };
 
 #define UTF_RMA_READ	1

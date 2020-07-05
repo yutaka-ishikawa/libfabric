@@ -11,10 +11,11 @@
 static int tofu_sep_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
-//    struct tofu_sep *sep;
+    //struct tofu_sep *sep;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid != 0);
+    //sep = container_of(fid, struct tofu_sep, sep_fid.fid);
     /*
      * man fi_endpoint(3)
      *   When closing a scalable endpoint, there must be no opened
@@ -124,7 +125,7 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
     struct tofu_domain *dom;
     struct tofu_sep *sep = 0;
 
-    //R_DBG("YI**** fid_dom(%p)", fid_dom);
+    R_DBG("YI**** fid_dom(%p)", fid_dom);
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid_dom != 0);
     dom = container_of(fid_dom, struct tofu_domain, dom_fid);

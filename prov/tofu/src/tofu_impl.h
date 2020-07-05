@@ -4,11 +4,11 @@
 #ifndef	_TOFU_IMPL_H
 #define _TOFU_IMPL_H
 
-#include "tofu_conf.h"
-#include "tofu_debug.h"
 #include <utofu.h>
 #include <jtofu.h>
-//#include "tofu_prv.h"
+#include "tofu_conf.h"
+#include "tofu_debug.h"
+#include "utf_tofu.h"
 
 #include <rdma/fi_errno.h>		/* for FI_ENOMEM */
 #include <rdma/providers/fi_prov.h>	/* for struct fi_provider */
@@ -41,6 +41,7 @@ struct tofu_domain {
     size_t              ntni;
     utofu_vcq_hdl_t     myvcqh;
     utofu_vcq_id_t      myvcqid;
+    struct tni_info    *tinfo;
     int                 myvcqidx;
     int                 myrank;
     int                 mynrnk;
@@ -87,8 +88,9 @@ struct tofu_ctx {
     struct tofu_cq     *ctx_recv_cq;  /* receive completion queue */
     struct tofu_cntr   *ctx_send_ctr; /* fi_write/fi_read and send operation */
     struct tofu_cntr   *ctx_recv_ctr; /* recv operation */
-    struct tofu_av     *ctx_av;       /* copy of sep->sep_av_ */
-} ;
+    struct tofu_av     *ctx_av;       /* copy of ctx_sep->sep_av_ */
+    struct tni_info    *ctx_tinfo;    /* copy of ctx_sep->sep_dom->tinfo */
+};
 
 /*
  * circular queue for completion queue (tofu_comp_cirq)
@@ -124,21 +126,6 @@ struct tofu_cntr {
     int                 ctr_rsl;   /* for FI_SELECTIVE_COMPLETION */
 };
 
-/* Tofu Internal */
-#pragma pack(1)
-struct tofu_vname {
-    uint8_t  xyzabc[6];
-    uint8_t  cid : 3;	/* component id */
-    uint8_t  v : 1;	/* valid */
-    uint32_t vpid;
-    uint8_t  tniq[8];	/* (tni + tcq)[8] */
-    utofu_vcq_id_t vcqid;
-};
-
-#define VNAME_TO_VCQID(vnam, vcqid)                             \
-    utofu_construct_vcq_id((vnam)->xyzabc,                              \
-                           (vnam)->tniq[0]>>4, (vnam)->tniq[0]&0x0f,    \
-                           (vnam)->cid, &vcqid)
 
 struct tofu_av {
     struct fid_av	av_fid;

@@ -20,6 +20,7 @@
 #define DLEVEL_CHAIN		0x100
 #define DLEVEL_CHAIN2		0x200
 #define DLEVEL_ALL		0xffff
+#define SHMEM_KEY_VAL_FMT	"/home/users/ea01/ea0103/MPICH-shm2"
 
 /* 
  * MTU 1920 Byte, Piggyback size 32 Byte, Assume payload(1888 Byte)
@@ -48,6 +49,7 @@
 #define MSG_PEERS	120	/* must be smaller than 2^7 (edata) */
 #define EGRCHAIN_RECVPOS (MSG_PEERS - 1) /* used for chain mode */
 #define TOFU_ALIGN	256
+#define TOFU_NTNI	6
 /* Stearing tag */
 #define TAG_SNDCTR	12
 #define TAG_ERBUF	13

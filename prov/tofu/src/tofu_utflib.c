@@ -63,6 +63,11 @@ tofu_show_msgreq(struct utf_msgreq *req)
     }
 }
 
+void
+tofu_dom_setuptinfo(struct tni_info *tinfo, struct tofu_vname *vnmp)
+{
+    tinfo->vnamp = vnmp;
+}
 
 /*
  * CQ Error
@@ -343,6 +348,25 @@ err:
     return fc;
 }
 
+/* a multi-rail implementation
+ * The MPI sender's vcqid and stadd is set, expose it to the MPI receiver */
+static inline void
+tofu_utf_recv_rget_expose(struct tni_info *tinfo,  struct utf_send_msginfo *minfo)
+{
+    struct utf_vcqid_stadd *rgetaddr = &minfo->rgetaddr;
+    utofu_vcq_hdl_t	*vcqhdl = minfo->rgethndl;
+    int	i;
+    memset(rgetaddr, 0, sizeof(struct utf_vcqid_stadd));
+    utf_cqselect_rget_expose(tinfo, rgetaddr, vcqhdl);
+    for (i = 0; i < rgetaddr->nent; i++) {
+	if (rgetaddr->vcqid[i]) {
+	    rgetaddr->stadd[i] = utf_mem_reg(vcqhdl[i], minfo->usrbuf, minfo->msghdr.size);
+	} else {
+	    break;
+	}
+    }
+}
+
 /*
  * 
  */
@@ -373,12 +397,12 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     vcqh = sep->sep_myvcqh;
     {
 	utofu_vcq_id_t	tvcqh;
-	utf_cqselect_send(&tvcqh, msgsize);
-	utf_printf("%s: vcqh(%lx) tvcqh(%lx) msgsize(%ld)\n", __func__, vcqh, tvcqh, msgsize);
+	utf_cqselect_sendone(ctx->ctx_tinfo, &tvcqh, msgsize);
+	// utf_printf("%s: vcqh(%lx) tvcqh(%lx) msgsize(%ld)\n", __func__, vcqh, tvcqh, msgsize);
     }
     fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
     if (fc != FI_SUCCESS) { rc = fc; goto err1; }
-//#if 0
+#if 0
     {
 	char	buf1[128], buf2[128];
 	R_DBG("YI********* src(%d) = %s dest(%ld) = %s flgs(%ld)",
@@ -386,9 +410,10 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	      vcqid2string(buf1, 128, ctx->ctx_sep->sep_myvcqid),
 	      dst, vcqid2string(buf2, 128, r_vcqid), flgs);
     }
-//#endif
+#endif
     /* sender control structure is allocated for the destination */
     usp = utf_scntr_alloc(dst, r_vcqid, flgs);
+    // usp->av = av; this field is set at the initialization time. 2020/06/27
     if (usp == NULL) {
 	/* rc = ERR_NOMORE_SNDCNTR; */
 	fc = -FI_ENOMEM;
@@ -434,7 +459,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
 	  sizeof(struct utf_msghdr));
     if (msgsize <= CONF_TOFU_INJECTSIZE) {
-	minfo->usrstadd = 0;
+	//minfo->usrstadd = 0;
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
 	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(msgsize);
 	sbufp->msgbdy.ptype = PKT_EAGER;
@@ -461,15 +486,19 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
 	    sbufp->msgbdy.ptype = PKT_EAGER;
 	} else { /* Rendezvous */
-	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		utf_printf("RENDEZOUS\n");
-	    }
-	    minfo->usrstadd = utf_mem_reg(vcqh, msgdtp, msgsize);
-	    bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
-	          sizeof(utofu_stadd_t));
+	    /* rget initialization for MPI sender side */
+	    minfo->usrbuf = msgdtp;
+	    tofu_utf_recv_rget_expose(ctx->ctx_tinfo, minfo);
 	    minfo->cntrtype = SNDCNTR_RENDEZOUS;
-	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
+	    /* packet body for request remote get: msgbdy <-- rgetaddr */
+	    memcpy(&RNDZ_RADDR(&sbufp->msgbdy), &minfo->rgetaddr,
+		   sizeof(struct utf_vcqid_stadd)); /* my stadd's and vcqid's */
+	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(struct utf_vcqid_stadd));
 	    sbufp->msgbdy.ptype = PKT_RENDZ;
+	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
+		utf_printf("%s: RENDEZOUS\n", __func__);
+		utf_show_vcqid_stadd(&sbufp->msgbdy.payload.h_pkt.rndzdata);
+	    }
 	}
     }
     /* for utf progress */
@@ -485,7 +514,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     }
 #if 0
     /* progress */
-    utf_progress(av, vcqh);
+    utf_progress(sep->sep_dom->tinfo);
 #endif
     return fc;
 err4:
@@ -539,7 +568,6 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	req = utf_idx2msgreq(idx);
 	DEBUG(DLEVEL_ADHOC) utf_printf("\tfound src(%d)\n", src);
 	if (req->status == REQ_WAIT_RNDZ && req->ptype) { /* rendezous */
-	    utofu_vcq_id_t vcqh;
 	    struct utf_recv_cntr *ursp = req->rcntr;
 	    if (peek == 1) {
 		/* A control message has arrived in the unexpected queue,
@@ -547,20 +575,20 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 		 * Thus, just return with FI_ENOMSG for FI_PEEK */
 		goto peek_nomsg_ext;
 	    }
-	    vcqh = ctx->ctx_sep->sep_myvcqh;
 	    assert(ursp->req == req);
-	    req->bufstadd = utf_mem_reg(vcqh, msg->msg_iov[0].iov_base, msgsize);
 	    req->fi_ctx = ctx;
 	    req->fi_flgs = flags;
 	    req->fi_ucontext = msg->context;
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED;
 	    req->rsize = 0;
-	    utf_printf("%s: rget_do req(%p) idx(%d) src(%ld)\n", __func__, req, idx, req->hdr.src);
-	    utf_rget_do(vcqh, ursp, R_DO_RNDZ);
-	    /* ursp->state is changed to R_DO_RNDZ */
-	    //remote_get(vcqh, ursp->svcqid, req->bufstadd,
-	    //           req->rmtstadd, msgsize, ursp->sidx, ursp->flags, 0);
+	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
+		utf_printf("%s: rget_start req(%p) idx(%d) src(%ld)\n", __func__, req, idx, req->hdr.src);
+	    }
+	    /* Here is a multi-rail implementation.
+	     *	req->rgetsender has been set by utf_recvengine.
+	     */
+	    utf_rget_start(ctx->ctx_tinfo, msg->msg_iov[0].iov_base, msgsize, ursp, R_DO_RNDZ);
 	    if (peek == 1) {
 		fc = -FI_ENOMSG;
 	    }
@@ -670,13 +698,12 @@ req_setup:
 	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->status);
 	}
 	if (req->expsize > CONF_TOFU_INJECTSIZE && utf_msgmode == MSG_RENDEZOUS) {
-	    utofu_vcq_id_t vcqh = ctx->ctx_sep->sep_myvcqh;
 	    /* rendezous */
 	    if (msg->iov_count > 1) {
 		utf_printf("%s: iov is not supported now\n", __func__);
 		fc = -FI_EAGAIN; goto ext;
 	    }
-	    req->bufstadd = utf_mem_reg(vcqh, req->fi_msg[0].iov_base, req->expsize);
+	    /* receiver's memory area, bufinfo,  will be initialized at utf_rget_start */
 	}
 	req->type = REQ_RECV_EXPECTED;	
 	req->fi_ignore = ignore;
@@ -722,7 +749,7 @@ req_setup:
 ext:
 #if 0
     /* progress */
-    utf_progress(ctx->ctx_sep->sep_av_, ctx->ctx_sep->sep_myvcqh);
+    utf_progress(ctx->ctx_sep->sep_dom->tinfo);
 #endif
     return fc;
 }
@@ -932,8 +959,9 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
 #if 0
     {
 	int i;
+	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
 	for (i = 0; i < 10; i++) {
-	    utf_rma_progress();
+	    utf_progress(tinfo);
 	    usleep(10000);
 	}
     }
@@ -984,8 +1012,10 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
 //#if 0
     {
 	int i;
+	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
+	
 	for (i = 0; i < 10; i++) {
-	    utf_rma_progress();
+	    utf_progress(tinfo);
 	    //usleep(100);
 	}
     }

@@ -129,8 +129,8 @@ remote_get(utofu_vcq_hdl_t vcqh,
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
     DEBUG(DLEVEL_UTOFU|DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) {
 	char buf[128];
-	utf_printf("remote_get: desc size(%ld) vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx)\n",
-		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len, cbdata, lstadd, rstadd);
+	utf_printf("remote_get: desc size(%ld) vcqh(%lx) rvcqid(%lx: %s) len(%ld) cbdata(%lx) lcl_stadd(%lx) rmt_stadd(%lx) flg(0x%lx)\n",
+		   sz, vcqh, rvcqid, vcqid2string(buf, 128, rvcqid), len, cbdata, lstadd, rstadd, flgs);
     }
     UTOFU_MSIZE_CHECK(len);
     return 0;
@@ -172,25 +172,25 @@ err:
 
 
 int
-utf_test(void *av, utofu_vcq_hdl_t vcqh, int reqid)
+utf_test(void *tinfo, int reqid)
 {
     struct utf_msgreq	*req;
 
     if (reqid < 0) return -1;
-    utf_progress(av, vcqh);
+    utf_progress(tinfo);
     req = utf_idx2msgreq(reqid);
     if (req->status == REQ_DONE) return 0;
     return 1;
 }
 
 int
-utf_wait(void *av, utofu_vcq_hdl_t vcqh, int reqid)
+utf_wait(void *tinfo, int reqid)
 {
     struct utf_msgreq	*req;
 
     if (reqid < 0) return -1;
     do {
-	utf_progress(av, vcqh);
+	utf_progress(tinfo);
 	req = utf_idx2msgreq(reqid);
     } while (req->status != REQ_DONE);
     utf_msgreq_free(req);
@@ -385,7 +385,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
     *ridx = utf_msgreq2idx(req);
     if (size <= MSG_EAGER_SIZE) {
 	/* In case of error, the program is terminated */
-	minfo->usrstadd = 0;
+	// minfo->usrstadd = 0;
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
 	bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
 	      sizeof(struct utf_msghdr));
@@ -405,15 +405,17 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(MSG_EAGER_SIZE);
     } else {
 	/* Rendezvous */
-	minfo->usrstadd = utf_mem_reg(vcqh, buf, size);
+	utf_printf("%s: Rendezouv NEEDS TO REIMPLEMENT for multi-rail\n", __func__);
+	abort();
+	// minfo->usrstadd = utf_mem_reg(vcqh, buf, size);
 	//utf_printf("%s: Rendezous message usrstadd(%lx) size(%ld) \n",
 	//__func__, minfo->usrstadd, size);
 	minfo->cntrtype = SNDCNTR_RENDEZOUS;
 	bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
 	      sizeof(struct utf_msghdr));
-	bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
-	      sizeof(utofu_stadd_t));
-	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
+	//bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
+	//    sizeof(utofu_stadd_t));
+	//sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
 	sbufp->msgbdy.ptype = PKT_RENDZ;
     }
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);

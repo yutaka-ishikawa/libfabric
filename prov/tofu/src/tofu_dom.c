@@ -2,9 +2,10 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
-#include "utf_tofu.h"
+#include "utf_conf.h"
 #include "utf_externs.h"
-#include "utf_cqmacro.h"
+#include "utf_queue.h"
+#include "utf_errmacros.h"
 #include <pmix.h>
 
 #include <stdlib.h>	    /* for calloc(), free */
@@ -32,6 +33,7 @@ static int tofu_domain_close(struct fid *fid)
      *     prior to calling fi_close,
      *     otherwise the call will return -FI_EBUSY.
      */
+    utf_finalize(dom_priv->tinfo);
     if (ofi_atomic_get32( &dom_priv->dom_ref ) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
@@ -84,11 +86,26 @@ static struct fi_ops tofu_dom_fi_ops = {
     .ops_open	    = fi_no_ops_open,
 };
 
+/*
+ * fi_endpoint is not available
+ *      MPICH_CH4_OPF_ENABLE_SCALABLE_ENDPOINTS must be set
+ */
+int
+tofu_endpoint(struct fid_domain *domain, struct fi_info *info,
+              struct fid_ep **ep, void *context)
+{
+    fprintf(stdout, "MPI error: MPICH_CH4_OFI_ENABLE_SCALABLE_ENDPOINTS=1 must be set.\n");
+    fprintf(stderr, "MPI error: MPICH_CH4_OFI_ENABLE_SCALABLE_ENDPOINTS=1 must be set.\n");
+    fflush(NULL);
+    return -FI_ENOSYS;
+}
+
 static struct fi_ops_domain tofu_dom_ops = {
     .size	    = sizeof (struct fi_ops_domain),
     .av_open	    = tofu_av_open,
     .cq_open	    = tofu_cq_open,
-    .endpoint	    = fi_no_endpoint,
+//    .endpoint	    = fi_no_endpoint,
+    .endpoint	    = tofu_endpoint,
     .scalable_ep    = tofu_sep_open,
     .cntr_open	    = tofu_cntr_open,
     .poll_open	    = fi_no_poll_open,
@@ -171,7 +188,7 @@ int tofu_domain_open(
         if (uc != UTOFU_SUCCESS) { fc = -FI_EOTHER; goto bad; }
         if (ntni > mtni)  ntni = mtni;
         dom->ntni = ntni;
-        utofu_query_onesided_caps(tnis[0], &cap);
+        UTOFU_CALL(1, utofu_query_onesided_caps, tnis[0], &cap);
         R_DBG0(RDBG_LEVEL2, "tnid(%d) num_stags(%d)",
                tnis[0], cap->num_reserved_stags);
         dom->max_mtu = cap->max_mtu;
@@ -187,14 +204,15 @@ int tofu_domain_open(
             fprintf(stderr, "%s: YI!!!!! something wrong tni_prim(%d) must be smaller than ntni(%ld)\n",
                     __func__, tni_prim, ntni);
         }
-        uc = utofu_create_vcq_with_cmp_id(tni_prim, c_id, flags, &vcqh);
+        fprintf(stderr, "%s: YI!!! tni_prim(%d), c_id(%d), flags(%lx)\n", __func__, tni_prim, c_id, flags);
+        UTOFU_CALL(1, utofu_create_vcq_with_cmp_id, tni_prim, c_id, flags, &vcqh);
         dom->tnis[0] = tni_prim;
         dom->vcqh[0] = vcqh;
         dom->myvcqh = vcqh;
         dom->myrank = rank;
         dom->mynrnk = nrnk;
         dom->myvcqidx = tni_prim;
-        utofu_query_vcq_id(vcqh, &dom->myvcqid);
+        UTOFU_CALL(1, utofu_query_vcq_id, vcqh, &dom->myvcqid);
         fprintf(stderr, "%d: Primary VCQH tni_id=%d c_id(%d) flags(%ld) uc = %d vcqh = 0x%lx\n", mypid, tni_prim, c_id, flags, uc, vcqh);
         /* copy tnis[] and create vcqh */
         for (vhent = 1, myni = 1, ni = 0; ni < ntni; ni++) {
@@ -214,7 +232,8 @@ int tofu_domain_open(
             free(tnis); tnis = 0;
         }
         myrank = rank;
-        utf_cqselect_init(nrnk, dom->ntni, dom->tnis, dom->vcqh);
+        dom->tinfo = utf_cqselect_init(ppn, nrnk, dom->ntni, dom->tnis, dom->vcqh);
+        fprintf(stderr, "\t dom->tinfo(%p)\n", dom->tinfo);
         utf_show_cqtab();
     }
     /* return fid_dom */

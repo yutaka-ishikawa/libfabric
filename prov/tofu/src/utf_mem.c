@@ -1,14 +1,17 @@
 #include <utofu.h>
+#include <jtofu.h>
 #include "utf_conf.h"
 #include "utf_externs.h"
 #include "utf_errmacros.h"
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
 #include "utf_engine.h"
+#include "utf_tofu.h"
 #include "utf_cqmacro.h"
 
 /* For multi-rail */
 struct cqsel_table	*utf_cqseltab;
+struct tni_info		*utf_tinfo;
 int	utf_nrnk;
 int	utf_mrail;
 
@@ -247,7 +250,7 @@ utf_egrsbuf_alloc(utofu_stadd_t	*stadd)
  *   - the length of the rank2scntridx's type, now uint16_t.
  */
 void
-utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
+utf_scntr_init(void *av, utofu_vcq_hdl_t vcqh, int nprocs,
 	       int scntr_entries, int rmacntr_entries)
 {
     int	rc, i;
@@ -271,14 +274,14 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
 	
 	for (i = 1; i < tinfo->ntni; i++) {
 	    int	tni = tinfo->idx[i];
-	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqh[tni], (void*) utf_scntrp,
+	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqhdl[tni], (void*) utf_scntrp,
 		       tot_sz, TAG_SNDCTR, 0, &stadd);
 	    if (stadd != sndctrstadd) {
 		utf_printf("%s: the stadd address %lx must be %lx (sndctrstadd)\n",
 			   __func__, stadd, sndctrstadd);
 		abort();
 	    }
-	    utf_printf("\t[%d] vcqh(%lx) vcqid(%lx)\n", tni, tinfo->vcqh[tni], tinfo->vcqid[tni]);
+	    utf_printf("\t[%d] vcqh(%lx) vcqid(%lx)\n", tni, tinfo->vcqhdl[tni], tinfo->vcqid[tni]);
 	}
     }
 
@@ -286,6 +289,7 @@ utf_scntr_init(utofu_vcq_hdl_t vcqh, int nprocs,
     for (i = 0; i < scntr_entries; i++) {
 	utfslist_append(&utf_scntrfree, &utf_scntrp[i].slst);
 	utf_scntrp[i].mypos = i;
+	utf_scntrp[i].av = av;
 	utf_reset_chain_info(&utf_scntrp[i]);
     }
     utfslist_init(&utf_scntrbusy, NULL);
@@ -506,21 +510,21 @@ utf_recvbuf_init(utofu_vcq_id_t vcqh, int nprocs, int mode)
 	utofu_stadd_t	stadd;
 	
 	for (i = 1; i < tinfo->ntni; i++) {
-	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqh[i], (void *)erbuf,
+	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqhdl[i], (void *)erbuf,
 		       sizeof(struct erecv_buf), TAG_ERBUF, 0, &stadd);
 	    if (stadd != erbstadd) {
 		utf_printf("%s: stadd address %lx must be %lx (erbstadd)\n",
 			   __func__, stadd, erbstadd);
 		abort();
 	    }
-	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqh[i], (void *)egrmgt,
+	    UTOFU_CALL(1, utofu_reg_mem_with_stag, tinfo->vcqhdl[i], (void *)egrmgt,
 		       sizeof(sndmgt)*nprocs, TAG_EGRMGT, 0, &stadd);
 	    if (stadd != egrmgtstadd) {
 		utf_printf("%s: stadd address %lx must be %lx (egrmgtstadd)\n",
 			   __func__, stadd, egrmgtstadd);
 		abort();
 	    }
-	    utf_printf("\t[%d] vcqh(%lx) vcqid(%lx)\n", i, tinfo->vcqh[i], tinfo->vcqid[i]);
+	    utf_printf("\t[%d] vcqh(%lx) vcqid(%lx)\n", i, tinfo->vcqhdl[i], tinfo->vcqid[i]);
 
 	}
     }
@@ -654,7 +658,6 @@ utf_mem_reg(utofu_vcq_hdl_t vcqh, void *buf, size_t size)
     DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
 	utf_printf("%s: size(%ld/0x%lx) vcqh(%lx) buf(%p) stadd(%lx)\n", __func__, size, size, vcqh, buf, stadd);
     }
-    utf_printf("%s: vcqh(%lx) stadd(%lx)\n", __func__, vcqh, stadd);
     return stadd;
 }
 
@@ -675,9 +678,8 @@ utf_stadd_free(utofu_vcq_hdl_t vcqh)
     UTOFU_CALL(0, utofu_dereg_mem, vcqh, egrmgtstadd, 0);
 }
 
-#define SHMEM_KEY_VAL_FMT	"/home/users/ea01/ea0103/MPICH-shm"
-int
-utf_cqselect_init(int nrnk, int ntni, utofu_tni_id_t *tnis, utofu_vcq_hdl_t *vcqhp)
+void *
+utf_cqselect_init(int ppn, int nrnk, int ntni, utofu_tni_id_t *tnis, utofu_vcq_hdl_t *vcqhp)
 {
     int	i;
     size_t	psz = sysconf(_SC_PAGESIZE);
@@ -697,17 +699,20 @@ utf_cqselect_init(int nrnk, int ntni, utofu_tni_id_t *tnis, utofu_vcq_hdl_t *vcq
 	memset(utf_cqseltab->snd_len, 0, sizeof(utf_cqseltab->snd_len));
 	memset(utf_cqseltab->rcv_len, 0, sizeof(utf_cqseltab->rcv_len));
     }
-    tinfo = &utf_cqseltab->node[nrnk];
+    tinfo = utf_tinfo = &utf_cqseltab->node[nrnk];
+    tinfo->ppn = ppn;
+    tinfo->nrnk = nrnk;
     tinfo->ntni = ntni;
     for (i = 0; i < ntni; i++) {
 	assert(tnis[i] < 6);
 	tinfo->idx[i] = tnis[i];
-	tinfo->vcqh[i] = vcqhp[i];
+	tinfo->vcqhdl[i] = vcqhp[i];
 	utofu_query_vcq_id(vcqhp[i], &tinfo->vcqid[i]);
 	utf_printf("pid(%d) \t[%d]idx[%d]: vcqh(0x%lx) vcqid(0x%lx)\n", mypid, i, tnis[i],
 		   vcqhp[i], tinfo->vcqid[i]);
     }
-    return 0;
+    tinfo->usd[0] = 1;	/* this is used primary including receiving */
+    return (void*) tinfo;
 }
 
 int
@@ -744,7 +749,7 @@ utf_show_cqtab()
     utf_printf("CQ table tinfo(%p) entries(%d) nrank(%d)\n", tinfo, tinfo->ntni, utf_nrnk);
     for (i = 0; i < tinfo->ntni; i++) {
 	utf_printf("\t[%d]idx[%d]: vcqh(0x%lx) vhcid(0x%lx) busy(%d)\n",
-		   i, tinfo->idx[i], tinfo->vcqh[i], tinfo->vcqid[i], tinfo->bsy[i]);
+		   i, tinfo->idx[i], tinfo->vcqhdl[i], tinfo->vcqid[i], tinfo->usd[i]);
     }
     utf_printf("TNI left message\n");
     for (i = 0; i < tinfo->ntni; i++) {

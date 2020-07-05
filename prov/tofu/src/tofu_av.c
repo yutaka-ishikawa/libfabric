@@ -35,6 +35,12 @@ tofu_av_close(struct fid *fid)
     if (ofi_atomic_get32( &av_priv->av_ref ) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
+    if (myrank == 0) {
+        /* for debugging */
+        extern void	utf_show_vcqid(FILE*);
+	fprintf(stderr, "list of vcqid\n");
+	utf_show_vcqid(stderr); fflush(stderr);
+    }
     /* tab */
     for (i = 0; i < CONF_TOFU_ATTR_MAX_EP_TXRX_CTX; i++) {
         if (av_priv->av_tab[i].vnm != 0) {
@@ -99,7 +105,6 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
     /* fastlock_acquire(&av->av_lck); */
     for (ic = 0; ic < count; ic++) {
         struct tofu_vname   *vnam;
-        utofu_vcq_id_t  vcqid;
 	size_t          index;
 
 	/* index */
@@ -115,18 +120,20 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
             fi_addr[ic] = index;
 	}
 	vnam->vpid = index;
-        VNAME_TO_VCQID(vnam, vcqid);
-        vnam->vcqid = vcqid;
-        R_DBG("fi_addr[%ld] = %ld ==> vcqid(%lx)", ic, fi_addr[ic], vcqid);
+        vnam->cid = CONF_TOFU_CMPID;
+        utf_vname_vcqid(vnam);
+        R_DBG("fi_addr[%ld] = %ld ==> vcqid(%lx)", ic, fi_addr[ic], vnam->vcqid);
         // R_DBG("fi_addr[%ld] = %ld ==> vcqid(%lx)", ic, fi_addr[ic], vcqid);
     }
+    /* setup vnamep of tinfo */
+    tofu_dom_setuptinfo(av->av_dom->tinfo, avtp->vnm);
     /* My rank must be resolved here */
     av->av_sep->sep_myrank
         = tofu_av_lookup_rank_by_vcqid(av, av->av_sep->sep_myvcqid);
     myrank = av->av_sep->sep_myrank;
     nprocs = count;
     /* fastlock_release(&av->av_lck); */
-    utf_init_2(av, av->av_sep->sep_myvcqh, avtp->nct);
+    utf_init_2(av, av->av_sep->sep_dom->tinfo, avtp->nct);
 bad:
     return fc;
 }
@@ -281,11 +288,13 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
 
             }
         }
+        /* setup vnamep of tinfo */
+        tofu_dom_setuptinfo(dom->tinfo, vnam);
         /* My rank and nprocs are set here */
         myrank = rank;
         // myrank = av->av_sep->sep_myrank; must be set in av_sep field
         nprocs = np;
-        R_DBG("myrank(%d) nprocs(%d)", myrank, nprocs);
+        R_DBG("myrank(%d) nprocs(%d) fc(%d)", myrank, nprocs, fc);
         /* fastlock_release(&av->av_lck); */
     }
     /* return fid_dom */

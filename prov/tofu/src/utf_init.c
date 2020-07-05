@@ -7,6 +7,7 @@
 #include "utf_errmacros.h"
 #include "utf_queue.h"
 #include "utf_sndmgt.h"
+#include "utf_cqmgr.h"
 
 size_t	utf_pig_size;	/* piggyback size is globally defined */
 int	utf_dflag;
@@ -59,20 +60,23 @@ extern struct utf_tofuctx	utf_sndctx[16];
 extern struct utf_tofuctx	utf_rcvctx[16];
 
 /*
- * utf_init_1:  The first step of the Tofu initialization
- *		We do not know myrank during this phase
+ * utf_init_1:  The first step of the Tofu initialization.
+ *		Address vector is not initialized in case of
+ *		TOFU_NAMED_AV = 0
  */
 int
-utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
+utf_init_1(void *av, void *ctx, int class, void *inf, size_t pigsz)
 {
+    struct tni_info	*tinfo = (struct tni_info*) inf;
     int	i;
+    /* This is for debugging purose */
     if (class == UTF_TX_CTX) {
 	utf_printf("%s: utf_sndctx[0] = %p\n", __func__, ctx);
-	utf_sndctx[0].vcqh = vcqh;
+	utf_sndctx[0].vcqh = tinfo->vcqhdl[0];
 	utf_sndctx[0].fi_ctx = ctx;
     } else {
 	utf_printf("%s: utf_rcvctx[0] = %p\n", __func__, ctx);
-	utf_rcvctx[0].vcqh = vcqh;
+	utf_rcvctx[0].vcqh = tinfo->vcqhdl[0];
 	utf_rcvctx[0].fi_ctx = ctx;
     }
     if (utf_initialized_1) {
@@ -83,7 +87,7 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
 	utf_printf("%s: utf_dflag=%d\n", __func__, utf_dflag);
     }
     DEBUG(DLEVEL_ALL) {
-	utf_printf("%s: vcqh(%lx) pigsz(%ld)\n", __func__, vcqh, pigsz);
+	utf_printf("%s: vcqh(%lx) pigsz(%ld)\n", __func__, tinfo->vcqhdl[0], pigsz);
     }
     utf_initialized_1 = 1;
     utf_pig_size = pigsz;
@@ -91,9 +95,9 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
     i = utf_getenvint("UTF_MSGMODE");
     utf_setmsgmode(i);
     /* sender control structure, eager buffer, and protocol engine */
-    utf_egrsbuf_init(vcqh, SND_EGR_BUFENT);
-    utf_sndminfo_init(vcqh, SND_EGR_BUFENT);
-    utf_engine_init();
+    utf_egrsbuf_init(tinfo->vcqhdl[0], SND_EGR_BUFENT);
+    utf_sndminfo_init(tinfo->vcqhdl[0], SND_EGR_BUFENT);
+    utf_engine_init(av);
     utf_msgreq_init();
     utf_msglst_init();
     utf_rmacq_init();
@@ -102,7 +106,7 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
      * size of sndmgt is 4 * 158976 * 4 = about 2.5 MB
      */
     i = utf_getenvint("UTF_TRANSMODE");
-    utf_recvbuf_init(vcqh, MAX_NODE*4, i);
+    utf_recvbuf_init(tinfo->vcqhdl[0], MAX_NODE*4, i);
     return 0;
 }
 
@@ -111,9 +115,10 @@ utf_init_1(void *ctx, int class, utofu_vcq_hdl_t vcqh, size_t pigsz)
  *		We know myrank now
  */
 int
-utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
+utf_init_2(void *av, void *inf, int nprocs)
 {
-    utf_printf("%s: av(%p) vcqh(%p) nprocs(%d)\n", __func__, av, vcqh, nprocs);
+    struct tni_info	*tinfo = (struct tni_info*) inf;
+    utf_printf("%s: av(%p) vcqh(%p) nprocs(%d)\n", __func__, av, tinfo->vcqhdl[0], nprocs);
     if (utf_initialized_2) {
 	return 0;
     }
@@ -125,22 +130,18 @@ utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
 	    utf_redirect();
 	}
     }
-    utf_setav(av);
+    utf_setav(av); /* this is for debugging */
     DEBUG(DLEVEL_ALL) {
-	utf_printf("%s: pid(%d) vcqh(%lx) nprocs(%d)\n", __func__, mypid, vcqh, nprocs);
+	utf_printf("%s: pid(%d) vcqh(%lx) nprocs(%d)\n", __func__, mypid, tinfo->vcqhdl[0], nprocs);
     }
     if (myrank == 0) {
 	utf_show_msgmode(stderr);
 	utf_show_transmode(stderr);
     }
     // utf_cqselect_init();
-#if 0 /* moving to the 1st phase */
-    /* receive buffer is allocated */
-    utf_recvbuf_init(vcqh, nprocs);
-#endif
     /* sender control is allocated */
     /* SND_EGR_BUFENT is max peers */
-    utf_scntr_init(vcqh, nprocs, SND_EGR_BUFENT + 1, RMA_MDAT_ENTSIZE);
+    utf_scntr_init(av, tinfo->vcqhdl[0], nprocs, SND_EGR_BUFENT + 1, RMA_MDAT_ENTSIZE);
     /*
      * Do we need to synchronize ? 2020/05/08
      * We observed the following error on 64 node
@@ -151,28 +152,30 @@ utf_init_2(void *av, utofu_vcq_hdl_t vcqh, int nprocs)
 }
 
 void
-utf_finalize(void *av, utofu_vcq_hdl_t vcqh)
+utf_finalize(void *inf)
 {
-    utf_printf("%s: vcqh(%lx) initialized(%d,%d)\n", __func__, vcqh, utf_initialized_1, utf_initialized_2);
+    struct tni_info	*tinfo = (struct tni_info*) inf;
+    int	i;
+    utf_printf("%s: vcqh(%lx) initialized(%d,%d)\n", __func__, tinfo->vcqhdl[0], utf_initialized_1, utf_initialized_2);
     if (utf_initialized_1 == 0) return;
     /* waiting if the TRANSMODE_CHND chain is clean up */
-    utf_chnclean(av, vcqh);
-    utf_egrsbuf_fin(vcqh);
-    utf_stadd_free(vcqh);
-    UTOFU_CALL(0, utofu_free_vcq, vcqh);
+    utf_chnclean(tinfo);
+    utf_egrsbuf_fin(tinfo->vcqhdl[0]);
+    utf_stadd_free(tinfo->vcqhdl[0]);
+    utf_printf("%s: ntni(%d) tinfo(%p)\n", __func__, tinfo->ntni, tinfo);
+    for (i = 0; i < tinfo->ntni; i++) {
+	UTOFU_CALL(0, utofu_free_vcq, tinfo->vcqhdl[i]);
+    }
     utf_cqselect_finalize();
     utf_initialized_1 = 0;
     utf_initialized_2 = 0;
     /* statistics */
     utf_printf("UTF statiscitcs\n");
     utf_show_recv_cntr(stderr);
-    if (myrank == 0) {
-	fprintf(stderr, "list of vcqid\n");
-	utf_show_vcqid(av, stderr); fflush(stderr);
-    }
 #ifdef TSIM
     usleep(200000);
 #endif
+    utf_printf("Kanryo (Done)\n");
     fflush(NULL);
 }
 

@@ -42,7 +42,6 @@ ssize_t
 tofu_progress(struct tofu_cq *cq)
 {
     struct dlist_entry *head, *curr, *next;
-    int uc;
     int ment = 0;
 
     /* 
@@ -56,17 +55,21 @@ tofu_progress(struct tofu_cq *cq)
         head = &cq->cq_htx;
         dlist_foreach_safe(head, curr, next) {
             struct tofu_ctx *ctx;
+            void	*tinfo;
             ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
-            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_myvcqh);
+            tinfo = ctx->ctx_sep->sep_dom->tinfo;
+            utf_progress(tinfo);
         }
         /* receive progress */
         head = &cq->cq_hrx;
         dlist_foreach_safe(head, curr, next) {
             struct tofu_ctx *ctx;
+            void	*tinfo;
             ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
-            uc = utf_progress(ctx->ctx_av, ctx->ctx_sep->sep_myvcqh);
+            tinfo = ctx->ctx_sep->sep_dom->tinfo;
+            utf_progress(tinfo);
         }
         ment = ofi_cirque_usedcnt(cq->cq_ccq);
     }
@@ -182,6 +185,8 @@ int tofu_cq_open(struct fid_domain *fid_dom, struct fi_cq_attr *attr,
     assert(fid_dom != 0);
     dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid);
 
+    fprintf(stderr, "%s: YYI!!!!!!!\n", __func__); fflush(stderr);
+
     if (attr != 0) {
 	FI_INFO(&tofu_prov, FI_LOG_CQ, "Requested: FI_CQ_FORMAT_%s\n",
 	    (attr->format == FI_CQ_FORMAT_UNSPEC)?  "UNSPEC":
@@ -240,5 +245,6 @@ bad:
 	tofu_cq_close(&cq_priv->cq_fid.fid);
     }
 ok:
+    fprintf(stderr, "%s: YYI!!!!!!! return %d\n", __func__, fc); fflush(stderr);
     return fc;
 }

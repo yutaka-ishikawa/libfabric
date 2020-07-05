@@ -12,7 +12,7 @@ extern void utf_scntr_free(int dst);
 extern struct utf_send_msginfo *utf_sndminfo_alloc();
 extern void utf_sndminfo_free(struct utf_send_msginfo *smp);
 extern void	utf_vcqidtab_init();
-extern void	utf_scntr_init(utofu_vcq_hdl_t, int nprocs, int scntr_entries, int rmacntr_entries);
+extern void	utf_scntr_init(void *av, utofu_vcq_hdl_t, int nprocs, int scntr_entries, int rmacntr_entries);
 extern void	utf_egrsbuf_fin(utofu_vcq_hdl_t);
 extern int	utf_recvbuf_is_chain_clean();
 extern int	utf_send_start(void *av, utofu_vcq_hdl_t, struct utf_send_cntr *usp);
@@ -71,7 +71,7 @@ extern void	utf_rmacq_free(struct utf_rma_cq *cq);
 extern void	utf_setmsgmode(int mode);
 extern void	*utf_shm_init(size_t, char*);
 extern int	utf_shm_finalize(void*);
-extern int	utf_cqselect_init(int nrnk, int ntni, utofu_tni_id_t *tnis, utofu_vcq_hdl_t *vcqhp);
+extern void	*utf_cqselect_init(int ppn, int nrnk, int ntni, utofu_tni_id_t *tnis, utofu_vcq_hdl_t *vcqhp);
 extern int	utf_cqselect_finalize();
 
 /* for debugging */
@@ -93,8 +93,12 @@ struct utf_msgbdy;
 extern void	utf_showpacket(char *msg, struct utf_msgbdy *mbp);
 extern void	utf_setmsgmode(int);
 extern void	utf_show_recv_cntr(FILE*);
-extern void	utf_show_vcqid(void *, FILE*);
+extern void	utf_show_vcqid(FILE*);
 extern void	utf_show_cqtab();
+struct utf_vcqid_stadd;
+extern void	utf_show_vcqid_stadd(struct utf_vcqid_stadd *vsp);
+struct utf_vcqhdl_stadd;
+extern void	utf_show_vcqhdl_stadd(struct utf_vcqhdl_stadd *vsp);
 extern void	utf_setav(void*);
 
 extern int	utf_dflag;

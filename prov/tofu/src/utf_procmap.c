@@ -11,8 +11,10 @@
 #include <jtofu.h>
 #include <pmix_fjext.h>
 #include "process_map_info.h"
+#include "utf_conf.h"
 #include "utf_externs.h"
-#include "utf_tofu.h"
+#include "utf_queue.h"
+#include "utf_errmacros.h"
 #include "tofu_impl.h"
 
 #define LIB_DLCALL(var, funcall, lbl, evar, str) do { \
@@ -153,12 +155,36 @@ show_procmap(struct tlib_process_mapinfo *minfo, int nprocs)
     show_ranklist(&minfo->offset_logical_node_list, nent);
 }
 
+void
+utf_vname_vcqid(struct tofu_vname *vnmp)
+{
+    utofu_vcq_id_t  vcqid;
+    size_t	ncnt;
+
+    UTOFU_CALL(1, utofu_construct_vcq_id,  vnmp->xyzabc,
+	       vnmp->tniq[0]>>4, vnmp->tniq[0]&0x0f, vnmp->cid, &vcqid);
+    /* getting candidates of path coord, vnmp->pcoords */
+    {
+	union jtofu_phys_coords jcoords;
+	jcoords.s.x = vnmp->xyzabc[0]; jcoords.s.y = vnmp->xyzabc[1];
+	jcoords.s.z = vnmp->xyzabc[2]; jcoords.s.a = vnmp->xyzabc[3];
+	jcoords.s.b = vnmp->xyzabc[4]; jcoords.s.c = vnmp->xyzabc[5];
+	JTOFU_CALL(1, jtofu_query_onesided_paths, &jcoords, 5, vnmp->pcoords, &ncnt);
+    }
+    vnmp->pent = ncnt;
+    /* pathid is set using the first candidate of vnmp->pcoords */
+    UTOFU_CALL(1, utofu_get_path_id, vcqid, vnmp->pcoords[0].a, &vnmp->pathid);
+    /* The default pathid is also embeded into vcqid */
+    UTOFU_CALL(1, utofu_set_vcq_id_path, &vcqid, vnmp->pcoords[0].a);
+    vnmp->vcqid = vcqid;
+}
+
 static struct tofu_vname *
 utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr, int *ppnp)
 {
     struct tlib_ranklist *rankp;
     size_t	sz, ic;
-    struct tofu_vname *vnm;
+    struct tofu_vname *vnam;
     uint64_t	*addr;
     int		nhost;
     int		ppn;	/* process per node */
@@ -174,9 +200,12 @@ utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr
     }
     fprintf(stderr, "%s: nprocs(%d) ppn(%d) nhost(%d)\n", __func__, nprocs, ppn, nhost);
     rankp = (struct tlib_ranklist*) TLIB_OFFSET2PTR(*(off_t *)&minfo->offset_logical_node_list);
-    sz = sizeof(struct tofu_vname)*nprocs;
-    vnm = malloc(sz);
-    memset(vnm, 0, sz);
+    {
+	int	maxprocs = nhost > nprocs ? nhost: nprocs;
+	sz = sizeof(struct tofu_vname)*maxprocs;
+	vnam = malloc(sz);
+    }
+    memset(vnam, 0, sz);
     if (*fi_addr == NULL) {
 	sz = sizeof(uint64_t)*nprocs;
 	*fi_addr = malloc(sz);
@@ -189,26 +218,24 @@ utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr
 
 	for (i = 0; i < ppn; i++) {
 	    struct tofu_coord tc = *(struct tofu_coord*) &((rankp + ic)->physical_addr);
-	    struct tofu_vname *vnmp = &vnm[ic*ppn + i];
+	    struct tofu_vname *vnmp = &vnam[ic*ppn + i];
 	    utofu_tni_id_t	tni;
 	    utofu_cq_id_t	cq;
-	    utofu_vcq_id_t  vcqid;
 	    vnmp->xyzabc[0] = tc.x; vnmp->xyzabc[1] = tc.y; vnmp->xyzabc[2] = tc.z;
 	    vnmp->xyzabc[3] = tc.a; vnmp->xyzabc[4] = tc.b; vnmp->xyzabc[5] = tc.c;
-	    vnm->tniq[0] = ((tni << 4) & 0xf0) | (cq & 0x0f);
-	    vnmp->cid = CONF_TOFU_CMPID;
-	    vnmp->v = 1;
-	    vnmp->vpid = ic;
 	    utf_tni_select(ppn, i, &tni, &cq);
+	    vnmp->tniq[0] = ((tni << 4) & 0xf0) | (cq & 0x0f);
+	    vnmp->vpid = ic;
+	    vnmp->cid = CONF_TOFU_CMPID;
+	    utf_vname_vcqid(vnmp);
+	    vnmp->v = 1;
+	    if (addr) addr[ic*ppn + i] = ic*ppn + i;
 	    if (pmix_myrank == 0) {
 		fprintf(stderr, "[%ld] YI!! ppn(%d) i(%d) tni(%d) cq(%d)\n", ic*ppn + i, ppn, i, tni, cq);
 	    }
-	    utofu_construct_vcq_id(vnmp->xyzabc, tni, cq, cid, &vcqid);
-	    vnmp->vcqid = vcqid;
-	    if (addr) addr[ic*ppn + i] = ic*ppn + i;
 	}
     }
-    return vnm;
+    return vnam;
 }
 
 /*
@@ -261,7 +288,9 @@ utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp)
     //pval->data.bo.bytes, pval->data.bo.size); fflush(stdout);
 
     minfo = (struct tlib_process_mapinfo*) pval->data.bo.bytes;
-    if (pmix_myrank == 0) show_procmap(minfo, pmix_nprocs);
+    DEBUG(DLEVEL_ALL) {
+	if (pmix_myrank == 0) show_procmap(minfo, pmix_nprocs);
+    }
     LIB_CALL(rc, myPMIx_Finalize(NULL, 0),
 	     err, errstr, "PMIx_Finalize");
     pmix_vnam = utf_peers_reg(minfo, pmix_nprocs, fi_addr, ppnp);
@@ -277,7 +306,11 @@ err:
     return NULL;
 }
 
+#ifdef LIBPROCMAP_TEST
+#define PMIX_TOFU_SHMEM	"TOFU_TESTSHM"
+#else
 #define PMIX_TOFU_SHMEM	"TOFU_SHM"
+#endif
 
 // sz = sysconf(_SC_PAGESIZE);
 void	*
@@ -331,18 +364,37 @@ utf_shm_finalize(void *addr)
     return shmdt(addr);
 }
 
+/**************************************************************************/
 #ifdef LIBPROCMAP_TEST
 #define SHMEM_KEY_VAL	"/home/users/ea01/ea0103/MPICH-testshm"
+int utf_dflag = 1;
+int myrank = 1;
+int mypid;
+
+int
+utf_printf(const char *fmt, ...)
+{
+    va_list	ap;
+    int		rc;
+    va_start(ap, fmt);
+    fprintf(stderr, "[%d] ", myrank);
+    rc = vfprintf(stderr, fmt, ap);
+    va_end(ap);
+    fflush(stderr);
+    return rc;
+}
+
 int
 main(int argc, char **argv)
 {
-    int	nprocs, ppn, myrank;
+    int	nprocs, ppn;
     int rc, np, rank;
     char *cp;
     char *errstr;
     struct tofu_vname *vnam;
     uint64_t	*addr = NULL;
     
+    mypid = getpid();
     LIB_CALL(rc, MPI_Init(&argc, &argv), err, errstr, "MPI_Init");
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &myrank);

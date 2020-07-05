@@ -5,7 +5,6 @@
 #include <assert.h>	    /* for assert() */
 #include "tofu_impl.h"
 #include "tofu_macro.h"
-#include "utf_tofu.h"
 #include "utflib.h"
 
 static int tofu_ctx_close(struct fid *fid);
@@ -41,6 +40,7 @@ tofu_ctx_init(int index, struct tofu_ctx *ctx, struct tofu_sep *sep,
 {
     int fc = FI_SUCCESS;
 
+    fprintf(stderr, "%d:%d %s ctx(%p) sep(%p) class(%s)\n", mypid, myrank, __func__, ctx, sep, class == FI_CLASS_TX_CTX ? "TX" : "RX");
     /* initialize fabric members */
     ctx->ctx_fid.fid.fclass  = class;
     ctx->ctx_fid.fid.context = context;
@@ -56,6 +56,7 @@ tofu_ctx_init(int index, struct tofu_ctx *ctx, struct tofu_sep *sep,
     ctx->ctx_enb = 0;
     ctx->ctx_idx = index;
     ctx->ctx_av = sep->sep_av_;  /* copy of sep->sep_av_ */
+    ctx->ctx_tinfo = sep->sep_dom->tinfo; /* dopy of domain tinfo */
 
     fastlock_init(&ctx->ctx_lck);
     ctx->ctx_xop_flg = (attr == 0)? 0UL :
@@ -227,7 +228,8 @@ tofu_ictx_close(struct tofu_ctx *ctx)
                 notfirst = 1;
             }
         }
-        utf_finalize(ctx->ctx_av, sep->sep_myvcqh);
+        // move to tofu_domain_close 2020/06/26
+        // utf_finalize(ctx->ctx_av, sep->sep_myvcqh);
     }
 bad:
     return uc;
@@ -258,9 +260,8 @@ static int tofu_ctx_close(struct fid *fid)
     if (! dlist_empty(&ctx_priv->ctx_ent_sep)) {
 	if (ctx_priv->ctx_fid.fid.fclass == FI_CLASS_TX_CTX) {
 	    tofu_sep_rem_ctx_tx(ctx_priv->ctx_sep, ctx_priv);
-	}
-	else {
-	    tofu_sep_rem_ctx_rx( ctx_priv->ctx_sep, ctx_priv );
+	} else {
+	    tofu_sep_rem_ctx_rx(ctx_priv->ctx_sep, ctx_priv);
 	}
     }
     if (myrank == 0) {
@@ -432,8 +433,6 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
     int uc = UTOFU_SUCCESS;
     struct tofu_sep     *sep = ctx->ctx_sep;
     struct tofu_domain  *dom;
-    utofu_vcq_hdl_t     vcqh;
-    uint64_t        *addr = NULL;
 
     if (ctx->ctx_enb != 0 || sep->sep_dom == 0) {
 	uc = UTOFU_ERR_BUSY; goto bad;
@@ -493,14 +492,22 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
     fprintf(stderr, "%d: YI!!! my vcqh = %lx\n", mypid, sep->sep_myvcqh);
     dbg_show_utof_vcqh(sep->sep_myvcqh);
 #endif
-    /* initialize utf library */
-    /* sep->sep_av_->av_cnt is nproc */
-    uc = utf_init_1(ctx, class == FI_CLASS_TX_CTX ? UTF_TX_CTX : UTF_RX_CTX,
-                    sep->sep_myvcqh, ctx->ctx_sep->sep_dom->max_piggyback_size);
-    fprintf(stderr, "[%d] YI!!!! ", myrank); dbg_show_utof_vcqh(sep->sep_myvcqh);
-//                  ctx->ctx_av->av_cnt);
-    if (myrank != -1) {
-        utf_init_2(sep->sep_av_, sep->sep_myvcqh, nprocs);
+    /*
+     * Initializing utf library
+     */
+    {
+        struct tofu_domain *dom = sep->sep_dom;
+        fprintf(stderr, "[%d] %s YI!!!! ", myrank, __func__); dbg_show_utof_vcqh(sep->sep_myvcqh);
+        uc = utf_init_1(ctx->ctx_av, ctx, class == FI_CLASS_TX_CTX ? UTF_TX_CTX : UTF_RX_CTX,
+                        dom->tinfo, dom->max_piggyback_size);
+        /* In case of TOFU_NAMED_AV=1, the address vector and nprocs are already initialized.
+         * In case of TOFU_NAMED_AV=0, the address vector will be initialized in
+         * tofu_av_insert, and thus utf_init_2 is called in that function  */
+        if (ctx->ctx_av->av_tab[0].nct > 0) {
+            fprintf(stderr, "[%d] %s CALLING utf_init_2 nproc(%ld)\n",
+                    myrank, __func__, ctx->ctx_av->av_tab[0].nct);
+            utf_init_2(sep->sep_av_, dom->tinfo, ctx->ctx_av->av_tab[0].nct);
+        }
     }
     ctx->ctx_enb = 1;
 bad:
@@ -710,7 +717,7 @@ tofu_ctx_rx_context(struct fid_ep *fid_sep, int index,
                             context, attr, FI_CLASS_RX_CTX)) != FI_SUCCESS) {
         goto bad;
     }
-    tofu_sep_ins_ctx_rx( ctx_priv->ctx_sep, ctx_priv );
+    tofu_sep_ins_ctx_rx(ctx_priv->ctx_sep, ctx_priv);
 
     /* return fid_ctx */
     fid_ctx_rx[0] = &ctx_priv->ctx_fid;

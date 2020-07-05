@@ -21,6 +21,7 @@ tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
 	av_idx = (((uint64_t)fi_a) << av->av_rxb) >> av->av_rxb;
     }
     if (av_idx >= av->av_tab[rx_idx].nct) {
+	fprintf(stderr, "%s: av_idx(%ld) av->av_tab[%ld].nct(%ld)\n", __func__, av_idx, rx_idx, av->av_tab[rx_idx].nct);
 	fc = -FI_EINVAL; goto bad;
     }
     assert(av->av_tab[rx_idx].vnm != 0);
@@ -39,11 +40,16 @@ tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
     *vcqid = vnam->vcqid;
 #endif
     if (flgs) {
+#if 0
 	utofu_path_id_t	pathid = 0;
 	if ((uc = utofu_get_path_id(*vcqid, &vnam->xyzabc[3], &pathid)) != UTOFU_SUCCESS) {
 	    R_DBG("utof_get_path_id error: rc(%d)\n", uc);
 	}
 	*flgs = UTOFU_ONESIDED_FLAG_PATH(pathid);
+#else
+	/* now pathid is also registered in vnam 2020/07/01 */
+	*flgs = UTOFU_ONESIDED_FLAG_PATH(vnam->pathid);
+#endif
     }
 bad:
     if (uc != UTOFU_SUCCESS) {
