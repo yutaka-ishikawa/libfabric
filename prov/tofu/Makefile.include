@@ -23,8 +23,11 @@ _tofu_files =				\
 	    prov/tofu/src/tofu_sep.c	\
 	    prov/tofu/src/tofu_trigger.c \
 	    prov/tofu/src/tofu_utflib.c \
+	    prov/tofu/src/process_map_info.h	\
 	    prov/tofu/src/utf_conf.h \
 	    prov/tofu/src/utf_cqmacro.h \
+	    prov/tofu/src/utf_cqmgr.h \
+	    prov/tofu/src/utf_engine.h \
 	    prov/tofu/src/utf_errmacros.h \
 	    prov/tofu/src/utf_externs.h \
 	    prov/tofu/src/utflib.h	\

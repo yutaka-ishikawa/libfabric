@@ -357,7 +357,7 @@ tofu_utf_recv_rget_expose(struct tni_info *tinfo,  struct utf_send_msginfo *minf
     utofu_vcq_hdl_t	*vcqhdl = minfo->rgethndl;
     int	i;
     memset(rgetaddr, 0, sizeof(struct utf_vcqid_stadd));
-    utf_cqselect_rget_expose(tinfo, rgetaddr, vcqhdl);
+    utf_cqselect_rget_expose(tinfo, rgetaddr, vcqhdl, minfo);
     for (i = 0; i < rgetaddr->nent; i++) {
 	if (rgetaddr->vcqid[i]) {
 	    rgetaddr->stadd[i] = utf_mem_reg(vcqhdl[i], minfo->usrbuf, minfo->msghdr.size);
@@ -394,12 +394,6 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     /* convert destination fi_addr to utofu_vcq_id_t: r_vcqid */
     sep = ctx->ctx_sep;
     av = sep->sep_av_;
-    vcqh = sep->sep_myvcqh;
-    {
-	utofu_vcq_id_t	tvcqh;
-	utf_cqselect_sendone(ctx->ctx_tinfo, &tvcqh, msgsize);
-	// utf_printf("%s: vcqh(%lx) tvcqh(%lx) msgsize(%ld)\n", __func__, vcqh, tvcqh, msgsize);
-    }
     fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
     if (fc != FI_SUCCESS) { rc = fc; goto err1; }
 #if 0
@@ -461,7 +455,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
     if (msgsize <= CONF_TOFU_INJECTSIZE) {
 	//minfo->usrstadd = 0;
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
-	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(msgsize);
+	sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(msgsize);
 	sbufp->msgbdy.ptype = PKT_EAGER;
 	/* message copy */
 	if (msg->iov_count > 0) { /* if 0, null message */
@@ -482,7 +476,7 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	    }
 	    minfo->usrbuf = msgdtp;
 	    bcopy(minfo->usrbuf, sbufp->msgbdy.payload.h_pkt.msgdata, MSG_EAGER_SIZE);
-	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(MSG_EAGER_SIZE);
+	    sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(MSG_EAGER_SIZE);
 	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
 	    sbufp->msgbdy.ptype = PKT_EAGER;
 	} else { /* Rendezvous */
@@ -493,13 +487,20 @@ tofu_utf_send_post(struct tofu_ctx *ctx,
 	    /* packet body for request remote get: msgbdy <-- rgetaddr */
 	    memcpy(&RNDZ_RADDR(&sbufp->msgbdy), &minfo->rgetaddr,
 		   sizeof(struct utf_vcqid_stadd)); /* my stadd's and vcqid's */
-	    sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(struct utf_vcqid_stadd));
+	    sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(PAYLOAD_REQRNDZ_SIZE);
 	    sbufp->msgbdy.ptype = PKT_RENDZ;
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 		utf_printf("%s: RENDEZOUS\n", __func__);
 		utf_show_vcqid_stadd(&sbufp->msgbdy.payload.h_pkt.rndzdata);
 	    }
 	}
+    }
+    vcqh = sep->sep_myvcqh;
+    {
+	utofu_vcq_id_t	tvcqh;
+	utf_cqselect_sendone(ctx->ctx_tinfo, &tvcqh, MSG_GET_PLDSIZE(minfo->sndbuf->msgbdy.psize),
+			     &minfo->tni_msgs);
+	// utf_printf("%s: vcqh(%lx) tvcqh(%lx) msgsize(%ld)\n", __func__, vcqh, tvcqh, msgsize);
     }
     /* for utf progress */
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);

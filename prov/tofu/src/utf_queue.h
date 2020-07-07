@@ -48,8 +48,10 @@ struct utf_msghdr { /* 40 Byte */
  * See struct utf_msgbdy */
 #define MSG_EAGER_SIZE	(MSG_SIZE - MSGHDR_SIZE - sizeof(uint16_t))
 #define MSG_PAYLOAD_SIZE (MSG_SIZE - sizeof(uint16_t))
-#define MSG_MAKE_PSIZE(sz) ((sz) + MSGHDR_SIZE + sizeof(uint16_t))
+#define MSG_MAKE_PKTSIZE(sz) ((sz) + MSGHDR_SIZE + sizeof(uint16_t))
+#define MSG_GET_PLDSIZE(sz) ((sz) - MSGHDR_SIZE - sizeof(uint64_t))
 #define MSG_CALC_EAGER_USIZE(ssz) ((ssz) - MSGHDR_SIZE - sizeof(uint16_t))
+#define PAYLOAD_REQRNDZ_SIZE	(sizeof(struct utf_vcqid_stadd))
 #define MSG_EAGERONLY	0
 #define MSG_RENDEZOUS	1
 #define TRANSMODE_CHND	0
@@ -139,6 +141,11 @@ enum {
     REQ_SND_REQ,
 };
 
+struct utf_tnimsgc {
+    size_t	smsgsz[TOFU_NTNI];	/* message size for sending */
+    size_t	rmsgsz[TOFU_NTNI];	/* message size for remote get side */
+};
+
 struct utf_msgreq {
     struct utf_msghdr hdr;	/* 16: message header */
     uint8_t	*buf;		/* 24: buffer address */
@@ -167,6 +174,7 @@ struct utf_msgreq {
 					* constructed by the utf_cqselect_rget_setremote() function */
     struct utf_vcqhdl_stadd bufinfo; /* rendezous: receiver's stadd's and vcqid's  */
     utofu_path_id_t pathid[TOFU_NTNI];
+    struct utf_tnimsgc	tni_msgs;
 };
 
 struct utf_msglst {
@@ -546,6 +554,7 @@ struct utf_send_msginfo { /* msg info */
 					 * stadd and vcqid for rget by dest, expose it to dest */
     utofu_vcq_hdl_t	rgethndl[TOFU_NTNI];	/* vcqhdl of rmavcqid used for memory reg.
 						 *		      +48 =232 Byte */
+    struct utf_tnimsgc	tni_msgs;
 };
 
 #define UTF_RMA_READ	1

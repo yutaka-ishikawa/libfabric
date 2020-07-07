@@ -390,7 +390,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
 	      sizeof(struct utf_msghdr));
 	bcopy(buf, sbufp->msgbdy.payload.h_pkt.msgdata, size);
-	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(size);
+	sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(size);
     } else if (utf_msgmode != MSG_RENDEZOUS) {
 	/* Eager in-place, need to wait for remote completion */
 	//minfo->usrstadd = utf_mem_reg(vcqh, buf, size);
@@ -402,7 +402,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
 	      sizeof(struct utf_msghdr));
 	bcopy(buf, sbufp->msgbdy.payload.h_pkt.msgdata, MSG_EAGER_SIZE);
-	sbufp->msgbdy.psize = MSG_MAKE_PSIZE(MSG_EAGER_SIZE);
+	sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(MSG_EAGER_SIZE);
     } else {
 	/* Rendezvous */
 	utf_printf("%s: Rendezouv NEEDS TO REIMPLEMENT for multi-rail\n", __func__);
@@ -415,7 +415,7 @@ utf_send(utofu_vcq_hdl_t vcqh,
 	      sizeof(struct utf_msghdr));
 	//bcopy(&minfo->usrstadd, sbufp->msgbdy.payload.h_pkt.msgdata,
 	//    sizeof(utofu_stadd_t));
-	//sbufp->msgbdy.psize = MSG_MAKE_PSIZE(sizeof(minfo->usrstadd));
+	//sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(sizeof(minfo->usrstadd));
 	sbufp->msgbdy.ptype = PKT_RENDZ;
     }
     ohead = utfslist_append(&usp->smsginfo, &minfo->slst);

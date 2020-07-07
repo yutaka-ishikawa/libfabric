@@ -11,7 +11,7 @@ utf_rget_start(struct tni_info *tinfo, void *msgbuf, size_t msgsize,
     struct utf_msgreq	*req = ursp->req;
     uint64_t	flags = 0; /* path information is integrated into vcqid */
     uint64_t	sidx;
-    int		rntni;
+    int		rncqi;
     utofu_vcq_id_t	vcqh;
     extern utfslist	utf_slistrget;
 
@@ -29,10 +29,10 @@ utf_rget_start(struct tni_info *tinfo, void *msgbuf, size_t msgsize,
      * req->rgetsender: sender's vcqid and stadd
      * req->bufinfo: receiver's vcqhdl and stadd
      */
-    rntni = req->rgetsender.nent;
+    rncqi = req->rgetsender.nent;
     /* MUST BE configurable for threshould 8192 2020/07/05 */
-    if (rntni == 1 || msgsize < 8192) { /* single rail */
-	utf_cqselect_sendone(tinfo, &vcqh, msgsize);
+    if (rncqi == 1 || msgsize < 8192) { /* single rail */
+	utf_cqselect_sendone(tinfo, &vcqh, msgsize, &req->tni_msgs);
 	flags = UTOFU_ONESIDED_FLAG_PATH(req->rgetsender.pathid[0]);
 	msgsize = (msgsize > RMA_MAX_SIZE) ? RMA_MAX_SIZE: msgsize;
 	req->bufinfo.nent = 1;
@@ -49,50 +49,51 @@ utf_rget_start(struct tni_info *tinfo, void *msgbuf, size_t msgsize,
 		   req->rgetsender.stadd[0], msgsize, sidx, flags, 0);
 	req->rsize = msgsize;
     } else { /* multi rail */
-	int	sntni, tni;
+	int	sncqi, cqi;
 	int	off = 0;
 	size_t		restsz = msgsize;
 	DEBUG(DLEVEL_PROTO_RENDEZOUS) {
 	    utf_printf("%s: YI!!!!!! MRAIL\n", __func__);
 	}
-	sntni = utf_cqselect_sendmultiple(tinfo, &req->bufinfo, msgsize);
+	/* size of remote put is rendezous request size */
+	sncqi = utf_cqselect_sendmultiple(tinfo, &req->bufinfo, PAYLOAD_REQRNDZ_SIZE, &req->tni_msgs);
 	flags = UTOFU_ONESIDED_FLAG_PATH(req->rgetsender.pathid[0]);
-	tni = 0;
-	if (sntni > 1) {
-	    uint64_t	frsz = restsz/sntni;
-	    while (tni < sntni - 1) {
-		vcqh = req->bufinfo.vcqhdl[tni];
-		req->bufinfo.stadd[tni] = utf_mem_reg(vcqh, msgbuf, msgsize);
+	cqi = 0;
+	if (sncqi > 1) {
+	    uint64_t	frsz = restsz/sncqi;
+	    while (cqi < sncqi - 1) {
+		vcqh = req->bufinfo.vcqhdl[cqi];
+		req->bufinfo.stadd[cqi] = utf_mem_reg(vcqh, msgbuf, msgsize);
 		DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		    utf_printf("%s: vcqh(0x%lx) vcqid(0x%lx) stadd(0x%lx) off(0x%lx) flags(0x%lx) frsz(0x%lx)\n", __func__, vcqh, req->rgetsender.vcqid[tni], req->bufinfo.stadd[tni], off, flags, frsz);
+		    utf_printf("%s: vcqh(0x%lx) vcqid(0x%lx) stadd(0x%lx) off(0x%lx) flags(0x%lx) frsz(0x%lx)\n", __func__, vcqh, req->rgetsender.vcqid[cqi], req->bufinfo.stadd[cqi], off, flags, frsz);
 		}
-		remote_get(vcqh, req->rgetsender.vcqid[tni], 
-			   STADD_OFFSET(req->bufinfo.stadd[tni], off),
-			   STADD_OFFSET(req->rgetsender.stadd[tni], off),
+		remote_get(vcqh, req->rgetsender.vcqid[cqi], 
+			   STADD_OFFSET(req->bufinfo.stadd[cqi], off),
+			   STADD_OFFSET(req->rgetsender.stadd[cqi], off),
 			   frsz, sidx, flags, 0);
 		off += frsz;
 		restsz -= frsz;
 		req->rsize += frsz;
-		tni++;
+		cqi++;
 		ursp->rgetcnt++;
 	    }
 	}
 	if (restsz > 0) {
 	    /* single sender CQ */
 	    restsz = restsz > RMA_MAX_SIZE ? RMA_MAX_SIZE : restsz;
-	    vcqh = req->bufinfo.vcqhdl[tni];
-	    req->bufinfo.stadd[tni] = utf_mem_reg(vcqh, msgbuf, msgsize);
+	    vcqh = req->bufinfo.vcqhdl[cqi];
+	    req->bufinfo.stadd[cqi] = utf_mem_reg(vcqh, msgbuf, msgsize);
 	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		utf_printf("%s: vcqh(0x%lx) vcqid(0x%lx) stadd(0x%lx) off(0x%lx) flags(0x%lx) restsz(0x%lx)\n", __func__, vcqh, req->rgetsender.vcqid[tni], req->bufinfo.stadd[tni], off, flags, restsz);
+		utf_printf("%s: vcqh(0x%lx) vcqid(0x%lx) stadd(0x%lx) off(0x%lx) flags(0x%lx) restsz(0x%lx)\n", __func__, vcqh, req->rgetsender.vcqid[cqi], req->bufinfo.stadd[cqi], off, flags, restsz);
 	    }
-	    remote_get(vcqh, req->rgetsender.vcqid[tni],
-		       STADD_OFFSET(req->bufinfo.stadd[tni], off),
-		       STADD_OFFSET(req->rgetsender.stadd[tni], off),
+	    remote_get(vcqh, req->rgetsender.vcqid[cqi],
+		       STADD_OFFSET(req->bufinfo.stadd[cqi], off),
+		       STADD_OFFSET(req->rgetsender.stadd[cqi], off),
 		       restsz, sidx, flags, 0);
 	    req->rsize += restsz;
 	    ursp->rgetcnt++;
 	}
-	/**/
+	req->bufinfo.nent = cqi + 1;
     }
     ursp->state = nstate;  
 }

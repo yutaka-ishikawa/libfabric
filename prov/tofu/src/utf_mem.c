@@ -742,10 +742,24 @@ utf_showstadd()
 }
 
 void
+utf_show_tni()
+{
+    int	i;
+    utf_printf("TNI info\n");
+    for (i = 0; i < TOFU_NICSIZE; i++) {
+	utf_printf("\tTNI[%d]: put len(0x%lx) get len(0x%lx)\n",
+		   i, utf_cqseltab->snd_len[i], utf_cqseltab->rcv_len[i]);
+    }
+}
+
+void
 utf_show_cqtab()
 {
     int i;
     struct tni_info	*tinfo = &utf_cqseltab->node[utf_nrnk];
+    if (utf_nrnk == 0) {
+	utf_show_tni();
+    }
     utf_printf("CQ table tinfo(%p) entries(%d) nrank(%d)\n", tinfo, tinfo->ntni, utf_nrnk);
     for (i = 0; i < tinfo->ntni; i++) {
 	utf_printf("\t[%d]idx[%d]: vcqh(0x%lx) vhcid(0x%lx) busy(%d)\n",

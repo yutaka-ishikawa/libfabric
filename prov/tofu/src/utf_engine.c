@@ -289,6 +289,8 @@ utf_rget_done(utofu_vcq_id_t vcqh, struct utf_recv_cntr *ursp)
 	    utf_mem_dereg(req->bufinfo.vcqhdl[i], req->bufinfo.stadd[i]);
 	}
 	req->bufinfo.stadd[i] = 0;
+	utf_cqselect_sub_snic(i, req->tni_msgs.smsgsz[i]);
+	utf_cqselect_sub_rnic(i, req->tni_msgs.rmsgsz[i]);
     }
     req->rsize = req->hdr.size;
     req->status = REQ_DONE;
@@ -690,6 +692,12 @@ utf_sendengine(void *av, utofu_vcq_hdl_t vcqh, struct utf_send_cntr *usp, uint64
 	abort();
 	return;
     }
+    if (evt == EVT_LCL) {
+	int i;
+	for (i = 0; i < TOFU_NICSIZE; i++) {
+	    utf_cqselect_sub_snic(i, minfo->tni_msgs.smsgsz[i]);
+	}
+    }
 progress:
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("%s: usp(%p)->state(%s), evt(%d) minfo(%p)\n",
@@ -861,7 +869,7 @@ progress:
 	     */
 	    bcopy((char*) minfo->usrbuf + usp->usize,
 		  minfo->sndbuf->msgbdy.payload.h_pkt.msgdata, usize);
-	    minfo->sndbuf->msgbdy.psize = ssize = MSG_MAKE_PSIZE(usize);
+	    minfo->sndbuf->msgbdy.psize = ssize = MSG_MAKE_PKTSIZE(usize);
 	    recvstadd = calc_recvstadd(usp, ridx, ssize);
 	    DEBUG(DLEVEL_PROTO_EAGER) {
 		utf_printf("%s: S_DO_EGR, mreq(%p) msgsize(%ld) sentsize(%ld) "
@@ -1007,6 +1015,7 @@ progress:
 		DEBUG(DLEVEL_ADHOC) utf_printf("\tusrstadd(%lx)\n", minfo->rgetaddr.stadd[i]);
 		utf_mem_dereg(minfo->rgethndl[i], minfo->rgetaddr.stadd[i]);
 		minfo->rgetaddr.stadd[i] = 0;
+		utf_cqselect_sub_rnic(i, minfo->tni_msgs.rmsgsz[i]);
 	    } else {
 		break;
 	    }
