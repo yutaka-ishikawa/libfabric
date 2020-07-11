@@ -869,11 +869,11 @@ tofu_total_rma_iov_len(const struct fi_rma_iov *rma_iov,  size_t rma_iov_count)
 }
 
 
-static inline ssize_t
+static inline int
 utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t flags,
 		utofu_vcq_hdl_t *vcqh, utofu_vcq_id_t *rvcqid, 
 		utofu_stadd_t *lstadd, utofu_stadd_t *rstadd, uint64_t *utf_flgs,
-		struct utf_rma_cq **rma_cq)
+		struct utf_rma_cq **rma_cq, ssize_t *lenp)
 {
     ssize_t	fc = 0;
     ssize_t	msglen, rmalen;
@@ -920,7 +920,7 @@ utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t fla
     cq->fi_ctx = ctx;
     cq->fi_ucontext = msg->context;
     *rma_cq = cq;
-    fc = rmalen;
+    *lenp = rmalen;
 bad:
     return fc;
 }
@@ -947,15 +947,13 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
 	tofu_dbg_show_rma(__func__, msg, flags);
     }
 
-    len = utf_rma_prepare(ctx, msg, flags,
-			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
-    if (len >= 0) {
+    fc = utf_rma_prepare(ctx, msg, flags,
+			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq, &len);
+    if (fc == 0) {
 	remote_get(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_READ;
 	utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
-    } else {
-	fc = len;
     }
 #if 0
     {
@@ -982,18 +980,20 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd, rstadd;
     struct utf_rma_cq	*rma_cq;
 
-    len = utf_rma_prepare(ctx, msg, flags,
-			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq);
+    fc = utf_rma_prepare(ctx, msg, flags,
+			 &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq, &len);
     DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
-	utf_printf("%s: calling remote_put ctx(%p)->ctx_send_cq(%p) "
-		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p) "
-		   "vcqh(%lx) rvcqid(%lx) lstadd(%lx) rstadd(%lx) len(0x%x) edata(0x%x) cq(%p)\n",
-		   __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
-		   ctx->ctx_send_ctr, ctx->ctx_recv_ctr,
-		   vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
-	tofu_dbg_show_rma(__func__, msg, flags);
+	if (fc == 0) {
+	    utf_printf("%s: calling remote_put ctx(%p)->ctx_send_cq(%p) "
+		       "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p) "
+		       "vcqh(%lx) rvcqid(%lx) lstadd(%lx) rstadd(%lx) len(0x%x) edata(0x%x) cq(%p)\n",
+		       __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
+		       ctx->ctx_send_ctr, ctx->ctx_recv_ctr,
+		       vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
+	    tofu_dbg_show_rma(__func__, msg, flags);
+	}
     }
-    if (len >= 0) {
+    if (fc == 0) {
 	remote_put(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_WRITE;
@@ -1007,8 +1007,6 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
 	    utf_rmwrite_engine(vcqh, usp);
 	}
 #endif
-    } else {
-	fc = len;
     }
 //#if 0
     {

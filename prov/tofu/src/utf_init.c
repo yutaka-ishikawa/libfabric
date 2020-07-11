@@ -88,6 +88,8 @@ utf_init_1(void *av, void *ctx, int class, void *inf, size_t pigsz)
     }
     DEBUG(DLEVEL_ALL) {
 	utf_printf("%s: vcqh(%lx) pigsz(%ld)\n", __func__, tinfo->vcqhdl[0], pigsz);
+    } else {
+	utf_printf("The debug option is ignored because this libfabric has not been comiled with theUTF_DEBUG option.\n");
     }
     utf_initialized_1 = 1;
     utf_pig_size = pigsz;
@@ -118,7 +120,7 @@ int
 utf_init_2(void *av, void *inf, int nprocs)
 {
     struct tni_info	*tinfo = (struct tni_info*) inf;
-    utf_printf("%s: av(%p) vcqh(%p) nprocs(%d)\n", __func__, av, tinfo->vcqhdl[0], nprocs);
+    utf_printf("%s: av(%p) vcqh(%p) nprocs(%d) utf_initialized_2(%d)\n", __func__, av, tinfo->vcqhdl[0], nprocs, utf_initialized_2);
     if (utf_initialized_2) {
 	return 0;
     }
@@ -141,7 +143,9 @@ utf_init_2(void *av, void *inf, int nprocs)
     // utf_cqselect_init();
     /* sender control is allocated */
     /* SND_EGR_BUFENT is max peers */
+    utf_printf("%s: YI!!!!!! 1\n", __func__);
     utf_scntr_init(av, tinfo->vcqhdl[0], nprocs, SND_EGR_BUFENT + 1, RMA_MDAT_ENTSIZE);
+    utf_printf("%s: YI!!!!!! 2\n", __func__);
     /*
      * Do we need to synchronize ? 2020/05/08
      * We observed the following error on 64 node

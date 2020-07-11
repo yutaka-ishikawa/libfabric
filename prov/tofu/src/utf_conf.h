@@ -8,7 +8,11 @@
 #include <sys/uio.h>
 #endif
 
+#ifdef UTF_DEBUG
 #define DEBUG(mask) if (utf_dflag&(mask))
+#else
+#define DEBUG(mask) if (0)
+#endif
 #define DLEVEL_PMIX		0x1
 #define DLEVEL_UTOFU		0x2
 #define DLEVEL_PROTOCOL		0x4

@@ -44,8 +44,9 @@
  * |              x|              y|              z|  a|   b|  c|
  * +---------------+---------------+---------------+---+----+---+
  */
-struct tofu_coord {
-    uint32_t	c: 2, b: 4, a: 2, z: 8, y: 8, x: 8;
+union tofu_coord {
+    struct { uint32_t	c: 2, b: 4, a: 2, z: 8, y: 8, x: 8; };
+    uint32_t	val;
 };
 
 #define PATH_PMIXLIB	"/usr/lib/FJSVtcs/ple/lib64/libpmix.so"
@@ -118,7 +119,8 @@ err1:
 static char *
 string_tofu6d(uint32_t coord, char *buf)
 {
-    struct tofu_coord tc = *(struct tofu_coord*)(&coord);
+    union tofu_coord tc;
+    tc.val = coord;
     snprintf(buf, 128, "x(%02d) y(%02d) z(%02d) a(%02d) b(%02d) c(%02d)",
 	     tc.x, tc.y, tc.z, tc.a, tc.b, tc.c);
     return buf;
@@ -217,10 +219,22 @@ utf_peers_reg(struct tlib_process_mapinfo *minfo, int nprocs, uint64_t **fi_addr
 	int i;
 
 	for (i = 0; i < ppn; i++) {
-	    struct tofu_coord tc = *(struct tofu_coord*) &((rankp + ic)->physical_addr);
+	    union tofu_coord tc;
 	    struct tofu_vname *vnmp = &vnam[ic*ppn + i];
 	    utofu_tni_id_t	tni;
 	    utofu_cq_id_t	cq;
+
+	    tc.val = (rankp + ic)->physical_addr;
+	    utf_printf("%s:\tx(%02d) y(%02d) z(%02d) a(%02d) b(%02d) c(%02d)\n"
+		       "\t\tx(%02d) y(%02d) z(%02d) a(%02d) b(%02d) c(%02d)\n", __func__,
+		       TLIB_GET_X(*(tlib_tofu6d*) &(rankp + ic)->physical_addr),
+		       TLIB_GET_Y(*(tlib_tofu6d*) &(rankp + ic)->physical_addr),
+		       TLIB_GET_Z(*(tlib_tofu6d*) &(rankp + ic)->physical_addr),
+		       TLIB_GET_A(*(tlib_tofu6d*) &(rankp + ic)->physical_addr),
+		       TLIB_GET_B(*(tlib_tofu6d*) &(rankp + ic)->physical_addr),
+		       TLIB_GET_C(*(tlib_tofu6d*) &(rankp + ic)->physical_addr),
+		       tc.x, tc.y, tc.z, tc.a, tc.b, tc.c);
+
 	    vnmp->xyzabc[0] = tc.x; vnmp->xyzabc[1] = tc.y; vnmp->xyzabc[2] = tc.z;
 	    vnmp->xyzabc[3] = tc.a; vnmp->xyzabc[4] = tc.b; vnmp->xyzabc[5] = tc.c;
 	    utf_tni_select(ppn, i, &tni, &cq);

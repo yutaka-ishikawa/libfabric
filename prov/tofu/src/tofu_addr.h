@@ -53,9 +53,7 @@ tofu_av_lookup_vcqid_by_fia(struct tofu_av *av,  fi_addr_t fi_a,
     }
 bad:
     if (uc != UTOFU_SUCCESS) {
-	R_DBG("Something wrong fi_a(%ld) %u.%u.%u.%u.%u.%u cid(%u) return bad(%d)\n",
-	      fi_a, vnam->xyzabc[0], vnam->xyzabc[1], vnam->xyzabc[2],
-	      vnam->xyzabc[3], vnam->xyzabc[4], vnam->xyzabc[5], vnam->cid, uc);
+	R_DBG("Something wrong fi_a(%ld) return bad(%d)\n", fi_a, uc);
 	fc = -FI_EINVAL;
 	abort();
     }

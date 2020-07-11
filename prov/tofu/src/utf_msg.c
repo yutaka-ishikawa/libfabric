@@ -48,10 +48,14 @@ remote_piggysend(utofu_vcq_hdl_t vcqh,
 	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
+#if 0
     UTOFU_CALL(1, utofu_prepare_put_piggyback,
 	       vcqh, rvcqid, data, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+#endif
+    UTOFU_CALL(1, utofu_put_piggyback,
+	       vcqh, rvcqid, data, rstadd, len, edata, flgs, desc);
     DEBUG(DLEVEL_UTOFU) {
 	utf_printf("remote_piggyback: desc size(%ld) cbdata(%ld)\n", sz, cbdata);
     }
@@ -93,10 +97,14 @@ remote_put(utofu_vcq_hdl_t vcqh,
     	 | UTOFU_ONESIDED_FLAG_LOCAL_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_REMOTE_MRQ_NOTICE
 	 | UTOFU_ONESIDED_FLAG_STRONG_ORDER;
+#if 0
     UTOFU_CALL(1, utofu_prepare_put,
 	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc, &sz);
     assert(sz <= 128);
     UTOFU_CALL(1, utofu_post_toq, vcqh, desc, sz, cbdata);
+#endif
+    UTOFU_CALL(1, utofu_put,
+	       vcqh, rvcqid,  lstadd, rstadd, len, edata, flgs, desc);
     DEBUG(DLEVEL_UTOFU|DLEVEL_ADHOC) {
 	char buf[128];
 	utf_printf("remote_put: desc size(%ld)  vcqh(%lx) rvcqid(%lx: %s) len(%ld) "

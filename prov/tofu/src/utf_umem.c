@@ -180,7 +180,7 @@ utf_vrfy_mem(void *addr, int expct, int vfy)
     }
     if (vfy) {
 	printf("[%4d] cannot find the address %p in mem info\n",
-	       myrank, mp->addr);
+	       myrank, addr);
     }
     return 1;
 }
