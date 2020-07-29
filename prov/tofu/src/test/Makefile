@@ -4,8 +4,8 @@ include mkdef.$(MPICH_ARCH)
 INCLUDE +=-I../../../../include -I../../../../ -I../
 MPICH_SRC= ../../../../../mpich/src
 
-PROGS = size_exam size_exam2
-SRCS = size_exam.c size_exam2.c procmap.c tofuaddr.c test_tofuaddr.c tofucapability.c tofuaddr2.c
+PROGS = size_exam size_exam2 test_tsc
+SRCS = size_exam.c size_exam2.c procmap.c tofuaddr.c test_tofuaddr.c tofucapability.c tofuaddr2.c test_tsc.c
 OBJS = $(SRCS:.c=.o)  utf_procmap.o
 
 all: $(PROGS) procmap test_tofuaddr tofucapability commgroup testprocmap tofuaddr2 show_tofuaddr make_tofuaddr test_multirail test_shmem

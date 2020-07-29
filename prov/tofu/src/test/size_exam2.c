@@ -15,10 +15,18 @@ int mypid;
 #include "utf_errmacros.h"
 #include "utf_sndmgt.h"
 
+struct utf_msghdr2 { /* 27 Byte */
+    uint32_t	src;
+    uint64_t	tag;
+    uint64_t	size:40,
+		flgs:24;
+    uint64_t	data;
+};
 
 int
 main()
 {
+    printf("sizeof(utf_msghdr2) = %ld\n", sizeof(struct utf_msghdr2));
     printf("MSG_EAGER_SIZE = %ld\n", MSG_EAGER_SIZE);
     printf("MSG_SIZE = %ld\n", MSG_SIZE);
     printf("MSGBUF_SIZE = %ld\n", MSGBUF_SIZE);
