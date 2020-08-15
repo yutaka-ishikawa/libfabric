@@ -4,9 +4,9 @@
 #include "tofu_impl.h"
 #include <assert.h>	    /* for assert() */
 
-extern ssize_t  tofu_utf_read_post(struct tofu_ctx *ctx,
+extern ssize_t  tfi_utf_read_post(struct tofu_ctx *ctx,
                                    const struct fi_msg_rma *msg, uint64_t flags);
-extern ssize_t  tofu_utf_write_post(struct tofu_ctx *ctx,
+extern ssize_t  tfi_utf_write_post(struct tofu_ctx *ctx,
                                     const struct fi_msg_rma *msg, uint64_t flags);
 
 /*
@@ -41,7 +41,7 @@ tofu_ctx_rma_readmsg(struct fid_ep *fid_ep,
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
 
     ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
-    ret = tofu_utf_read_post(ctx_priv, msg, flgs);
+    ret = tfi_utf_read_post(ctx_priv, msg, flgs);
 
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
     return ret;
@@ -62,7 +62,7 @@ tofu_ctx_rma_writemsg(struct fid_ep *fid_ep,
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
 
     ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
-    ret = tofu_utf_write_post(ctx_priv, msg, flgs);
+    ret = tfi_utf_write_post(ctx_priv, msg, flgs);
     
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "fi_errno %ld\n", ret);
     return ret;

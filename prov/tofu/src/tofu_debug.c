@@ -70,7 +70,7 @@ rdbg_mpich_cntrl(const char *func, int lno, void *ptr)
     fprintf(stderr, "[%d][%d]:%s:%d "
 	    "MPICH Header: handler_id(%d) am_type(0x%x) "
 	    "am_hdr_sz(0x%x) data_sz(0x%lx) seqno(%d)\n",
-	    myrank, mypid, func, lno,
+	    utf_info.myrank, utf_info.mypid, func, lno,
 	    head->handler_id, head->am_type, head->am_hdr_sz,
 	    (long unsigned) head->data_sz, head->seqno);
     fflush(stderr);
@@ -83,7 +83,7 @@ rdbg_iovec(const char *func, int lno, size_t count, const void *ptr)
     ssize_t	i;
 
     fprintf(stderr, "[%d][%d]:%s:%d IOVEC: count(%ld)",
-	    myrank, mypid, func, lno, count);
+	    utf_info.myrank, utf_info.mypid, func, lno, count);
     for (i = 0; i < count; i++) {
 	fprintf(stderr, " base(%p) len(%ld)", iovp[i].iov_base,
 		iovp[i].iov_len);
@@ -156,7 +156,7 @@ dbg_show_utof_vcqh(utofu_vcq_hdl_t vcqh)
     tofa.tank.tub = xyz[4]; tofa.tank.tuc = xyz[5];
     tofa.tank.tni = tni[0]; tofa.tank.tcq = tcq[0];
     tofa.tank.cid = cid[0];
-    fprintf(stderr, "%d: vcqh(0x%lx) vcqid(%s) in %s:%d of %s\n", mypid, vcqh,
+    fprintf(stderr, "%d: vcqh(0x%lx) vcqid(%s) in %s:%d of %s\n", utf_info.mypid, vcqh,
 	    tank2string(buf, 128, tofa.ui64),
 	    __func__, __LINE__, __FILE__);
     fflush(stderr);
@@ -173,7 +173,7 @@ dbg_show_utof_myvcqh(size_t sz, utofu_vcq_hdl_t *vcqh)
     uint16_t tni[1], tcq[1], cid[1];
     size_t	ent;
 
-    fprintf(stderr, "[%d]:%d MY vcqhs (%ld): \n", myrank, mypid, sz);
+    fprintf(stderr, "[%d]:%d MY vcqhs (%ld): \n", utf_info.myrank, utf_info.mypid, sz);
     for (ent = 0; ent < sz; ent++) {
 	if (vcqh[ent] == 0) break;
 	uc = utofu_query_vcq_id(vcqh[ent], &vcqi);

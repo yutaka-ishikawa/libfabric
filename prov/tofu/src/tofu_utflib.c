@@ -3,13 +3,78 @@
  */
 #include "tofu_impl.h"
 #include "tofu_addr.h"
-#include "utf_conf.h"
-#include "utf_errmacros.h"
-#include "utf_externs.h"
-#include "utf_queue.h"
-#include "utf_sndmgt.h"
-#include "utf_cqmacro.h"
 #include <rdma/fabric.h>
+
+extern void	utf_scntr_free(int idx);
+extern void	utf_msgreq_free(struct utf_msgreq *req);
+extern int	utf_send_start(struct utf_send_cntr *usp, struct utf_send_msginfo *minfo);
+
+extern uint8_t		utf_rank2scntridx[PROC_MAX]; /* dest. rank to sender control index (sidx) */
+extern utfslist_t		utf_egr_sbuf_freelst;
+extern struct utf_egr_sbuf	utf_egr_sbuf[COM_SBUF_SIZE]; /* eager send buffer per rank */
+extern utofu_stadd_t	utf_egr_sbuf_stadd;
+extern utfslist_t		utf_scntr_freelst;
+extern struct utf_send_cntr	utf_scntr[SND_CNTRL_MAX]; /* sender control */
+extern struct utf_msgreq	utf_msgrq[REQ_SIZE];
+
+__attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
+void	*fi_tofu_dbgvalue;
+
+#define TFI_UTF_INIT_DONE1	0x1
+#define TFI_UTF_INIT_DONE2	0x2
+static int tfi_utf_initialized;
+
+#define REQ_SELFSEND	1
+
+static inline struct utf_egr_sbuf *
+tfi_utf_egr_sbuf_alloc(utofu_stadd_t *stadd)
+{
+    utfslist_entry_t *slst = utfslist_remove(&utf_egr_sbuf_freelst);
+    struct utf_egr_sbuf *uesp;
+    int	pos;
+    uesp = container_of(slst, struct utf_egr_sbuf, slst);
+    if (!uesp) {
+	utf_printf("%s: No more eager sender buffer\n", __func__);
+	return NULL;
+    }
+    pos = uesp - utf_egr_sbuf;
+    *stadd = utf_egr_sbuf_stadd + sizeof(struct utf_egr_sbuf)*pos;
+    return uesp;
+}
+
+static inline int
+tfi_utf_scntr_alloc(int dst, struct utf_send_cntr **uspp)
+{
+    int fc = FI_SUCCESS;
+    struct utf_send_cntr *scp;
+    uint8_t	headpos;
+    headpos = utf_rank2scntridx[dst];
+    if (headpos != 0xff) {
+	*uspp = &utf_scntr[headpos];
+    } else {
+	/* No head */
+	utfslist_entry_t *slst = utfslist_remove(&utf_scntr_freelst);
+	if (slst == NULL) {
+	    fc = -FI_ENOMEM;
+	    goto err;
+	}
+	scp = container_of(slst, struct utf_send_cntr, slst);
+	utf_rank2scntridx[dst]  = scp->mypos;
+	scp->dst = dst;
+	utfslist_init(&scp->smsginfo, NULL);
+	scp->state = S_NONE;
+	scp->flags = 0;
+	scp->svcqid = utf_info.vcqid;
+	scp->rvcqid = utf_info.vname[dst].vcqid;
+	scp->mient = 0;
+	DEBUG(DLEVEL_UTOFU) {
+	    utf_printf("%s: dst(%d) flag_path(0x%lx)\n", __func__, dst, scp->flags);
+	}
+	*uspp = scp;
+    }
+err:
+    return fc;
+}
 
 /*
  *	See also ofi_events.c in the mpich/src/mpid/ch4/netmod/ofi directory
@@ -21,52 +86,51 @@
  *		FI_ENOMSG	42
  */
 
-__attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
-void	*fi_tofu_dbgvalue;
-utfslist *dbg_uexplst;
 
-#define REQ_SELFSEND	1
-
-extern int			utf_msgmode;
-extern struct utf_msgreq	*utf_msgreq_alloc();
-extern void			utf_msgreq_free(struct utf_msgreq *req);
-extern struct utf_msglst	*utf_msglst_append(utfslist *head,
-						   struct utf_msgreq *req);
-extern char     *tofu_fi_msg_string(const struct fi_msg_tagged *msgp);
-extern char	*utf_msghdr_string(struct utf_msghdr *hdrp, void *bp);
-
-#include "utf_msgmacro.h"
-
-static char	*rstate_symbol[] = {
-    "R_FREE", "R_NONE", "R_HEAD", "R_BODY", "R_DO_RNDZ", "R_DONE"
-};
-
-static char	*sstate_symbol[] = {
-    "S_FREE", "S_NONE", "S_REQ_ROOM", "S_HAS_ROOM",
-    "S_DO_EGR", "S_DO_EGR_WAITCMPL", "S_DONE_EGR",
-    "S_REQ_RDVR", "S_RDVDONE", "S_DONE", "S_WAIT_BUFREADY"
-};
-
-void
-tofu_show_msgreq(struct utf_msgreq *req)
+char *
+utf_msghdr_string(struct utf_msghdr *hdrp, uint64_t fi_data, void *bp)
 {
-    switch(req->type) {
-    case REQ_RECV_EXPECTED:
-	utf_printf("req(%p) Expected Recv status(%d)\n", req, req->status);
-	break;
-    case REQ_RECV_UNEXPECTED:
-	utf_printf("req(%p) Unexpected Recv status(%s)\n", req, rstate_symbol[req->status]);
-	break;
-    case REQ_SND_REQ:
-	utf_printf("req(%p) Send status(%s)\n", req, sstate_symbol[req->status]);
-	break;
-    }
+    static char	buf[128];
+    snprintf(buf, 128, "src(%d) tag(0x%lx) size(%lu) data(%lu) msg(0x%lx)",
+	     hdrp->src, hdrp->tag, (uint64_t) hdrp->size, fi_data,
+	     bp != 0 ? *(uint64_t*) bp: 0);
+    return buf;
 }
 
 void
-tofu_dom_setuptinfo(struct tni_info *tinfo, struct tofu_vname *vnmp)
+tfi_dom_setuptinfo(struct tni_info *tinfo, struct tofu_vname *vnmp)
 {
     tinfo->vnamp = vnmp;
+}
+
+int
+tfi_utf_init_1(struct tofu_av *av, struct tofu_ctx *ctx, int class, struct tni_info *inf, size_t pigsz)
+{
+    int	myrank, nprocs, ppn;
+
+    utf_printf("%s: called\n", __func__);
+    if (tfi_utf_initialized & TFI_UTF_INIT_DONE1) {
+	return 0;
+    }
+    tfi_utf_initialized = TFI_UTF_INIT_DONE1;
+    utf_printf("%s: calling utf_init\n", __func__);
+    utf_init(0, NULL, &myrank, &nprocs, &ppn);
+    utf_printf("%s: returning from utf_init\n", __func__);
+    return 0;
+}
+
+void
+tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
+{
+    utf_printf("%s: called, but no needs to do something ??\n", __func__);
+}
+
+void
+tfi_utf_finalize(struct tni_info *tinfo)
+{
+    utf_printf("%s: calling utf_finalize\n", __func__);
+    utf_finalize(0);
+    utf_printf("%s: returning from utf_finalize\n", __func__);
 }
 
 /*
@@ -129,7 +193,6 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     DEBUG(DLEVEL_PROTOCOL) {
 	utf_printf("%s: cq(%p) flags = %s bufp(%p) len(%ld)\n",
 		   __func__, cq, tofu_fi_flags_string(flags), bufp, len);
-	if (bufp) utf_show_data("\tdata = ", bufp, len);
     }
     DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE len(%ld)\n", __func__, len);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
@@ -176,7 +239,8 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	utf_printf("%s: notification received req(%p)->buf(%p) "
 		   "iov_base(%p) msg=%s\n", __func__,
-		   req, req->buf, req->fi_msg[0].iov_base, utf_msghdr_string(&req->hdr, req->buf));
+		   req, req->buf, req->fi_msg[0].iov_base,
+		   utf_msghdr_string(&req->hdr, req->fi_data, req->buf));
     }
     assert(req->type == REQ_RECV_EXPECTED);
     ctx = req->fi_ctx;
@@ -187,11 +251,11 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 		       req->rsize, /* received size */
 		       req->rsize - req->expsize, /* overrun length */
 		       FI_ETRUNC, FI_ETRUNC,  /* not negative value here */
-		       req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
     } else {
 	tofu_reg_rcvcq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags, req->rsize,
-		       req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
     }
     utf_msgreq_free(req);
 }
@@ -204,7 +268,7 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 
     cq_e->op_context	= context;
     cq_e->flags		= (flags & (FI_TAGGED|FI_COMPLETION|FI_TRANSMIT_COMPLETE|FI_DELIVERY_COMPLETE|FI_RMA|FI_WRITE|FI_READ))
-			| (flags&FI_RMA) ? 0 : FI_SEND;
+	| ((flags&FI_RMA) ? 0 : FI_SEND);
     cq_e->len		= len;
     cq_e->buf		= 0;
     cq_e->data		= data;
@@ -245,22 +309,22 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     DEBUG(DLEVEL_ADHOC) utf_printf("%s: DONE\n", __func__);
     //utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
     //__func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
-    assert(req->type == REQ_SND_REQ);
+    assert(!(req->type < REQ_SND_BUFFERED_EAGER));
     ctx = req->fi_ctx;
     assert(ctx != 0);
     cq = ctx->ctx_send_cq;
     assert(cq != 0);
     tofu_reg_sndcq(cq, req->fi_ucontext, req->fi_flgs, req->hdr.size,
-		   req->hdr.data, req->hdr.tag);
+		   req->fi_data, req->hdr.tag);
     utf_msgreq_free(req);
     //utf_printf("%s: YI***** 3\n", __func__);
 }
 
 int
-tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
+tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 		      const struct fi_msg_tagged *msg, uint64_t flags)
 {
-    utfslist *explst;
+    utfslist_t *explst;
     fi_addr_t	src = msg->addr;
     uint64_t	tag = msg->tag;
     uint64_t	data = msg->data;
@@ -269,13 +333,13 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
     int	idx;
     int fc = FI_SUCCESS;
 
-    explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
+    explst = flags & FI_TAGGED ? &tfi_tag_explst : &tfi_msg_explst;
     msgsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	utf_printf("%s: flags(%s) sz(%ld) src(%ld) tag(%lx) data(%ld)\n",
 		   __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data);
     }
-    if ((idx = tofu_utf_explst_match(explst, src, tag, 0)) != -1) {/* found */
+    if ((idx = tfi_utf_explst_match(explst, src, tag, 0)) != -1) {/* found */
 	uint64_t	sndsz;
 
 	req = utf_idx2msgreq(idx);
@@ -314,19 +378,19 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
 	}
 	/* This is a naive copy. we should optimize this copy */
 	ofi_copy_from_iov(cp, msgsz, msg->msg_iov, msg->iov_count, 0);
-	req->status = REQ_DONE;
+	req->state = REQ_DONE;
 	req->buf = cp;
 	req->hdr.src = src;
 	req->hdr.tag = tag;
-	req->hdr.data = data;
+	req->fi_data = data;
 	req->hdr.size = msgsz;
 	req->rsize = msgsz;
-	req->fistatus = REQ_SELFSEND;
+	req->fistate = REQ_SELFSEND;
 	req->type = REQ_RECV_UNEXPECTED;
 	req->fi_ctx = ctx;	/* used for completion */
 	req->fi_flgs = flags;
 	req->fi_ucontext = msg->context;
-	explst = flags & FI_TAGGED ? &utf_fitag_uexplst : &utf_fimsg_uexplst;
+	explst = flags & FI_TAGGED ? &tfi_tag_uexplst : &tfi_msg_uexplst;
 	utf_msglst_append(explst, req);
     }
     /* generating send notification */
@@ -335,10 +399,10 @@ tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
     }
     req->hdr.src = src;
     req->hdr.tag = tag;
-    req->hdr.data = data;
+    req->fi_data = data;
     req->hdr.size = msgsz;
-    req->status = REQ_NONE;
-    req->type = REQ_SND_REQ;
+    req->state = REQ_NONE;
+    req->type = REQ_SND_BUFFERED_EAGER;
     req->notify = tofu_catch_sndnotify;
     req->fi_ctx = ctx;
     req->fi_flgs = flags;
@@ -348,189 +412,133 @@ err:
     return fc;
 }
 
-/* a multi-rail implementation
- * The MPI sender's vcqid and stadd is set, expose it to the MPI receiver */
-static inline void
-tofu_utf_recv_rget_expose(struct tni_info *tinfo,  struct utf_send_msginfo *minfo)
+
+static inline int
+minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct fi_msg_tagged *msg,
+	    uint64_t size, uint64_t fi_flgs, struct utf_egr_sbuf *sbufp,
+	    struct utf_send_cntr *usp, struct utf_msgreq *req)
 {
-    struct utf_vcqid_stadd *rgetaddr = &minfo->rgetaddr;
-    utofu_vcq_hdl_t	*vcqhdl = minfo->rgethndl;
-    int	i;
-    memset(rgetaddr, 0, sizeof(struct utf_vcqid_stadd));
-    utf_cqselect_rget_expose(tinfo, rgetaddr, vcqhdl, minfo);
-    for (i = 0; i < rgetaddr->nent; i++) {
-	if (rgetaddr->vcqid[i]) {
-	    rgetaddr->stadd[i] = utf_mem_reg(vcqhdl[i], minfo->usrbuf, minfo->msghdr.size);
-	} else {
-	    break;
+    int fc = FI_SUCCESS;
+    int	srnk = ctx->ctx_sep->sep_myrank;
+    minfo->msghdr.src  = srnk;
+    minfo->msghdr.tag  = msg->tag;
+    minfo->msghdr.hall = 0;
+    minfo->msghdr.size = size;
+    minfo->msghdr.flgs = MSGHDR_FLGS_FI
+	| ((fi_flgs & FI_REMOTE_CQ_DATA) ? TFI_FIFLGS_CQDATA : 0)
+	| ((fi_flgs & FI_TAGGED) ? TFI_FIFLGS_TAGGED : 0);
+    minfo->msghdr.sidx = usp->mypos; /* 8 bit */
+    minfo->mreq = req;
+    minfo->fi_context = msg->context;
+    sbufp->pkt.hdr = minfo->msghdr; /* header */
+    sbufp->pkt.pyld.fi_msg.data = msg->data; /* fi data */
+    if (size <= MSG_EAGER_PIGBACK_SZ) {
+	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER_PIGBACK;
+	if (msg->iov_count > 0) { /* if 0, null message */
+	    ofi_copy_from_iov(sbufp->pkt.pyld.fi_msg.msgdata,
+			      size, msg->msg_iov, msg->iov_count, 0);
 	}
+	sbufp->pkt.hdr.pyldsz = size;
+	req->type = REQ_SND_BUFFERED_EAGER;
+    } else if (size <= MSG_EAGER_SIZE) {
+	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
+	ofi_copy_from_iov(sbufp->pkt.pyld.fi_msg.msgdata,
+			  size, msg->msg_iov, msg->iov_count, 0);
+	sbufp->pkt.hdr.pyldsz = size;
+	req->type = REQ_SND_BUFFERED_EAGER;
+    } else if (utf_mode_msg != MSG_RENDEZOUS) {
+	if (msg->iov_count != 1) {
+	    utf_printf("%s: cannot handle message vector\n", __func__);
+	    fc = FI_EIO; goto err;
+	}
+	minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
+	minfo->usrbuf = msg->msg_iov[0].iov_base;
+	memcpy(sbufp->pkt.pyld.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ);
+	sbufp->pkt.hdr.pyldsz = MSG_FI_PYLDSZ;
+	req->type = REQ_SND_INPLACE_EAGER;
+    } else { /* rendezvous */
+	if (msg->iov_count != 1) {
+	    utf_printf("%s: cannot handle message vector\n", __func__);
+	    fc = FI_EIO; goto err;
+	}
+	minfo->cntrtype = SNDCNTR_RENDEZOUS;
+	minfo->rgetaddr.nent = 1;
+	minfo->usrbuf = msg->msg_iov[0].iov_base;
+	sbufp->pkt.pyld.rndzdata.vcqid[0]
+	    = minfo->rgetaddr.vcqid[0] = usp->svcqid;
+	sbufp->pkt.pyld.rndzdata.stadd[0]
+	    = minfo->rgetaddr.stadd[0] = utf_mem_reg(utf_info.vcqh, minfo->usrbuf, size);
+	sbufp->pkt.pyld.rndzdata.nent = 1;
+	sbufp->pkt.hdr.pyldsz = MSG_RCNTRSZ;
+	sbufp->pkt.hdr.rndz = MSG_RENDEZOUS;
+	req->type = REQ_SND_RENDEZOUS;
     }
+    minfo->sndbuf = sbufp;
+    req->hdr = minfo->msghdr; /* copy the header */
+    req->state = REQ_PRG_NORMAL;
+    req->notify = tofu_catch_sndnotify;
+    req->fi_ctx = ctx;
+    req->fi_flgs = fi_flgs;
+    req->fi_ucontext = msg->context;
+err:
+    return fc;
 }
 
 /*
  * 
  */
 int
-tofu_utf_send_post(struct tofu_ctx *ctx,
+tfi_utf_send_post(struct tofu_ctx *ctx,
 		   const struct fi_msg_tagged *msg, uint64_t flags)
 {
     int fc = FI_SUCCESS;
-    int	rc = 0;
     fi_addr_t        dst = msg->addr;
     size_t	     msgsize;
-    struct tofu_sep  *sep;
-    struct tofu_av   *av;
-    utofu_vcq_id_t	vcqh;
-    utofu_vcq_id_t   r_vcqid;
-    uint64_t	     flgs;
     struct utf_send_cntr *usp;
     struct utf_send_msginfo *minfo;
     struct utf_msgreq	*req;
     struct utf_egr_sbuf	*sbufp;
-    utfslist_entry	*ohead;
 
-    INITCHECK();
+    // INITCHECK();
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
-    /* convert destination fi_addr to utofu_vcq_id_t: r_vcqid */
-    sep = ctx->ctx_sep;
-    av = sep->sep_av_;
-    fc = tofu_av_lookup_vcqid_by_fia(av, dst, &r_vcqid, &flgs);
-    if (fc != FI_SUCCESS) { rc = fc; goto err1; }
-#if 0
-    {
-	char	buf1[128], buf2[128];
-	R_DBG("YI********* src(%d) = %s dest(%ld) = %s flgs(%ld)",
-	      ctx->ctx_sep->sep_myrank,
-	      vcqid2string(buf1, 128, ctx->ctx_sep->sep_myvcqid),
-	      dst, vcqid2string(buf2, 128, r_vcqid), flgs);
+    if ((req = utf_msgreq_alloc()) == NULL) {
+	/*rc = UTF_ERR_NOMORE_REQBUF; */
+	fc = -FI_ENOMEM; goto err1;
     }
-#endif
-    /* sender control structure is allocated for the destination */
-    usp = utf_scntr_alloc(dst, r_vcqid, flgs);
-    // usp->av = av; this field is set at the initialization time. 2020/06/27
-    if (usp == NULL) {
-	/* rc = ERR_NOMORE_SNDCNTR; */
-	fc = -FI_ENOMEM;
-	goto err1;
+    /* av = ctx->ctx_sep->sep->sep_av */
+    fc = tfi_utf_scntr_alloc(dst, &usp);
+    if (fc != FI_SUCCESS) goto err2;
+    /* wait for completion of previous send massages */
+retry:
+    minfo = &usp->msginfo[usp->mient];
+    if (minfo->cntrtype != SNDCNTR_NONE) {
+	tfi_utf_progress(NULL);
+	goto retry;
     }
-    /*
-     * sender buffer is allocated, whose size is only 1920 Byte:
-     *	   2 B for payload size
-     *	  32 B for FI header
-     *	1885 B for FI message (MSG_EAGER_SIZE)
-     * If the message size is more than 1885 byte, 
-     * the user's buf area is pinned down (utf_mem_reg) and its
-     * steering address is registered 
-     */
-    if ((minfo = utf_sndminfo_alloc()) == NULL) { // rc = ERR_NOMORE_MINFO;
-	fc = -FI_ENOMEM; goto err2;
-    }
-    memset(minfo, 0, sizeof(*minfo));
-    minfo->sndbuf = sbufp = utf_egrsbuf_alloc(&minfo->sndstadd);
-    if (sbufp == NULL) { // rc = ERR_NOMORE_SNDBUF;
+    usp->mient = (usp->mient + 1) % COM_SCNTR_MINF_SZ;
+    sbufp = (minfo->sndbuf == NULL) ?
+	tfi_utf_egr_sbuf_alloc(&minfo->sndstadd) : minfo->sndbuf;
+    if (sbufp == NULL) {/*rc = UTF_ERR_NOMORE_SNDBUF;*/
+	utf_printf("%s: usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
 	fc = -FI_ENOMEM; goto err3;
     }
-    if ((req = utf_msgreq_alloc()) == NULL) { // rc = ERR_NOMORE_REQBUF;
-	fc = -FI_ENOMEM; goto err4;
+    fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
+    if (fc != FI_SUCCESS) goto err3;
+    if (usp->state == S_NONE) {
+	utf_send_start(usp, minfo);
     }
-    minfo->msghdr.src = ctx->ctx_sep->sep_myrank; /* 64 bit */
-    minfo->msghdr.tag = msg->tag; /* 64 bit */
-    minfo->msghdr.size = msgsize; /* 64 bit */
-    if (flags & FI_REMOTE_CQ_DATA) {
-	minfo->msghdr.data = msg->data; /* 64 bit */
-    }
-    minfo->msghdr.flgs = flags;
-    minfo->mreq = req;
-    minfo->context = msg->context;
-    req->hdr = minfo->msghdr; /* copy the header */
-    req->status = REQ_NONE;
-    req->type = REQ_SND_REQ;
-    req->notify = tofu_catch_sndnotify;
-    req->fi_ctx = ctx;
-    req->fi_flgs = flags;
-    req->fi_ucontext = msg->context;
-    /* header copy */
-    bcopy(&minfo->msghdr, &sbufp->msgbdy.payload.h_pkt.hdr,
-	  sizeof(struct utf_msghdr));
-    if (msgsize <= CONF_TOFU_INJECTSIZE) {
-	//minfo->usrstadd = 0;
-	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
-	sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(msgsize);
-	sbufp->msgbdy.ptype = PKT_EAGER;
-	/* message copy */
-	if (msg->iov_count > 0) { /* if 0, null message */
-	    ofi_copy_from_iov(sbufp->msgbdy.payload.h_pkt.msgdata,
-			      msgsize, msg->msg_iov, msg->iov_count, 0);
-	}
-    } else {
-	void	*msgdtp = msg->msg_iov[0].iov_base;
-	/* We only handle one vector length so far ! */
-	if (msg->iov_count != 1) {
-	    utf_printf("%s: cannot handle message vector\n", __func__);
-	    fc = FI_EIO;
-	    goto err4;
-	}
-	if (utf_msgmode != MSG_RENDEZOUS) { /* Eager in-place*/
-	    DEBUG(DLEVEL_PROTO_EAGER) {
-		utf_printf("EAGER INPLACE\n");
-	    }
-	    minfo->usrbuf = msgdtp;
-	    bcopy(minfo->usrbuf, sbufp->msgbdy.payload.h_pkt.msgdata, MSG_EAGER_SIZE);
-	    sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(MSG_EAGER_SIZE);
-	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
-	    sbufp->msgbdy.ptype = PKT_EAGER;
-	} else { /* Rendezvous */
-	    /* rget initialization for MPI sender side */
-	    minfo->usrbuf = msgdtp;
-	    tofu_utf_recv_rget_expose(ctx->ctx_tinfo, minfo);
-	    minfo->cntrtype = SNDCNTR_RENDEZOUS;
-	    /* packet body for request remote get: msgbdy <-- rgetaddr */
-	    memcpy(&RNDZ_RADDR(&sbufp->msgbdy), &minfo->rgetaddr,
-		   sizeof(struct utf_vcqid_stadd)); /* my stadd's and vcqid's */
-	    sbufp->msgbdy.psize = MSG_MAKE_PKTSIZE(PAYLOAD_REQRNDZ_SIZE);
-	    sbufp->msgbdy.ptype = PKT_RENDZ;
-	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		utf_printf("%s: RENDEZOUS\n", __func__);
-		utf_show_vcqid_stadd(&sbufp->msgbdy.payload.h_pkt.rndzdata);
-	    }
-	}
-    }
-    vcqh = sep->sep_myvcqh;
-    {
-	utofu_vcq_id_t	tvcqh;
-	utf_cqselect_sendone(ctx->ctx_tinfo, &tvcqh, MSG_GET_PLDSIZE(minfo->sndbuf->msgbdy.psize),
-			     &minfo->tni_msgs);
-	// utf_printf("%s: vcqh(%lx) tvcqh(%lx) msgsize(%ld)\n", __func__, vcqh, tvcqh, msgsize);
-    }
-    /* for utf progress */
-    ohead = utfslist_append(&usp->smsginfo, &minfo->slst);
-    DEBUG(DLEVEL_CHAIN|DLEVEL_ADHOC) utf_printf("%s: dst(%d) tag(%lx) sz(%ld)  hd(%p)\n", __func__, dst, msg->tag, msgsize, ohead);
-    // utf_printf("%s: YI!!!!! ohead(%p) usp->smsginfo(%p) &minfo->slst=(%p)\n", __func__, ohead, usp->smsginfo, &minfo->slst);
-    //fi_tofu_dbgvalue = ohead;
-    if (ohead == NULL) { /* this is the first entry */
-	rc = utf_send_start(av, vcqh, usp);
-	if (rc != 0) {
-	    fc = FI_EIO;
-	}
-    }
-#if 0
-    /* progress */
-    utf_progress(sep->sep_dom->tinfo);
-#endif
     return fc;
-err4:
-    utf_msgreq_free(req);
 err3:
-    utf_sndminfo_free(minfo);
-err2:
     utf_scntr_free(dst);
+err2:
+    utf_msgreq_free(req);
 err1:
     utf_printf("%s: YI***** return error(%d)\n", __func__, fc);
     return fc;
 }
 
 int
-tofu_utf_recv_post(struct tofu_ctx *ctx,
+tfi_utf_recv_post(struct tofu_ctx *ctx,
 		  const struct fi_msg_tagged *msg, uint64_t flags)
 {
     int	fc = FI_SUCCESS;
@@ -540,27 +548,24 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	tag = msg->tag;
     uint64_t	data = msg->data;
     uint64_t	ignore = msg->ignore;
-    utfslist *uexplst;
+    utfslist_t *uexplst;
 
     DEBUG(DLEVEL_ADHOC|DLEVEL_CHAIN) utf_printf("%s: src(%ld)\n", __func__, src);
-    //utf_printf("%s: ctx(%p)->ctx_recv_cq(%p)\n", __func__, ctx, ctx->ctx_recv_cq);
-    //R_DBG("ctx(%p) msg(%s) flags(%lx) = %s",
-    //ctx, tofu_fi_msg_string(msg), flags, tofu_fi_flags_string(flags));
     if (flags & FI_TAGGED) {
-	uexplst =  &utf_fitag_uexplst;
+	uexplst =  &tfi_tag_uexplst;
 	if ((flags & FI_PEEK) && ~(flags & FI_CLAIM)) {
 	    /* tagged message with just FI_PEEK option */
 	    peek = 1;
 	} /* else, non-tagged or tagged message with FI_PEEK&FI_CLAIM option */
     } else {
-	uexplst = &utf_fimsg_uexplst;
+	uexplst = &tfi_msg_uexplst;
     }
     DEBUG(DLEVEL_ADHOC) {
 	utf_printf("%s: exp src(%d) tag(%lx) data(%lx) ignore(%lx) flags(%s)\n",
 		   __func__, src, tag, data, ignore,
 		   tofu_fi_flags_string(flags));
     }
-    if ((idx=tofu_utf_uexplst_match(uexplst, src, tag, ignore, peek)) != -1) {
+    if ((idx=tfi_utf_uexplst_match(uexplst, src, tag, ignore, peek)) != -1) {
 	/* found in unexpected queue */
 	size_t	sz;
 	size_t  msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
@@ -568,7 +573,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 
 	req = utf_idx2msgreq(idx);
 	DEBUG(DLEVEL_ADHOC) utf_printf("\tfound src(%d)\n", src);
-	if (req->status == REQ_WAIT_RNDZ && req->ptype) { /* rendezous */
+	if (req->state == REQ_WAIT_RNDZ) { /* rendezous */
 	    struct utf_recv_cntr *ursp = req->rcntr;
 	    if (peek == 1) {
 		/* A control message has arrived in the unexpected queue,
@@ -582,20 +587,15 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    req->fi_ucontext = msg->context;
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED;
-	    req->rsize = 0;
-	    DEBUG(DLEVEL_PROTO_RENDEZOUS) {
-		utf_printf("%s: rget_start req(%p) idx(%d) src(%ld)\n", __func__, req, idx, req->hdr.src);
-	    }
-	    /* Here is a multi-rail implementation.
-	     *	req->rgetsender has been set by utf_recvengine.
-	     */
-	    utf_rget_start(ctx->ctx_tinfo, msg->msg_iov[0].iov_base, msgsize, ursp, R_DO_RNDZ);
+	    req->buf = msg->msg_iov[0].iov_base;
+	    req->expsize = msgsize;
+	    rget_start(ursp, req);
 	    if (peek == 1) {
 		fc = -FI_ENOMSG;
 	    }
 	    goto ext;
 	}
-	if (req->status != REQ_DONE) {
+	if (req->state != REQ_DONE) {
 	    /* return value is -FI_ENOMSG */
 	    goto req_setup;
 	}
@@ -614,7 +614,7 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	    /* reclaim unexpected resources */
 #if 0	/* at this time the message has been copied */
 	    if (req->fistatus == REQ_SELFSEND) {
-		/* This request has been created by tofu_utf_sendmsg_self */
+		/* This request has been created by tfi_utf_sendmsg_self */
 		/* generating completion event to sender CQ  */
 		tofu_reg_sndcq(((struct tofu_ctx*)(req->fi_ctx))->ctx_send_cq,
 			       req->fi_ucontext,
@@ -635,7 +635,9 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 	//utf_printf("%s: done src(%d)\n", __func__, src);
 	/* CQ is immediately generated */
 	/* sender's flag or receiver's flag */
-	myflags = req->hdr.flgs | flags;
+	myflags = (req->hdr.flgs & TFI_FIFLGS_CQDATA ? FI_REMOTE_CQ_DATA : 0);
+	myflags |= (req->hdr.flgs & TFI_FIFLGS_TAGGED ? FI_TAGGED : 0);
+	myflags |= flags;
 	if (peek == 0 && (sz < req->rsize)) {
 	    /* overrun */
 	    utf_printf("%s: overrun expected size(%ld) req->rsize(%ld)\n", __func__, msgsize, req->rsize);
@@ -643,21 +645,21 @@ tofu_utf_recv_post(struct tofu_ctx *ctx,
 			   sz, /* received message size */
 			   req->rsize - msgsize, /* overrun length */
 			   FI_ETRUNC, FI_ETRUNC, /* not negative value here */
-			   req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+			   req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
 	} else {
 	    if (peek == 1 && msgsize == 0) {
 		tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, req->rsize,
-			       req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+			       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
 	    } else {
 		tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, sz,
-			       req->fi_msg[0].iov_base, req->hdr.data, req->hdr.tag);
+			       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
 	    }
 	}
 	goto ext;
     }
 req_setup:
     if (peek == 0) { /* register this request to the expected queue if it is new */
-	utfslist *explst;
+	utfslist_t *explst;
 	struct utf_msglst *mlst;
 	size_t	i;
 
@@ -667,10 +669,11 @@ req_setup:
 		fc = -FI_ENOMEM; goto ext;
 	    }
 	    req->hdr.src = src;
-	    req->hdr.data = data;
+	    /* req->hdr.size will be set at the message arrival */
+	    req->fi_data = data;
 	    req->hdr.tag = tag;
 	    req->rsize = 0;
-	    req->status = R_NONE;
+	    req->state = R_NONE;
 	    req->expsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 	    req->fi_iov_count = msg->iov_count;
 	    for (i = 0; i < msg->iov_count; i++) {
@@ -696,9 +699,9 @@ req_setup:
 		utf_free(req->buf);
 		req->buf = 0;
 	    }
-	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->status);
+	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->state);
 	}
-	if (req->expsize > CONF_TOFU_INJECTSIZE && utf_msgmode == MSG_RENDEZOUS) {
+	if (req->expsize > CONF_TOFU_INJECTSIZE && utf_mode_msg == MSG_RENDEZOUS) {
 	    /* rendezous */
 	    if (msg->iov_count > 1) {
 		utf_printf("%s: iov is not supported now\n", __func__);
@@ -711,18 +714,18 @@ req_setup:
 	req->notify = tofu_catch_rcvnotify;
 	req->fi_ctx = ctx;
 	req->fi_flgs = flags;
-	req->fistatus = 0;
+	req->fistate = 0;
 	req->fi_ucontext = msg->context;
 
-	if (req->status == R_NONE) {
-	    explst = flags & FI_TAGGED ? &utf_fitag_explst : &utf_fimsg_explst;
+	if (req->state == R_NONE) {
+	    explst = flags & FI_TAGGED ? &tfi_tag_explst : &tfi_msg_explst;
 	    mlst = utf_msglst_append(explst, req);
 	    mlst->fi_ignore = ignore;
 	    mlst->fi_context = msg->context;
 	    DEBUG(DLEVEL_ADHOC) utf_printf("%s:\tregexp src(%d) sz(%ld)\n", __func__, src, req->expsize);
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
-			   __func__, req->expsize, explst == &utf_fitag_explst ? "TAGGED": "REGULAR");
+			   __func__, req->expsize, explst == &tfi_tag_explst ? "TAGGED": "REGULAR");
 		utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
 	    }
 	}
@@ -750,7 +753,7 @@ req_setup:
 ext:
 #if 0
     /* progress */
-    utf_progress(ctx->ctx_sep->sep_dom->tinfo);
+    tfi_utf_progress(ctx->ctx_sep->sep_dom->tinfo);
 #endif
     return fc;
 }
@@ -925,10 +928,8 @@ bad:
     return fc;
 }
 
-extern utfslist utf_wait_rmacq;
-
 ssize_t
-tofu_utf_read_post(struct tofu_ctx *ctx,
+tfi_utf_read_post(struct tofu_ctx *ctx,
 		   const struct fi_msg_rma *msg, uint64_t flags)
 {
     ssize_t	fc = 0;
@@ -953,14 +954,15 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
 	remote_get(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_READ;
-	utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
+	utf_rmacq_waitappend(rma_cq);
+	//utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
     }
 #if 0
     {
 	int i;
 	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
 	for (i = 0; i < 10; i++) {
-	    utf_progress(tinfo);
+	    tfi_utf_progress(tinfo);
 	    usleep(10000);
 	}
     }
@@ -969,7 +971,7 @@ tofu_utf_read_post(struct tofu_ctx *ctx,
 }
 
 ssize_t
-tofu_utf_write_post(struct tofu_ctx *ctx,
+tfi_utf_write_post(struct tofu_ctx *ctx,
 		   const struct fi_msg_rma *msg, uint64_t flags)
 {
     ssize_t	fc = 0;
@@ -997,27 +999,16 @@ tofu_utf_write_post(struct tofu_ctx *ctx,
 	remote_put(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_WRITE;
-	utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
-#if 0
-	struct utf_send_cntr *usp;
-	utfslist_entry	*ohead;
-	usp = utf_scntr_alloc(rma_cq->addr, rma_cq->rvcqid, rma_cq->utf_flgs);
-	ohead = utfslist_append(&usp->rmawaitlst, &rma_cq->slst);
-	if (ohead ==NULL) {
-	    utf_rmwrite_engine(vcqh, usp);
-	}
-#endif
+	utf_rmacq_waitappend(rma_cq);
     }
-//#if 0
     {
 	int i;
 	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
 	
 	for (i = 0; i < 10; i++) {
-	    utf_progress(tinfo);
+	    tfi_utf_progress(tinfo);
 	    //usleep(100);
 	}
     }
-//#endif
     return fc;
 }

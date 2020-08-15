@@ -91,7 +91,7 @@ bad:
 }
 
 static int
-tofu_imp_uri2long(const char *uri, uint8_t *xyzabc,  uint16_t *cid, long *tniq)
+tofu_imp_uri2long(const char *uri, union jtofu_phys_coords *xyzabc,  uint16_t *cid, long *tniq)
 {
     int ret = 0;
 
@@ -101,14 +101,14 @@ tofu_imp_uri2long(const char *uri, uint8_t *xyzabc,  uint16_t *cid, long *tniq)
         uint32_t cid32;
 
 	rc = sscanf(uri, "t://%hhd.%hhd.%hhd.%hhd.%hhd.%hhd.%x/;q=",
-		    &xyzabc[0], &xyzabc[1], &xyzabc[2],
-                    &xyzabc[3], &xyzabc[4], &xyzabc[5], &cid32);
+		    &xyzabc->s.x, &xyzabc->s.y, &xyzabc->s.z,
+                    &xyzabc->s.a, &xyzabc->s.b, &xyzabc->s.z, &cid32);
         *cid = cid32;
 	if (rc != 7) {
 	    R_DBG("# of entries != 7 uri=%s\n", uri);
 	    ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	}
-	if (xyzabc[3] >= 2 || xyzabc[4] >= 3  || xyzabc[5] >= 2) {
+	if (xyzabc->s.a >= 2 || xyzabc->s.b >= 3  || xyzabc->s.c >= 2) {
 	    R_DBG("xyzabc violarion uri=%s\n", uri);
 	    ret = -FI_EINVAL /* -__LINE__ */; goto bad;
 	}
@@ -142,7 +142,7 @@ tofu_impl_uri2name(const void *vuri, size_t index,  struct tofu_vname *vnam)
 
    
     cp = (const char *)vuri + (index * 64 /* FI_NAME_MAX */ );
-    nv = tofu_imp_uri2long(cp, vnam->xyzabc, &cid, tniq);
+    nv = tofu_imp_uri2long(cp, &vnam->xyzabc, &cid, tniq);
     if (nv < 0) {
 	fc = nv; goto bad;
     }

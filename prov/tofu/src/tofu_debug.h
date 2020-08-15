@@ -9,9 +9,10 @@
 #include <utofu.h>
 
 extern char	*tofu_fi_flags_string(uint64_t flags);
+struct fi_msg_tagged;
+extern char     *tofu_fi_msg_string(const struct fi_msg_tagged *msgp);
 extern char     *tofu_fi_class_string[];
 
-extern int mypid, myrank, nprocs;
 extern int rdbgf, rdbgl;
 
 #define RDEBUG 1
@@ -34,14 +35,14 @@ extern int rdbgf, rdbgl;
 #define R_DBG(format, ...)                                              \
    do {                                                                 \
        fprintf(stderr, "[%d]:%d:%s:%d " format " in %s\n",              \
-               myrank, mypid, __func__, __LINE__, __VA_ARGS__, __FILE__);\
+               utf_info.myrank, utf_info.mypid, __func__, __LINE__, __VA_ARGS__, __FILE__);\
        fflush(stderr);                                                  \
    } while (0)
 
 #define R_DBGMSG(format)                                                \
    do {									\
        fprintf(stderr, "[%d]:%d:%s:%d " format " in %s\n",              \
-               myrank, mypid, __func__, __LINE__, __FILE__);            \
+               utf_info.myrank, utf_info.mypid, __func__, __LINE__, __FILE__);            \
        fflush(stderr);                                                  \
    } while (0)
 
@@ -51,12 +52,12 @@ extern int rdbgf, rdbgl;
    do {									\
 	   if (rdbgf & 0x01 && level & rdbgl) {                         \
 		   printf("\t[%d]:%d: " format " in %s:%d\n",		\
-			  myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
+			  utf_info.myrank, utf_info.mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stdout);					\
            }                                                            \
 	   if (rdbgf & 0x02 && level & rdbgl) {                         \
 		   fprintf(stderr, "[%d]:%d: " format " in %s:%d\n",	\
-			   myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
+			   utf_info.myrank, utf_info.mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stderr);					\
 	   }								\
    } while (0)
@@ -66,12 +67,12 @@ extern int rdbgf, rdbgl;
 	    char buf1[128];						\
             if (rdbgf & 0x01 && level & rdbgl) {                        \
 		    printf("\t[%d]:%d: " format " in %s:%d\n",		\
-			   myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
+			   utf_info.myrank, utf_info.mypid, __VA_ARGS__, __func__, __LINE__); \
 		    fflush(stdout);					\
             }                                                           \
             if (rdbgf & 0x02 && level & rdbgl) {                        \
 	    fprintf(stderr, "[%d]:%d: " format " in %s:%d\n",		\
-                    myrank, mypid, __VA_ARGS__, __func__, __LINE__);	\
+                    utf_info.myrank, utf_info.mypid, __VA_ARGS__, __func__, __LINE__);	\
 		    fflush(stderr);					\
 	    }								\
     } while (0)
@@ -81,12 +82,12 @@ extern int rdbgf, rdbgl;
 	   char buf1[128], buf2[128];					\
            if (rdbgf & 0x01 && level & rdbgl) {                         \
 		   printf("\t[%d]:%d:" format " in %s:%d\n",		\
-			  myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
+			  utf_info.myrank, utf_info.mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stdout);					\
            }                                                            \
            if (rdbgf & 0x02 && level & rdbgl) {                         \
 		   fprintf(stderr, "[%d]:%d:" format " in %s:%d\n",	\
-                           myrank, mypid, __VA_ARGS__, __func__, __LINE__); \
+                           utf_info.myrank, utf_info.mypid, __VA_ARGS__, __func__, __LINE__); \
 		   fflush(stderr);					\
 	   }								\
    } while (0)
@@ -102,7 +103,7 @@ static inline void desc_dump(void *desc, size_t sz)
 {
     int		i;
     unsigned long	*ui = desc;
-    printf("[%d] desc(%2ld) ", mypid, sz);
+    printf("[%d] desc(%2ld) ", utf_info.mypid, sz);
     for (i = 0; i < sz; i += 8) {
 	printf(":%016lx", *ui++);
     }

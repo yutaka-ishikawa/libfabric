@@ -165,7 +165,7 @@ tofu_ce_atm_notify_self(struct tofu_ctx *ctx_priv_tx,
                         const struct tofu_atm_arg *aarg)
 {
     // struct fi_cq_tagged_entry cqe[1];
-    uint64_t    flags;
+    //uint64_t    flags;
 
     R_DBGMSG("YI******\n");
     /* The atomic operation queue/counter is the sender side */
@@ -177,9 +177,9 @@ tofu_ce_atm_notify_self(struct tofu_ctx *ctx_priv_tx,
      *     This flag may be combined with an FI_READ, FI_WRITE,
      *     FI_REMOTE_READ, or FI_REMOTE_WRITE flag.
      */
+#if 0
     flags = (aarg->msg->op == FI_ATOMIC_READ) ?
                         (FI_ATOMIC|FI_READ) : (FI_ATOMIC|FI_WRITE);
-#if 0
     ulib_init_cqe(cqe, aarg->msg->context, flags,
                   wlen, 0, aarg->msg->data, 0);
     ulib_notify_sndcmpl_cq(ctx_priv_tx->ctx_send_cq, NULL, cqe);

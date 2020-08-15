@@ -107,63 +107,57 @@ struct fi_provider *fi_prov_ini(void)
 /**************************************************************************/
 extern void utf_redirect();
 extern int utf_dbg_progress(int);
-int mypid, myrank, nprocs;
 int rdbgf;
 int rdbgl;
 
 TOFU_INI
 {
+    char *cp;
     FI_INFO(&tofu_prov, FI_LOG_DEBUG, "\n**** TOFU INIT ****\n");
 #ifndef NDEBUG
     // fprintf(stderr, "**** Debug option is enable\n"); fflush(stderr);
 #endif /* ~NDEBUG */
-    mypid = getpid();
-    myrank = -1; /* will be initialized later */
     {
-        char *cp;
-        cp = getenv("TOFU_DEBUG_LVL");
-        if (cp) {
-	    if (!strncmp(cp, "0x", 2)) {
-		sscanf(cp, "%x", &rdbgl);
-            } else {
-                rdbgl = atoi(cp);
-            }
-        }
-        cp = getenv("TOFU_DEBUG_FD");
-        if (cp) {
-            rdbgf = atoi(cp);
-            utf_redirect();
-        }
-        cp = getenv("TOFU_NAMED_AV");
-        if (cp) {
-            extern int tofu_av_named;
-            tofu_av_named = atoi(cp);
-        }
-        cp = getenv("UTF_MRAIL");
-        if (cp) {
-            extern int utf_mrail;
-            utf_mrail = atoi(cp);
+        int	myrank, nprocs, ppn;
+        utf_printf("%s: YI!!! CALLING utf_init\n", __func__);
+        utf_init(0, NULL, &myrank, &nprocs, &ppn);
+        utf_printf("%s: YI!!! RETURNING from utf_init\n", __func__);
+    }
+    {
+        extern utofu_stadd_t	utf_egr_rbuf_stadd;
+        utf_printf("TOFU: eager receive buffer addresses:\n"
+                   " utf_egr_rbuf : 0x%lx (stadd: 0x%lx)"
+                   " utf_egr_rbuf.rbuf[0] : 0x%lx (stadd: 0x%lx)"
+                   " utf_egr_rbuf.rbuf[%d*126] : 0x%lx (stadd: 0x%lx)"
+                   " utf_egr_rbuf.rbuf[%d*%d] : 0x%lx\n",
+                   &utf_egr_rbuf, utf_egr_rbuf_stadd,
+                   &utf_egr_rbuf.rbuf, utf_egr_rbuf_stadd,
+                   COM_RBUF_SIZE, &utf_egr_rbuf.rbuf[COM_RBUF_SIZE*126],
+                   utf_egr_rbuf_stadd + (uint64_t)&((struct utf_egr_rbuf*)0)->rbuf[COM_RBUF_SIZE*126],
+                   COM_RBUF_SIZE, RCV_CNTRL_MAX, &utf_egr_rbuf.rbuf[COM_RBUF_SIZE*RCV_CNTRL_MAX]);
+    }
+    cp = getenv("TOFU_DEBUG_LVL");
+    if (cp) {
+        if (!strncmp(cp, "0x", 2)) {
+            sscanf(cp, "%x", &rdbgl);
+        } else {
+            rdbgl = atoi(cp);
         }
     }
-#if 0
-#ifndef TSIM  /* This is only for real-machines, not a simulated environment */
-    {
-	jtofu_job_id_t	j_id;
-	j_id = generate_hash_string(pmix_proc->nspace);
-	jtofu_initialize(j_id, pmix_proc->rank, v->data.bo.bytes);
+    cp = getenv("TOFU_DEBUG_FD");
+    if (cp) {
+        rdbgf = atoi(cp);
+        utf_redirect();
     }
-#endif
-#endif
-#ifdef TOFU_SIM_BUG
-    {
-        extern void wa_init();
-        fprintf(stderr, "[%d]\t*** utofu on tlib debug workaround is enable\n", mypid);
-        fflush(stderr);
-        printf("[%d] *** utofu on tlib debug workaround is enable\n", mypid);
-        fflush(stdout);
-        wa_init();
+    cp = getenv("TOFU_NAMED_AV");
+    if (cp) {
+        extern int tofu_av_named;
+        tofu_av_named = atoi(cp);
     }
-#endif
+    cp = getenv("UTF_MRAIL");
+    if (cp) {
+        utf_mode_mrail = atoi(cp);
+    }
     return &tofu_prov;
 }
 
@@ -179,7 +173,6 @@ void fi_tofu_setdopt(int flg, int lvl)
 __attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
 int fi_tofu_cntrl(int cmd, ...)
 {
-    extern void utf_show_recv_cntr(FILE*);
     va_list	ap;
     int     iarg1, iarg2;
     int		rc = 0;
@@ -194,20 +187,17 @@ int fi_tofu_cntrl(int cmd, ...)
         break;
     case 2:
         iarg1 = va_arg(ap, int);
-        utf_show_recv_cntr(iarg1 == 1 ? stdout : stderr);
+        utf_recvcntr_show(iarg1 == 1 ? stdout : stderr);
         break;
     case 3:
         iarg1 = va_arg(ap, int);
         iarg2 = va_arg(ap, int);
-        if (iarg2 == myrank) {
-            utf_show_recv_cntr(iarg1 == 1 ? stdout : stderr);
+        if (iarg2 == utf_info.myrank) {
+            utf_recvcntr_show(iarg1 == 1 ? stdout : stderr);
         }
         break;
     case 4:
-    {
-        extern void utf_show_cqtab();
-        utf_show_cqtab();
-    }
+        utf_cqtab_show();
         break;
     }
     va_end(ap);

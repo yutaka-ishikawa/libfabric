@@ -284,7 +284,7 @@ tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
 	goto skip_checks;
     }
     FI_INFO(&tofu_prov, FI_LOG_DEBUG,
-            "hints: 0x%p"
+            "[%d] hints: 0x%p"
             "\tsrc_addr: 0x%p\n"
             "\tdest_addr: 0x%p\n"
             "\ttx_attr: 0x%p\n"
@@ -298,7 +298,7 @@ tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
             "\tfabric_attr->name: 0x%p\n"
             "\tfabric_attr->prov_name: 0x%p\n"
             "\tnic: 0x%p\n",
-            hints, hints->src_addr, hints->dest_addr, hints->tx_attr,
+            getpid(), hints, hints->src_addr, hints->dest_addr, hints->tx_attr,
             hints->rx_attr, hints->ep_attr,
             hints->ep_attr ? hints->ep_attr->auth_key : 0,
             hints->domain_attr,

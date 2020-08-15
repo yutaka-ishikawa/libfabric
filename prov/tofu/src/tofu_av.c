@@ -2,7 +2,6 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
-#include "utflib.h"
 #include "tofu_addr.h"
 
 #include <stdlib.h>	    /* for calloc(), free */
@@ -35,13 +34,9 @@ tofu_av_close(struct fid *fid)
     if (ofi_atomic_get32( &av_priv->av_ref ) != 0) {
 	fc = -FI_EBUSY; goto bad;
     }
-    if (myrank == 0) {
-        /* for debugging */
-        extern void	utf_show_vcqid(FILE*);
-	fprintf(stderr, "list of vcqid\n");
-	utf_show_vcqid(stderr); fflush(stderr);
-    }
     /* tab */
+    fprintf(stderr, "%s: vname will be freed in UTF\n", __func__);
+#if 0
     for (i = 0; i < CONF_TOFU_ATTR_MAX_EP_TXRX_CTX; i++) {
         if (av_priv->av_tab[i].vnm != 0) {
             free(av_priv->av_tab[i].vnm); av_priv->av_tab[i].vnm = 0;
@@ -49,6 +44,7 @@ tofu_av_close(struct fid *fid)
         av_priv->av_tab[i].nct = 0;
         av_priv->av_tab[i].mct = 0;
     }
+#endif /**/
     /**/
     fastlock_destroy(&av_priv->av_lck);
     free(av_priv);
@@ -126,14 +122,15 @@ tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
         // R_DBG("fi_addr[%ld] = %ld ==> vcqid(%lx)", ic, fi_addr[ic], vcqid);
     }
     /* setup vnamep of tinfo */
-    tofu_dom_setuptinfo(av->av_dom->tinfo, avtp->vnm);
+    tfi_dom_setuptinfo(av->av_dom->tinfo, avtp->vnm);
     /* My rank must be resolved here */
     av->av_sep->sep_myrank
         = tofu_av_lookup_rank_by_vcqid(av, av->av_sep->sep_myvcqid);
-    myrank = av->av_sep->sep_myrank;
-    nprocs = count;
+    utf_info.myrank = av->av_sep->sep_myrank;
+    utf_info.nprocs = count;
+    utf_printf("%s: NEEDS to resolve NNP!!\n", __func__);
     /* fastlock_release(&av->av_lck); */
-    utf_init_2(av, av->av_sep->sep_dom->tinfo, avtp->nct);
+    tfi_utf_init_2(av, av->av_sep->sep_dom->tinfo, avtp->nct);
 bad:
     return fc;
 }
@@ -289,13 +286,13 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
             }
         }
         /* setup vnamep of tinfo */
-        tofu_dom_setuptinfo(dom->tinfo, vnam);
-        /* My rank and nprocs are set here */
-        myrank = rank;
-        // myrank = av->av_sep->sep_myrank; must be set in av_sep field
-        nprocs = np;
-        R_DBG("myrank(%d) nprocs(%d) fc(%d)", myrank, nprocs, fc);
+        tfi_dom_setuptinfo(dom->tinfo, vnam);
+        R_DBG("myrank(%d) nprocs(%d) fc(%d)", utf_info.myrank, utf_info.nprocs, fc);
         /* fastlock_release(&av->av_lck); */
+    }
+    if (utf_info.myrank == 0) { /* for debugging */
+	fprintf(stderr, "%s: VNAME\n", __func__);
+	utf_vname_show(stderr);
     }
     /* return fid_dom */
     fid_av_[0] = &av->av_fid;

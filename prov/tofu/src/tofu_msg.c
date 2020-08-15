@@ -1,15 +1,14 @@
 #include "tofu_impl.h"
 #include "tofu_addr.h"
-#include "utflib.h"
 #include <rdma/fabric.h>
 
-extern int	tofu_utf_sendmsg_self(struct tofu_ctx *ctx,
+extern int	tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 				      const struct fi_msg_tagged *msg,
 				      uint64_t flags);
-extern int	tofu_utf_send_post(struct tofu_ctx *ctx,
+extern int	tfi_utf_send_post(struct tofu_ctx *ctx,
 				   const struct fi_msg_tagged *msg,
 				   uint64_t flags);
-extern int	tofu_utf_recv_post(struct tofu_ctx *ctx,
+extern int	tfi_utf_recv_post(struct tofu_ctx *ctx,
 				   const struct fi_msg_tagged *msg,
 				   uint64_t flags);
 
@@ -18,7 +17,7 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
 {
     struct tofu_ctx *ctx_priv;
     struct tofu_av *av_priv;
-    utofu_vcq_id_t vcqi;
+    utofu_vcq_id_t vcqi = 0;
     uint8_t xyz[8];
     uint16_t tni[1], tcq[1], cid[1];
     int uc;
@@ -43,7 +42,7 @@ fi_addr2string(char *buf, ssize_t sz, fi_addr_t fi_addr, struct fid_ep *fid_ep)
 }
 
 
-static ssize_t
+static inline ssize_t
 tofu_ctx_msg_recv_common(struct fid_ep *fid_ep,
                          const struct fi_msg_tagged *msg,
                          uint64_t flags)
@@ -57,6 +56,13 @@ tofu_ctx_msg_recv_common(struct fid_ep *fid_ep,
             msg->msg_iov ? msg->msg_iov[0].iov_base : 0,
             msg->msg_iov ? msg->msg_iov[0].iov_len : 0, flags,
             msg->context, __FILE__);
+#if 0
+    utf_printf("%s: src(%ld) iovcount(%ld) buf(%p) size(%ld) flags(0x%lx) cntxt(%p)\n",
+	       __func__, msg->addr, msg->iov_count, 
+	       msg->msg_iov ? msg->msg_iov[0].iov_base : 0,
+	       msg->msg_iov ? msg->msg_iov[0].iov_len : 0, flags,
+	       msg->context);
+#endif
     if (msg->iov_count > TOFU_IOV_LIMIT) {
 	ret = -FI_E2BIG; goto bad;
     }
@@ -71,7 +77,7 @@ tofu_ctx_msg_recv_common(struct fid_ep *fid_ep,
     }
     ctx = container_of(fid_ep, struct tofu_ctx, ctx_fid);
     fastlock_acquire(&ctx->ctx_lck);
-    ret = tofu_utf_recv_post(ctx, msg, flags);
+    ret = tfi_utf_recv_post(ctx, msg, flags);
     fastlock_release(&ctx->ctx_lck);
 bad:
     return ret;
@@ -204,12 +210,12 @@ tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
 	ret = -FI_ENOSYS; goto bad;
     }
     if (ctx->ctx_sep->sep_myrank == msg->addr) {
-        ret = tofu_utf_sendmsg_self(ctx, msg, flags);
+        ret = tfi_utf_sendmsg_self(ctx, msg, flags);
 	if (ret != 0) { goto bad; }
     } else {
 	/* post it */
 	fastlock_acquire(&ctx->ctx_lck);
-	ret = tofu_utf_send_post(ctx, msg, flags);
+	ret = tfi_utf_send_post(ctx, msg, flags);
 	fastlock_release(&ctx->ctx_lck);
 	if (ret != 0) { goto bad; }
     }

@@ -24,26 +24,7 @@ _tofu_files =				\
 	    prov/tofu/src/tofu_trigger.c \
 	    prov/tofu/src/tofu_utflib.c \
 	    prov/tofu/src/process_map_info.h	\
-	    prov/tofu/src/utf_conf.h \
-	    prov/tofu/src/utf_cqmacro.h \
-	    prov/tofu/src/utf_cqmgr.h \
-	    prov/tofu/src/utf_engine.h \
-	    prov/tofu/src/utf_errmacros.h \
-	    prov/tofu/src/utf_externs.h \
-	    prov/tofu/src/utflib.h	\
-	    prov/tofu/src/utf_list.h	\
-	    prov/tofu/src/utf_msgmacro.h \
-	    prov/tofu/src/utf_queue.h	\
-	    prov/tofu/src/utf_sndmgt.h	\
-	    prov/tofu/src/utf_tofu.h	\
-	    prov/tofu/src/utf_engine.h	\
-	    prov/tofu/src/utf_debug.c \
-	    prov/tofu/src/utf_engine.c \
-	    prov/tofu/src/utf_init.c \
-	    prov/tofu/src/utf_mem.c \
-	    prov/tofu/src/utf_msg.c \
-	    prov/tofu/src/utf_umem.c \
-	    prov/tofu/src/utf_procmap.c
+	    prov/tofu/src/utflib.h
 
 if HAVE_TOFU_DL
 pkglib_LTLIBRARIES += libtofu-fi.la

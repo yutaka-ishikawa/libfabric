@@ -2,8 +2,6 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
-#include "utflib.h"
-
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
@@ -59,7 +57,7 @@ tofu_progress(struct tofu_cq *cq)
             ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_TX_CTX);
             tinfo = ctx->ctx_sep->sep_dom->tinfo;
-            utf_progress(tinfo);
+            tfi_utf_progress(tinfo);
         }
         /* receive progress */
         head = &cq->cq_hrx;
@@ -69,7 +67,7 @@ tofu_progress(struct tofu_cq *cq)
             ctx = container_of(curr, struct tofu_ctx, ctx_ent_cq);
             assert(ctx->ctx_fid.fid.fclass == FI_CLASS_RX_CTX);
             tinfo = ctx->ctx_sep->sep_dom->tinfo;
-            utf_progress(tinfo);
+            tfi_utf_progress(tinfo);
         }
         ment = ofi_cirque_usedcnt(cq->cq_ccq);
     }

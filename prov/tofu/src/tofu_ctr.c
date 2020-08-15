@@ -2,8 +2,6 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
-#include "utflib.h"
-
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
@@ -55,7 +53,7 @@ tofu_cntr_read(struct fid_cntr *cntr_fid)
     if (ctr_priv == 0) { }
 
     //R_DBG0(RDBG_LEVEL3, "fi_cntr_read: before process fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
-    utf_progress(ctr_priv->ctr_dom->tinfo);
+    tfi_utf_progress(ctr_priv->ctr_dom->tinfo);
     //R_DBG0(RDBG_LEVEL3, "fi_cntr_read: after progress fid(%p) val(%ld)", cntr_fid, ofi_atomic_get64(&ctr_priv->ctr_ctr));
 
     ret = ofi_atomic_get64(&ctr_priv->ctr_ctr);
@@ -143,7 +141,7 @@ tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
 
     assert(cntr_fid != 0);
     ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
-    utf_progress(ctr_priv->ctr_dom->tinfo);
+    tfi_utf_progress(ctr_priv->ctr_dom->tinfo);
 
     fc = -FI_ETIMEDOUT;
     return fc;

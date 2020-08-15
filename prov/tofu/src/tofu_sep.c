@@ -64,9 +64,10 @@ static int tofu_sep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    fc = -FI_EBUSY; goto bad;
 	}
 	sep->sep_av_ = av;
-        if (myrank != -1) {
+        utf_printf("%s: YI!!! MUST BE CHECK utf_info.myrank(%d)\n", __func__, utf_info.myrank);
+        if (utf_info.myrank != -1) {
             R_DBG("sep->sep_myrank is set myrank(%d) sep->sep_dom->myrank(%d) sep->sep_dom->mynrnk(%d)", 
-                  myrank, sep->sep_dom->myrank, sep->sep_dom->mynrnk);
+                  utf_info.myrank, sep->sep_dom->myrank, sep->sep_dom->mynrnk);
             sep->sep_myrank = sep->sep_dom->myrank;
         }
 	break;
@@ -178,7 +179,6 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
         }
     }
 #endif
-    sep->sep_myvcqidx = -1;
     sep->sep_myvcqid = 0;
     sep->sep_myrank = -1;
     /* return fid_sep */

@@ -6,9 +6,9 @@
 
 #include <utofu.h>
 #include <jtofu.h>
+#include "tofu_utflib.h"
 #include "tofu_conf.h"
 #include "tofu_debug.h"
-#include "utf_tofu.h"
 
 #include <rdma/fi_errno.h>		/* for FI_ENOMEM */
 #include <rdma/providers/fi_prov.h>	/* for struct fi_provider */
@@ -36,15 +36,12 @@ struct tofu_domain {
 /*  struct dlist_entry	dom_ent; */
     uint32_t		dom_fmt;    /* addr_format */
     /* tofu dependent */
-    utofu_vcq_hdl_t     vcqh[8];
-    utofu_tni_id_t      tnis[8];
-    size_t              ntni;
     utofu_vcq_hdl_t     myvcqh;
     utofu_vcq_id_t      myvcqid;
     struct tni_info    *tinfo;
-    int                 myvcqidx;
     int                 myrank;
     int                 mynrnk;
+    int                 ntni;
     size_t              max_mtu;
     size_t              max_piggyback_size;
     size_t              max_edata_size;
@@ -65,7 +62,6 @@ struct tofu_sep {
     utofu_vcq_hdl_t     sep_myvcqh;     /* copy of sep_dom->vcqh[sep_vcqid] */
     utofu_vcq_id_t      sep_myvcqid;    /* copy of sep_dom->myvcqid */
     int                 sep_myrank;     /* copy of sep_dom->myrank */
-    int                 sep_myvcqidx;   /* copy of sep_dom->myvcqidx */
     int                 sep_nrnk;       /* copy of sep_dom->mynrnk */
 };
 

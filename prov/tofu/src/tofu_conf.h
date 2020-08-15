@@ -12,12 +12,13 @@
 #define CONF_TOFU_RECV
 #define CONF_TOFU_RMA
 
-#define CONF_TOFU_CMPID         0x7
+//#define CONF_TOFU_CMPID         0x7
 //#define CONF_TOFU_CMPID         0x6
 #define CONF_TOFU_CTXC  	8   /* fi_ep_attr . [rt]x_ctx_cnt */
 #define CONF_TOFU_CQSIZE        256
 
-#define CONF_TOFU_INJECTSIZE    1856    /* 1878 */
+#define CONF_TOFU_INJECTSIZE    228    /* */
+//#define CONF_TOFU_INJECTSIZE    1856    /* 1878 */
 //#define CONF_TOFU_MSGSIZE     ((16 * 1024 * 1024) - 1) // MAX in TOFU
 //#define CONF_TOFU_MSGSIZE       (32 * 1024) // See also MPIDI_OFI_DEFAULT_SHORT_SEND_SIZE in MPICH
 #define CONF_TOFU_MSGSIZE       ((0x1ULL << 32) - 1)    // utf provides rendezvous protocol
