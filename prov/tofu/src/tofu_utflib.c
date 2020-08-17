@@ -123,6 +123,13 @@ void
 tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
 {
     utf_printf("%s: called, but no needs to do something ??\n", __func__);
+    {
+	struct utf_msgreq	req;
+	extern void utf_debugdebug(struct utf_msgreq*);
+	memset(&req, 0, sizeof(req));
+	utf_debugdebug(&req);
+	utf_printf("%s: req.ustate(%d)\n", __func__, req.ustatus);
+    }
 }
 
 void
@@ -246,6 +253,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
     if (req->ustatus == REQ_OVERRUN) {
+	utf_printf("%s: truncated, expected size(%ld) req(%p)->rsize(%ld) req->fistate(%d)\n", __func__, req->expsize, req, req->rsize, req->fistate);
 	tofu_reg_rcveq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags,
 		       req->rsize, /* received size */
@@ -253,6 +261,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 		       FI_ETRUNC, FI_ETRUNC,  /* not negative value here */
 		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
     } else {
+	if (req->expsize != req->rsize) utf_printf("%s: truncated, expected size(%ld) req->rsize(%ld)\n", __func__, req->expsize, req->rsize);
 	tofu_reg_rcvcq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags, req->rsize,
 		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
@@ -343,7 +352,12 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	uint64_t	sndsz;
 
 	req = utf_idx2msgreq(idx);
-	sndsz = req->expsize >= msgsz ? msgsz : req->expsize;
+	if (msgsz > req->expsize) {
+	    sndsz = req->expsize;
+	    req->ustatus = REQ_OVERRUN;
+	} else {
+	    sndsz = msgsz;
+	}
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: req->expsize(%ld) msgsz(%ld) req->fi_flgs(%s) "
 		       "req->fi_msg[0].iov_base(%lx) req->fi_msg[0].iov_len(%ld) "
@@ -369,6 +383,9 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	    utf_free(cp);
 	}
 	req->fi_flgs |= flags & (FI_REMOTE_CQ_DATA|FI_TAGGED);
+	req->fi_data = data;
+	req->rsize = sndsz;
+	req->hdr.size = msgsz;
 	tofu_catch_rcvnotify(req);
     } else { /* insert the new req into the unexpected message queue */
 	uint8_t	*cp = utf_malloc(msgsz);
@@ -608,7 +625,9 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	}
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
-			     req->buf, req->rsize);
+			     req->buf, msgsize);
+	/* now expsize is the requested message size in recv_post */
+	req->expsize = msgsize;
 	if (peek == 0 
 	    || ((flags & FI_CLAIM) && (req->fi_ucontext == msg->context))) {
 	    /* reclaim unexpected resources */
@@ -623,7 +642,10 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    }
 #endif
 	    DEBUG(DLEVEL_ADHOC) utf_printf("%s:\t free src(%d)\n", __func__, src);
-	    utf_free(req->buf); /* allocated dynamically and must be free */
+	    if (req->buf) {
+		utf_free(req->buf); /* allocated dynamically and must be free */
+		req->buf = NULL;
+	    }
 	    utf_msgreq_free(req);
 	} else { /* FI_PEEK, no needs to copy message */
 	    if (~(flags & FI_CLAIM)) {
@@ -640,13 +662,14 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	myflags |= flags;
 	if (peek == 0 && (sz < req->rsize)) {
 	    /* overrun */
-	    utf_printf("%s: overrun expected size(%ld) req->rsize(%ld)\n", __func__, msgsize, req->rsize);
+	    utf_printf("%s: overrun, expected size(%ld) req->rsize(%ld)\n", __func__, msgsize, req->rsize);
 	    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, myflags,
 			   sz, /* received message size */
 			   req->rsize - msgsize, /* overrun length */
 			   FI_ETRUNC, FI_ETRUNC, /* not negative value here */
 			   req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
 	} else {
+	    if (msgsize != req->rsize) utf_printf("%s: truncated, expected size(%ld) req->rsize(%ld)\n", __func__, msgsize, req->rsize);
 	    if (peek == 1 && msgsize == 0) {
 		tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, req->rsize,
 			       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);

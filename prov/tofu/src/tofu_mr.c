@@ -80,12 +80,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
      * The current implementation, only one vcqh and thus it is much easy.
      */
     stadd = utf_mem_reg((utofu_vcq_hdl_t) dom_priv->myvcqh, (void*) buf, len);
-#if 0
-    uint64_t           utofu_flg = 0;
-    uc = utofu_reg_mem((utofu_vcq_hdl_t )dom_priv->vcqh[0],
-                       (void*) buf, len, utofu_flg, &stadd);
-#endif
-    if (uc != UTOFU_SUCCESS) {
+    if (stadd == 0) {
         fprintf(stderr, "%s: utofu_reg_mem error uc(%d)\n", __func__, uc);
         fc = -FI_ENOMEM; goto bad;
     }
