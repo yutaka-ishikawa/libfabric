@@ -110,11 +110,11 @@ tfi_utf_init_1(struct tofu_av *av, struct tofu_ctx *ctx, int class, struct tni_i
 {
     int	myrank, nprocs, ppn;
 
-    utf_printf("%s: called\n", __func__);
     if (tfi_utf_initialized & TFI_UTF_INIT_DONE1) {
 	return 0;
     }
-    tfi_utf_initialized = TFI_UTF_INIT_DONE1;
+    utf_printf("%s: called\n", __func__);
+    tfi_utf_initialized |= TFI_UTF_INIT_DONE1;
     utf_printf("%s: calling utf_init\n", __func__);
     utf_init(0, NULL, &myrank, &nprocs, &ppn);
     utf_printf("%s: returning from utf_init\n", __func__);
@@ -124,7 +124,10 @@ tfi_utf_init_1(struct tofu_av *av, struct tofu_ctx *ctx, int class, struct tni_i
 void
 tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
 {
-    utf_printf("%s: called, but no needs to do something ??\n", __func__);
+    if (tfi_utf_initialized & TFI_UTF_INIT_DONE2) {
+	return 0;
+    }
+    tfi_utf_initialized |= TFI_UTF_INIT_DONE2;
     {
 	struct utf_msgreq	req;
 	extern void utf_debugdebug(struct utf_msgreq*);
@@ -132,6 +135,8 @@ tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
 	utf_debugdebug(&req);
 	utf_printf("%s: req.ustate(%d)\n", __func__, req.ustatus);
     }
+    utf_fence();
+    utf_printf("%s: UTF INITIALIZED\n", __func__);
 }
 
 void
@@ -245,11 +250,6 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     struct tofu_ctx *ctx;
     uint64_t	flags = req->hdr.flgs | (req->fi_flgs&FI_MULTI_RECV);
 
-    utf_printf("%s: notification received SRC(%d) req(%p)->buf(%p) "
-	       "iov_base(%p) msg=%s\n", __func__,
-	       req->hdr.src,
-	       req, req->buf, req->fi_msg[0].iov_base,
-	       utf_msghdr_string(&req->hdr, req->fi_data, req->buf));
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	utf_printf("%s: notification received SRC(%d) req(%p)->buf(%p) "
 		   "iov_base(%p) msg=%s\n", __func__,
@@ -460,7 +460,7 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
     minfo->fi_context = msg->context;
     sbufp->pkt.hdr = minfo->msghdr; /* header */
     sbufp->pkt.pyld.fi_msg.data = msg->data; /* fi data */
-    if (size <= MSG_EAGER_PIGBACK_SZ) {
+    if (size <= MSG_FI_EAGER_PIGBACK_SZ) {
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER_PIGBACK;
 	if (msg->iov_count > 0) { /* if 0, null message */
 	    ofi_copy_from_iov(sbufp->pkt.pyld.fi_msg.msgdata,
@@ -468,7 +468,7 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	}
 	sbufp->pkt.hdr.pyldsz = size;
 	req->type = REQ_SND_BUFFERED_EAGER;
-    } else if (size <= MSG_EAGER_SIZE) {
+    } else if (size <= MSG_FI_EAGER_SIZE) {
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
 	ofi_copy_from_iov(sbufp->pkt.pyld.fi_msg.msgdata,
 			  size, msg->msg_iov, msg->iov_count, 0);
@@ -529,7 +529,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 
     // INITCHECK();
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
-    utf_printf("%s: SRC DST(%d) LEN(%ld)\n", __func__, dst, msgsize);
+    DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC|DLEVEL_CHAIN) utf_printf("%s: SRC DST(%d) LEN(%ld)\n", __func__, dst, msgsize);
     if ((req = utf_msgreq_alloc()) == NULL) {
 	/*rc = UTF_ERR_NOMORE_REQBUF; */
 	utf_printf("%s: YI!!!!! return msgreq alloc fail: -FI_ENOMEM = %d\n", __func__, fc);
@@ -556,6 +556,7 @@ retry:
 	fc = -FI_ENOMEM; goto err3;
     }
     fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
+    usp->dbg_idx = 0; /* for debugging */
     if (fc != FI_SUCCESS) {
 	/* error message was shown in minfo_setup */
 	goto err3;
@@ -586,8 +587,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
     uint64_t	ignore = msg->ignore;
     utfslist_t *uexplst;
 
-    utf_printf("%s: SRC(%ld)\n", __func__, src);
-    DEBUG(DLEVEL_ADHOC|DLEVEL_CHAIN) utf_printf("%s: SRC(%ld)\n", __func__, src);
+    DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC|DLEVEL_CHAIN) utf_printf("%s: SRC(%ld)\n", __func__, src);
     if (flags & FI_TAGGED) {
 	uexplst =  &tfi_tag_uexplst;
 	if ((flags & FI_PEEK) && ~(flags & FI_CLAIM)) {
@@ -609,8 +609,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	uint64_t myflags;
 
 	req = utf_idx2msgreq(idx);
-	DEBUG(DLEVEL_ADHOC) utf_printf("\tfound src(%d) req->state(%d) REQ_DONE(%d) req->rsize(%ld) req->hdr.size(%ld)\n", src, req->state, REQ_DONE, req->rsize, req->hdr.size);
-	utf_printf("\tfound src(%d) req->state(%d) REQ_DONE(%d) req->rsize(%ld) req->hdr.size(%ld)\n", src, req->state, REQ_DONE, req->rsize, req->hdr.size);
+	DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) utf_printf("\tfound src(%d) req(%p)->state(%d) REQ_DONE(%d) req->rsize(%ld) req->hdr.size(%ld) req->rcntr(%p)\n", src, req, req->state, REQ_DONE, req->rsize, req->hdr.size, req->rcntr);
 	if (req->state == REQ_WAIT_RNDZ) { /* rendezous */
 	    struct utf_recv_cntr *ursp = req->rcntr;
 	    if (peek == 1) {
@@ -618,6 +617,12 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 		 * but not yet receiving the data at this moment.
 		 * Thus, just return with FI_ENOMSG for FI_PEEK */
 		goto peek_nomsg_ext;
+	    }
+	    if (ursp->req != req) {
+		utf_printf("%s: current ursp(%p)->req(%p) req(%p): ursp->req->hdr.src(%d) ursp->req->hdr.size(%ld) ursp->req->rsize(%ld)\n",
+			   __func__, ursp, ursp->req, req, ursp->req->hdr.src, ursp->req->hdr.size, ursp->req->rsize);
+		utf_printf("%s: req->hdr.src(%d) req->hdr.size(%ld) req->rsize(%ld)\n",
+			   __func__, req->hdr.src, req->hdr.size, req->rsize);
 	    }
 	    assert(ursp->req == req);
 	    req->fi_ctx = ctx;
@@ -652,9 +657,8 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	if (peek == 0 
 	    || ((flags & FI_CLAIM) && (req->fi_ucontext == msg->context))) {
 	    /* reclaim unexpected resources */
-	    DEBUG(DLEVEL_ADHOC) utf_printf("%s:\t free src(%d)\n", __func__, src);
+	    DEBUG(DLEVEL_PROTO_RENDEZOUS| DLEVEL_ADHOC) utf_printf("%s:\t free src(%d) buf(%p)\n", __func__, src, req->buf);
 	    if (req->buf) {
-		utf_printf("%s:\t free src(%d) buf(%p)\n", __func__, src, req->buf);
 		utf_free(req->buf); /* allocated dynamically and must be free */
 		req->buf = NULL;
 	    }
@@ -699,14 +703,15 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	goto ext;
     }
 req_setup:
-    utf_printf("\tpeek(%d) req(%p)\n", peek, req);
     if (peek == 0) { /* register this request to the expected queue if it is new */
+	int	req_new = 0;
 	utfslist_t *explst;
 	struct utf_msglst *mlst;
 	size_t	i;
 
 	//utf_printf("%s: enqueu expected\n", __func__);
 	if (req == 0) {
+	    req_new = 1;
 	    if ((req = utf_msgreq_alloc()) == NULL) {
 		fc = -FI_ENOMEM; goto ext;
 	    }
@@ -742,8 +747,7 @@ req_setup:
 		utf_free(req->buf);
 		req->buf = 0;
 	    }
-	    utf_printf("%s: expsz(%ld) rsz(%ld) SRC(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->state);
-	    DEBUG(DLEVEL_ADHOC) utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->state);
+	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->state);
 	}
 	if (req->expsize > CONF_TOFU_INJECTSIZE && utf_mode_msg == MSG_RENDEZOUS) {
 	    /* rendezous */
@@ -760,16 +764,16 @@ req_setup:
 	req->fi_flgs = flags;
 	req->fistate = 0;
 	req->fi_ucontext = msg->context;
-	if (req->state == REQ_NONE) { /* This is a new entry */
+	if (req_new) { /* This is a new entry */
 	    explst = flags & FI_TAGGED ? &tfi_tag_explst : &tfi_msg_explst;
 	    mlst = utf_msglst_append(explst, req);
 	    mlst->fi_ignore = ignore;
 	    //mlst->fi_context = msg->context;
-	    DEBUG(DLEVEL_ADHOC) utf_printf("%s:\tregexp src(%d) sz(%ld)\n", __func__, src, req->expsize);
 	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
-			   __func__, req->expsize, explst == &tfi_tag_explst ? "TAGGED": "REGULAR");
-		utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
+		utf_printf("%s:\tExp req(%p) SRC(%d) sz(%ld)\n", __func__, req, src, req->expsize);
+		//utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
+		//__func__, req->expsize, explst == &tfi_tag_explst ? "TAGGED": "REGULAR");
+		//utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
 	    }
 	}
     } else {
