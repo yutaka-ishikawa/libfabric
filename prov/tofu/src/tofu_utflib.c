@@ -125,7 +125,7 @@ void
 tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
 {
     if (tfi_utf_initialized & TFI_UTF_INIT_DONE2) {
-	return 0;
+	return;
     }
     tfi_utf_initialized |= TFI_UTF_INIT_DONE2;
     {
@@ -261,15 +261,15 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
     if (req->ustatus == REQ_OVERRUN) {
-	utf_printf("%s: truncated, expected size(%ld) req(%p)->rsize(%ld) req->fistate(%d)\n", __func__, req->expsize, req, req->rsize, req->fistate);
+	utf_printf("%s: truncated, user expected size(%ld) req(%p)->rsize(%ld) req->fistate(%d)\n", __func__, req->usrreqsz, req, req->rsize, req->fistate);
 	tofu_reg_rcveq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags,
-		       req->rsize, /* received size */
-		       req->rsize - req->expsize, /* overrun length */
+		       req->hdr.size, /* sender expected send size */
+		       req->hdr.size - req->usrreqsz, /* overrun length */
 		       FI_ETRUNC, FI_ETRUNC,  /* not negative value here */
 		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
     } else {
-	if (req->expsize != req->rsize) utf_printf("%s: truncated, expected size(%ld) req->rsize(%ld)\n", __func__, req->expsize, req->rsize);
+	if (req->usrreqsz != req->rsize) utf_printf("%s: truncated, expected size(%ld) req->rsize(%ld)\n", __func__, req->usrreqsz, req->rsize);
 	tofu_reg_rcvcq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags, req->rsize,
 		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
@@ -363,31 +363,33 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	uint64_t	sndsz;
 
 	req = utf_idx2msgreq(idx);
-	if (msgsz > req->expsize) {
-	    sndsz = req->expsize;
+	if (msgsz > req->usrreqsz) {
+	    sndsz = req->usrreqsz;
 	    req->ustatus = REQ_OVERRUN;
 	} else {
 	    sndsz = msgsz;
 	}
 	DEBUG(DLEVEL_PROTOCOL) {
-	    utf_printf("%s: req->expsize(%ld) msgsz(%ld) req->fi_flgs(%s) "
+	    utf_printf("%s: req->usrreqsz(%ld) msgsz(%ld) req->fi_flgs(%s) "
 		       "req->fi_msg[0].iov_base(%lx) req->fi_msg[0].iov_len(%ld) "
 		       "sndsz(%ld) msg->iov_count(%ld)\n",
-		       __func__, req->expsize, msgsz, tofu_fi_flags_string(req->fi_flgs),
+		       __func__, req->usrreqsz, msgsz, tofu_fi_flags_string(req->fi_flgs),
 		       req->fi_msg[0].iov_base, req->fi_msg[0].iov_len, sndsz, msg->iov_count);
 	}
 	/* sender data is copied to the specified buffer */
 	if (req->fi_iov_count == 1) {
+	    /* req->fi_msg[0].iov_base <-- msg->msg_iov */
 	    ofi_copy_from_iov(req->fi_msg[0].iov_base, req->fi_msg[0].iov_len,
 			      msg->msg_iov, msg->iov_count, 0);
 	} else if (msg->iov_count == 1) {
+	    /* req->fi_msg <-- msg->msg_iov[0].iov_base */
 	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
 			    msg->msg_iov[0].iov_base, sndsz);
 	} else {
 	    /* This is a naive copy. we should optimize this copy */
 	    char	*cp = utf_malloc(sndsz);
 	    if (cp == NULL) { fc = -FI_ENOMEM; goto err; }
-	    ofi_copy_from_iov(cp, req->expsize,
+	    ofi_copy_from_iov(cp, sndsz,
 			      msg->msg_iov, msg->iov_count, 0);
 	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
 			    cp, sndsz);
@@ -395,7 +397,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	}
 	req->fi_flgs |= flags & (FI_REMOTE_CQ_DATA|FI_TAGGED);
 	req->fi_data = data;
-	req->rsize = sndsz;
+	req->rsize = msgsz;
 	req->hdr.size = msgsz;
 	tofu_catch_rcvnotify(req);
     } else { /* insert the new req into the unexpected message queue */
@@ -492,12 +494,12 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	minfo->cntrtype = SNDCNTR_RENDEZOUS;
 	minfo->rgetaddr.nent = 1;
 	minfo->usrbuf = msg->msg_iov[0].iov_base;
-	sbufp->pkt.pyld.rndzdata.vcqid[0]
+	sbufp->pkt.pyld.fi_msg.rndzdata.vcqid[0]
 	    = minfo->rgetaddr.vcqid[0] = usp->svcqid;
-	sbufp->pkt.pyld.rndzdata.stadd[0]
+	sbufp->pkt.pyld.fi_msg.rndzdata.stadd[0]
 	    = minfo->rgetaddr.stadd[0] = utf_mem_reg(utf_info.vcqh, minfo->usrbuf, size);
-	sbufp->pkt.pyld.rndzdata.nent = 1;
-	sbufp->pkt.hdr.pyldsz = MSG_RCNTRSZ;
+	sbufp->pkt.pyld.fi_msg.rndzdata.nent = 1;
+	sbufp->pkt.hdr.pyldsz = MSG_RCNTRSZ + sizeof(uint64_t); /* data area */
 	sbufp->pkt.hdr.rndz = MSG_RENDEZOUS;
 	req->type = REQ_SND_RENDEZOUS;
     }
@@ -556,6 +558,10 @@ retry:
 	fc = -FI_ENOMEM; goto err3;
     }
     fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
+    if (dst == 128 || usp->rvcqid == 0x410200000f000005) {
+	utf_printf("%s: dst(%d) rvcqid(0x%lx) minfo->stadd(0x%lx) size(%ld) sbuf->stadd(0x%lx)\n",
+		   __func__, dst, usp->rvcqid, minfo->rgetaddr.stadd[0], sbufp->pkt.hdr.size, sbufp->pkt.pyld.fi_msg.rndzdata.stadd[0]);
+    }
     usp->dbg_idx = 0; /* for debugging */
     if (fc != FI_SUCCESS) {
 	/* error message was shown in minfo_setup */
@@ -631,7 +637,10 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    req->notify = tofu_catch_rcvnotify;
 	    req->type = REQ_RECV_EXPECTED;
 	    req->buf = msg->msg_iov[0].iov_base;
-	    req->expsize = msgsize;
+	    req->usrreqsz = msgsize;
+	    if (req->hdr.size != req->usrreqsz) {
+		utf_printf("%s; YI###### SENDER SIZE(%ld) RECEIVER SIZE(%ld)\n", __func__, req->hdr.size, req->usrreqsz);
+	    }
 	    rget_start(ursp, req);
 	    if (peek == 1) {
 		fc = -FI_ENOMSG;
@@ -652,8 +661,8 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0,
 			     req->buf, msgsize);
-	/* now expsize is the requested message size in recv_post */
-	req->expsize = msgsize;
+	/* now user request size is set */
+	req->usrreqsz = msgsize;
 	if (peek == 0 
 	    || ((flags & FI_CLAIM) && (req->fi_ucontext == msg->context))) {
 	    /* reclaim unexpected resources */
@@ -721,7 +730,7 @@ req_setup:
 	    req->hdr.tag = tag;
 	    req->rsize = 0;
 	    req->state = REQ_NONE;
-	    req->expsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+	    req->usrreqsz = req->rcvexpsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 	    req->fi_iov_count = msg->iov_count;
 	    for (i = 0; i < msg->iov_count; i++) {
 		req->fi_msg[i].iov_base = msg->msg_iov[i].iov_base;
@@ -729,9 +738,10 @@ req_setup:
 	    }
 	    req->buf = NULL;
 	} else {
-	    /* moving unexp to exp. but no registration is needed 2020/04/25
+	    /* moving unexp to expected state, but no registration is needed 2020/04/25
 	     * expsize is reset though req was in unexp queue */
-	    req->expsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+	    req->usrreqsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+	    req->rcvexpsz = req->usrreqsz;
 	    req->fi_iov_count = msg->iov_count;
 	    for (i = 0; i < msg->iov_count; i++) {
 		req->fi_msg[i].iov_base = msg->msg_iov[i].iov_base;
@@ -742,14 +752,21 @@ req_setup:
 	     * copy so far transferred data in case of eager
 	     */
 	    if (req->buf) {
+		size_t	cpysz;
+		if (req->rsize > req->usrreqsz) {
+		    cpysz =req->usrreqsz;
+		    req->ustatus = REQ_OVERRUN;
+		} else {
+		    cpysz = req->rsize;
+		}
 		ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
-				req->buf, req->rsize);
+				req->buf, cpysz);
 		utf_free(req->buf);
 		req->buf = 0;
 	    }
-	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) utf_printf("%s: rz(%ld) sz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->expsize, req->rsize, src, req->state);
+	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) utf_printf("%s: rz(%ld) reqsz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->usrreqsz, req->rsize, src, req->state);
 	}
-	if (req->expsize > CONF_TOFU_INJECTSIZE && utf_mode_msg == MSG_RENDEZOUS) {
+	if (req->usrreqsz > CONF_TOFU_INJECTSIZE && utf_mode_msg == MSG_RENDEZOUS) {
 	    /* rendezous */
 	    if (msg->iov_count > 1) {
 		utf_printf("%s: iov is not supported now\n", __func__);
@@ -770,7 +787,7 @@ req_setup:
 	    mlst->fi_ignore = ignore;
 	    //mlst->fi_context = msg->context;
 	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("%s:\tExp req(%p) SRC(%d) sz(%ld)\n", __func__, req, src, req->expsize);
+		utf_printf("%s:\tExp req(%p) SRC(%d) sz(%ld)\n", __func__, req, src, req->usrreqsz);
 		//utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
 		//__func__, req->expsize, explst == &tfi_tag_explst ? "TAGGED": "REGULAR");
 		//utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
