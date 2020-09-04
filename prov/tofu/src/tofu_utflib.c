@@ -133,7 +133,7 @@ tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
 	extern void utf_debugdebug(struct utf_msgreq*);
 	memset(&req, 0, sizeof(req));
 	utf_debugdebug(&req);
-	utf_printf("%s: req.ustate(%d)\n", __func__, req.ustatus);
+	utf_printf("%s: req.reclaim(%d)\n", __func__, req.reclaim);
     }
     utf_fence();
     utf_printf("%s: UTF INITIALIZED\n", __func__);
@@ -260,7 +260,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     assert(req->type == REQ_RECV_EXPECTED);
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
-    if (req->ustatus == REQ_OVERRUN) {
+    if (req->overrun) {
 	utf_printf("%s: truncated, user expected size(%ld) req(%p)->rsize(%ld) req->fistate(%d)\n", __func__, req->usrreqsz, req, req->rsize, req->fistate);
 	tofu_reg_rcveq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags,
@@ -324,8 +324,10 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     struct tofu_cq  *cq;
 
     DEBUG(DLEVEL_ADHOC) utf_printf("%s: DONE\n", __func__);
-    //utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
-    //__func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
+    if ((req->type < REQ_SND_BUFFERED_EAGER)) {
+	utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
+		   __func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
+    }
     assert(!(req->type < REQ_SND_BUFFERED_EAGER));
     ctx = req->fi_ctx;
     assert(ctx != 0);
@@ -365,7 +367,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	req = utf_idx2msgreq(idx);
 	if (msgsz > req->usrreqsz) {
 	    sndsz = req->usrreqsz;
-	    req->ustatus = REQ_OVERRUN;
+	    req->overrun = 1;
 	} else {
 	    sndsz = msgsz;
 	}
@@ -412,6 +414,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	req->buf = cp;
 	req->hdr.src = src;
 	req->hdr.tag = tag;
+	req->allflgs = 0;
 	req->fi_data = data;
 	req->hdr.size = msgsz;
 	req->rsize = msgsz;
@@ -429,6 +432,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
     }
     req->hdr.src = src;
     req->hdr.tag = tag;
+    req->allflgs = 0;
     req->fi_data = data;
     req->hdr.size = msgsz;
     req->state = REQ_NONE;
@@ -462,6 +466,7 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
     minfo->fi_context = msg->context;
     sbufp->pkt.hdr = minfo->msghdr; /* header */
     sbufp->pkt.pyld.fi_msg.data = msg->data; /* fi data */
+    req->allflgs = 0;
     if (size <= MSG_FI_EAGER_PIGBACK_SZ) {
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER_PIGBACK;
 	if (msg->iov_count > 0) { /* if 0, null message */
@@ -483,13 +488,13 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	}
 	minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
 	minfo->usrbuf = msg->msg_iov[0].iov_base;
-	memcpy(sbufp->pkt.pyld.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ);
+	memcpy(sbufp->pkt.pyld.fi_msg.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ);
 	sbufp->pkt.hdr.pyldsz = MSG_FI_PYLDSZ;
 	req->type = REQ_SND_INPLACE_EAGER;
     } else { /* rendezvous */
 	if (msg->iov_count != 1) {
 	    utf_printf("%s: cannot handle message vector\n", __func__);
-	    fc = FI_EIO; goto err;
+	    fc = -FI_EIO; goto err;
 	}
 	minfo->cntrtype = SNDCNTR_RENDEZOUS;
 	minfo->rgetaddr.nent = 1;
@@ -522,6 +527,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 		   const struct fi_msg_tagged *msg, uint64_t flags)
 {
     int fc = FI_SUCCESS;
+    int	retry;
     fi_addr_t        dst = msg->addr;
     size_t	     msgsize;
     struct utf_send_cntr *usp;
@@ -534,49 +540,52 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC|DLEVEL_CHAIN) utf_printf("%s: SRC DST(%d) LEN(%ld)\n", __func__, dst, msgsize);
     if ((req = utf_msgreq_alloc()) == NULL) {
 	/*rc = UTF_ERR_NOMORE_REQBUF; */
-	utf_printf("%s: YI!!!!! return msgreq alloc fail: -FI_ENOMEM = %d\n", __func__, fc);
-	fc = -FI_ENOMEM; goto err1;
+	// utf_printf("%s: YI!!!!! return msgreq alloc fail: -FI_EAGAIN = %d\n", __func__, fc);
+	fc = -FI_EAGAIN; goto err1;
     }
     /* av = ctx->ctx_sep->sep->sep_av */
     fc = tfi_utf_scntr_alloc(dst, &usp);
     if (fc != FI_SUCCESS) {
-	utf_printf("%s: YI!!!!! return sender cntrl fail: -FI_ENOMEM = %d\n", __func__, fc);
+	// utf_printf("%s: YI!!!!! return sender cntrl fail: -FI_ENOMEM = %d\n", __func__, fc);
 	goto err2;
     }
     /* wait for completion of previous send massages */
-retry:
     minfo = &usp->msginfo[usp->mient];
-    if (minfo->cntrtype != SNDCNTR_NONE) {
+    //utf_printf("%s: YI!!! usp->mient(%d) minfo(%p)->cntrtype(%d)\n", __func__, usp->mient, minfo, minfo->cntrtype);
+    for (retry = 0; retry < 3; retry++) {
+	if (minfo->cntrtype == SNDCNTR_NONE) goto has_room;
 	tfi_utf_progress(NULL);
-	goto retry;
     }
-    usp->mient = (usp->mient + 1) % COM_SCNTR_MINF_SZ;
+    fc = -FI_EAGAIN;
+    goto err2;
+has_room:
+    //utf_printf("%s: YI!!! NOW ENQUEUE usp->mient(%d)\n", __func__, usp->mient);
+    usp->mient = (usp->mient + 1) % COM_SCNTR_MINF_SZ; /* advanced */
     sbufp = (minfo->sndbuf == NULL) ?
 	tfi_utf_egr_sbuf_alloc(&minfo->sndstadd) : minfo->sndbuf;
     if (sbufp == NULL) {/*rc = UTF_ERR_NOMORE_SNDBUF;*/
 	utf_printf("%s: usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
-	fc = -FI_ENOMEM; goto err3;
+	fc = -FI_ENOMEM; goto err2;
     }
     fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
-    if (dst == 128 || usp->rvcqid == 0x410200000f000005) {
-	utf_printf("%s: dst(%d) rvcqid(0x%lx) minfo->stadd(0x%lx) size(%ld) sbuf->stadd(0x%lx)\n",
-		   __func__, dst, usp->rvcqid, minfo->rgetaddr.stadd[0], sbufp->pkt.hdr.size, sbufp->pkt.pyld.fi_msg.rndzdata.stadd[0]);
-    }
     usp->dbg_idx = 0; /* for debugging */
     if (fc != FI_SUCCESS) {
 	/* error message was shown in minfo_setup */
-	goto err3;
+	goto err2;
     }
     if (usp->state == S_NONE) {
 	utf_send_start(usp, minfo);
     }
     return fc;
-err3:
-    utf_scntr_free(dst);
+//err3:
+//    utf_scntr_free(dst);
 err2:
     utf_msgreq_free(req);
 err1:
-    utf_printf("%s: YI***** return error(%d)\n", __func__, fc);
+#if 0
+    utf_printf("%s: YI***** return error(%d) -FI_ENOMEM(%d) -FI_EAGAIN(%d) -FI_EIO\n",
+	       __func__, fc, -FI_ENOMEM, -FI_EAGAIN, -FI_EIO);
+#endif
     return fc;
 }
 
@@ -617,20 +626,12 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	req = utf_idx2msgreq(idx);
 	DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC) utf_printf("\tfound src(%d) req(%p)->state(%d) REQ_DONE(%d) req->rsize(%ld) req->hdr.size(%ld) req->rcntr(%p)\n", src, req, req->state, REQ_DONE, req->rsize, req->hdr.size, req->rcntr);
 	if (req->state == REQ_WAIT_RNDZ) { /* rendezous */
-	    struct utf_recv_cntr *ursp = req->rcntr;
 	    if (peek == 1) {
 		/* A control message has arrived in the unexpected queue,
 		 * but not yet receiving the data at this moment.
 		 * Thus, just return with FI_ENOMSG for FI_PEEK */
 		goto peek_nomsg_ext;
 	    }
-	    if (ursp->req != req) {
-		utf_printf("%s: current ursp(%p)->req(%p) req(%p): ursp->req->hdr.src(%d) ursp->req->hdr.size(%ld) ursp->req->rsize(%ld)\n",
-			   __func__, ursp, ursp->req, req, ursp->req->hdr.src, ursp->req->hdr.size, ursp->req->rsize);
-		utf_printf("%s: req->hdr.src(%d) req->hdr.size(%ld) req->rsize(%ld)\n",
-			   __func__, req->hdr.src, req->hdr.size, req->rsize);
-	    }
-	    assert(ursp->req == req);
 	    req->fi_ctx = ctx;
 	    req->fi_flgs = flags;
 	    req->fi_ucontext = msg->context;
@@ -641,7 +642,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    if (req->hdr.size != req->usrreqsz) {
 		utf_printf("%s; YI###### SENDER SIZE(%ld) RECEIVER SIZE(%ld)\n", __func__, req->hdr.size, req->usrreqsz);
 	    }
-	    rget_start(ursp, req);
+	    rget_start(req);
 	    if (peek == 1) {
 		fc = -FI_ENOMSG;
 	    }
@@ -728,6 +729,7 @@ req_setup:
 	    /* req->hdr.size will be set at the message arrival */
 	    req->fi_data = data;
 	    req->hdr.tag = tag;
+	    req->allflgs = 0;
 	    req->rsize = 0;
 	    req->state = REQ_NONE;
 	    req->usrreqsz = req->rcvexpsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
@@ -755,7 +757,7 @@ req_setup:
 		size_t	cpysz;
 		if (req->rsize > req->usrreqsz) {
 		    cpysz =req->usrreqsz;
-		    req->ustatus = REQ_OVERRUN;
+		    req->overrun = 1;
 		} else {
 		    cpysz = req->rsize;
 		}
