@@ -359,13 +359,13 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
         break;
     case FI_CLASS_CNTR:
 	ctr_priv = container_of(bfid, struct tofu_cntr, ctr_fid.fid);
-        //printf("YI*****bind: CNTR cq_priv(%p) flags(%lx)\n", ctr_priv, flags);
+        R_DBG("YI###### bind: CNTR ctx_priv(%p) cq_priv(%p) flags(%lx)\n", ctx_priv, ctr_priv, flags);
 	if (ctx_priv->ctx_sep->sep_dom != ctr_priv->ctr_dom) {
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
-            //printf("YI***** TRANSMIT CONTEXT\n");
+            R_DBGMSG("YI***** TRANSMIT CONTEXT\n");
 	    if (flags & (FI_SEND | FI_WRITE | FI_TRANSMIT)) {
 		if (ctx_priv->ctx_send_ctr != 0) {
 		    fc = -FI_EBUSY; goto bad;

@@ -8,6 +8,8 @@ extern ssize_t  tfi_utf_read_post(struct tofu_ctx *ctx,
                                    const struct fi_msg_rma *msg, uint64_t flags);
 extern ssize_t  tfi_utf_write_post(struct tofu_ctx *ctx,
                                     const struct fi_msg_rma *msg, uint64_t flags);
+extern ssize_t  tfi_utf_write_inject(struct tofu_ctx *ctx, const void *buf, size_t len,
+                                     fi_addr_t dest_addr, uint64_t addr, uint64_t key);
 
 /*
  * fi_read:
@@ -72,13 +74,19 @@ tofu_ctx_rma_writemsg(struct fid_ep *fid_ep,
  * fi_inject_write
  */
 static ssize_t 
-tofu_ctx_rma_inject(struct fid_ep *ep, const void *buf, size_t len,
+tofu_ctx_rma_inject(struct fid_ep *fid_ep, const void *buf, size_t len,
 		fi_addr_t dest_addr, uint64_t addr, uint64_t key)
 {
+    ssize_t ret = 0;
+    struct tofu_ctx *ctx_priv;
+
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     R_DBG0(RDBG_LEVEL3, "fi_inject_write: fid_ep(%p) buf(%p) len(%ld) dst(%ld) addr(%ld) key(%lx)",
-           ep, buf, len, dest_addr, addr, key);
-    return -FI_ENOSYS;
+           fid_ep, buf, len, dest_addr, addr, key);
+
+    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    ret = tfi_utf_write_inject(ctx_priv, buf, len, dest_addr, addr, key);
+    return ret;
 }
 
 struct fi_ops_rma tofu_ctx_ops_rma = {
