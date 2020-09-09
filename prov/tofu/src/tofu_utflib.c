@@ -208,13 +208,14 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
     DEBUG(DLEVEL_PROTOCOL) {
-	utf_printf("%s: cq(%p) flags = %s bufp(%p) len(%ld)\n",
-		   __func__, cq, tofu_fi_flags_string(flags), bufp, len);
+	utf_printf("%s: cq(%p) context(%p) flags = %s bufp(%p) len(%ld) data(%ld) cq_rsel(%p) buf(%s)\n",
+		   __func__, cq, context, tofu_fi_flags_string(flags), bufp, len, data, cq->cq_rsel,
+		   tofu_data_dump(bufp, len));
     }
     DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE len(%ld)\n", __func__, len);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
-	utf_printf("%s: no completion is generated\n",  __func__);
+	utf_printf("%s: no recv completion is generated\n",  __func__);
 	return fc;
     }
     fastlock_acquire(&cq->cq_lck);
@@ -227,10 +228,9 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     cq_e->flags		=   FI_RECV
 		| (flags & (FI_MULTI_RECV|FI_MSG|FI_TAGGED|FI_REMOTE_CQ_DATA|FI_COMPLETION));
     cq_e->len		= len;
-    //cq_e->buf		= (flags & FI_MULTI_RECV) ? bufp : 0;
-    cq_e->buf		= bufp;
     cq_e->data		= data;
     cq_e->tag		= tag;
+    cq_e->buf		= bufp;
     /* get an entry pointed by w.p. */
     comp = ofi_cirque_tail(cq->cq_ccq);
     assert(comp != 0);
@@ -253,14 +253,24 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
     struct tofu_ctx *ctx;
     uint64_t	flags = (req->hdr.flgs & TFI_FIFLGS_CQDATA ? FI_REMOTE_CQ_DATA : 0)
 			| (req->hdr.flgs & TFI_FIFLGS_TAGGED ? FI_TAGGED : 0)
-			| (req->fi_flgs&FI_MULTI_RECV);
+			| FI_RECV;
 
+    if (req->fi_flgs&FI_MULTI_RECV
+	&& (req->fi_msg[0].iov_len - req->fi_recvd) < 16384) {
+	/* overvflow */
+	flags |= FI_MULTI_RECV;
+	utf_printf("%s: YI%%%%%%%%%%%%%%%%%% re(%p) FI_MULTI_RECV\n", __func__, req);
+    }
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	utf_printf("%s: notification received SRC(%d) type(%d) rsize(%ld) overrun(%d) req(%p)->buf(%p) "
-		   "iov_base(%p) msg=%s\n", __func__,
+		   "req->fi_flags(%s) iov_base(%p) iov_len(%ld) fi_recvd(%ld), msg=%s\n", __func__,
 		   req->hdr.src, req->type, req->rsize, req->overrun,
-		   req, req->buf, req->fi_msg[0].iov_base,
+		   req, req->buf, tofu_fi_flags_string(req->fi_flgs),
+		   req->fi_msg[0].iov_base,
+		   req->fi_msg[0].iov_len, req->fi_recvd,
 		   utf_msghdr_string(&req->hdr, req->fi_data, req->buf));
+	utf_printf("%s:\t flags(%s)\n", __func__,  tofu_fi_flags_string(flags));
+
     }
     assert(req->type <= REQ_RECV_EXPECTED2);
     ctx = req->fi_ctx;
@@ -271,18 +281,36 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 		       req->hdr.size, /* sender expected send size */
 		       req->hdr.size - req->usrreqsz, /* overrun length */
 		       FI_ETRUNC, FI_ETRUNC,  /* not negative value here */
-		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
+		       req->buf, /* buf is only valid for MULTI_RECV */
+		       req->fi_data, req->hdr.tag);
     } else {
 	tofu_reg_rcvcq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags, req->rsize,
-		       req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
+		       req->buf, /* buf is only valid for MULTI_RECV */
+		       req->fi_data, req->hdr.tag);
     }
-    utf_recvreq_free(req);
+    if (req->fi_flgs&FI_MULTI_RECV && !(flags & FI_MULTI_RECV)) {
+	/* req->fi_flgs is FI_MULT_RECV and buffer is not overflow.
+	 * re-enter */
+	req->buf += req->rsize;
+	req->fi_recvd += req->rsize;
+	req->type = REQ_RECV_EXPECTED;
+	req->state = REQ_NONE;
+	req->hdr = req->fi_svdhdr;
+	req->rsize = 0;
+	utf_msglst_insert(&tfi_msg_explst, req);
+	DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+	    utf_printf("%s:\t RE-ENTER FI_MULTI_RECV req(%p)\n", __func__, req);
+	    utf_msglist_show("\tTFI_MSG_EXPLST:", &tfi_msg_explst);
+	}
+    } else {
+	utf_recvreq_free(req);
+    }
 }
 
-static void
+static inline void
 tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
-	       uint64_t data, uint64_t tag)
+	       uint64_t data, uint64_t tag, void *buf)
 {
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
@@ -290,7 +318,7 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     cq_e->flags		= (flags & (FI_TAGGED|FI_COMPLETION|FI_TRANSMIT_COMPLETE|FI_DELIVERY_COMPLETE|FI_RMA|FI_WRITE|FI_READ))
 	| ((flags&FI_RMA) ? 0 : FI_SEND);
     cq_e->len		= len;
-    cq_e->buf		= 0;
+    cq_e->buf		= buf;
     cq_e->data		= data;
     cq_e->tag		= tag;
 
@@ -298,10 +326,10 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 	utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx) cq(%p)->cq_ccq(%p) cq_ssel(%d)\n",
 		   __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag, cq, cq->cq_ccq, cq->cq_ssel);
     }
-    if (flags & FI_INJECT
+    if ((flags & FI_INJECT)
 	|| (cq->cq_ssel && !(flags & (FI_COMPLETION|FI_TRANSMIT_COMPLETE|FI_DELIVERY_COMPLETE)))) {
 	DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
-	    utf_printf("%s: no send completion is generated\n",  __func__);
+	    utf_printf("%s: YI################ no send completion is generated\n",  __func__);
 	}
 	goto skip;
     }
@@ -326,7 +354,9 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     struct tofu_ctx *ctx;
     struct tofu_cq  *cq;
 
-    DEBUG(DLEVEL_ADHOC) utf_printf("%s: DONE\n", __func__);
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("%s: SEND NOTIFY req(%p)->buf(%p)\n", __func__, req, req->buf);
+    }
     if ((req->type < REQ_SND_BUFFERED_EAGER)) {
 	utf_printf("%s: notification received req(%p)->type(%d) flgs(%s)\n",
 		   __func__, req, req->type, tofu_fi_flags_string(req->fi_flgs));
@@ -337,7 +367,7 @@ tofu_catch_sndnotify(struct utf_msgreq *req)
     cq = ctx->ctx_send_cq;
     assert(cq != 0);
     tofu_reg_sndcq(cq, req->fi_ucontext, req->fi_flgs, req->hdr.size,
-		   req->fi_data, req->hdr.tag);
+		   req->fi_data, req->hdr.tag, 0); /* buf is onliy valid in recv */
     utf_sendreq_free(req);
     //utf_printf("%s: YI***** 3\n", __func__);
 }
@@ -358,8 +388,9 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
     explst = flags & FI_TAGGED ? &tfi_tag_explst : &tfi_msg_explst;
     msgsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
-	utf_printf("%s: flags(%s) sz(%ld) src(%ld) tag(%lx) data(%ld)\n",
-		   __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data);
+	utf_printf("%s: flags(%s) sz(%ld) src(%ld) tag(%lx) data(%ld) context(%p) msg(%s)\n",
+		   __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data,
+		   msg->context, tofu_fi_msg_data(msg));
     }
     if ((idx = tfi_utf_explst_match(explst, src, tag, 0)) != -1) {/* found */
 	uint64_t	sndsz;
@@ -372,41 +403,57 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	    sndsz = msgsz;
 	}
 	DEBUG(DLEVEL_PROTOCOL) {
-	    utf_printf("%s: req->usrreqsz(%ld) msgsz(%ld) req->fi_flgs(%s) "
+	    utf_printf("%s: EXPECT req(%p)->usrreqsz(%ld) msgsz(%ld) req->fi_flgs(%s) "
 		       "req->fi_msg[0].iov_base(%lx) req->fi_msg[0].iov_len(%ld) "
 		       "sndsz(%ld) msg->iov_count(%ld)\n",
-		       __func__, req->usrreqsz, msgsz, tofu_fi_flags_string(req->fi_flgs),
+		       __func__, req, req->usrreqsz, msgsz, tofu_fi_flags_string(req->fi_flgs),
 		       req->fi_msg[0].iov_base, req->fi_msg[0].iov_len, sndsz, msg->iov_count);
+	    utf_printf("%s:\tflags(%s)\n", __func__, tofu_fi_flags_string(flags));
 	}
 	/* sender data is copied to the specified buffer */
-	if (req->fi_iov_count == 1) {
-	    /* req->fi_msg[0].iov_base <-- msg->msg_iov */
-	    ofi_copy_from_iov(req->fi_msg[0].iov_base, req->fi_msg[0].iov_len,
+	if (req->fi_flgs & FI_MULTI_RECV) { /* copy to the buffer */
+	    ofi_copy_from_iov(req->buf, sndsz,
 			      msg->msg_iov, msg->iov_count, 0);
-	} else if (msg->iov_count == 1) {
-	    /* req->fi_msg <-- msg->msg_iov[0].iov_base */
-	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
-			    msg->msg_iov[0].iov_base, sndsz);
 	} else {
-	    /* This is a naive copy. we should optimize this copy */
-	    char	*cp = utf_malloc(sndsz);
-	    if (cp == NULL) { fc = -FI_ENOMEM; goto err; }
-	    ofi_copy_from_iov(cp, sndsz,
-			      msg->msg_iov, msg->iov_count, 0);
-	    ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
-			    cp, sndsz);
-	    utf_free(cp);
+	    if (req->fi_iov_count == 1) {
+		/* req->fi_msg[0].iov_base <-- msg->msg_iov */
+		ofi_copy_from_iov(req->fi_msg[0].iov_base, req->fi_msg[0].iov_len,
+				  msg->msg_iov, msg->iov_count, 0);
+	    } else if (msg->iov_count == 1) {
+		/* req->fi_msg <-- msg->msg_iov[0].iov_base */
+		ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
+				msg->msg_iov[0].iov_base, sndsz);
+	    } else {
+		/* This is a naive copy. we should optimize this copy */
+		char	*cp = utf_malloc(sndsz);
+		if (cp == NULL) {
+		    fc = -FI_ENOMEM; goto ext;
+		}
+		ofi_copy_from_iov(cp, sndsz,
+				  msg->msg_iov, msg->iov_count, 0);
+		ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
+				cp, sndsz);
+		utf_free(cp);
+	    }
 	}
-	req->fi_flgs |= flags & (FI_REMOTE_CQ_DATA|FI_TAGGED);
+	/** req->fi_flgs |= flags & (FI_REMOTE_CQ_DATA|FI_TAGGED);**/
 	req->fi_data = data;
 	req->rsize = sndsz; /* actual received size */
+	req->hdr.src = src;
 	req->hdr.size = msgsz;
+	req->state = REQ_DONE;
 	tofu_catch_rcvnotify(req);
     } else { /* insert the new req into the unexpected message queue */
 	uint8_t	*cp = utf_malloc(msgsz);
-	if (cp == NULL) { fc = -FI_ENOMEM; goto err;	}
+	if (cp == NULL) {
+	    fc = -FI_ENOMEM; goto ext;
+	}
 	if ((req = utf_recvreq_alloc()) == NULL) {
-	    fc = -FI_EAGAIN; goto err;
+	    utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+	    DEBUG(DLEVEL_PROTOCOL) {
+		utf_printf("%s: EAGAIN no more recvreq resource\n", __func__);
+	    }
+	    fc = -FI_EAGAIN; goto ext;
 	}
 	/* This is a naive copy. we should optimize this copy */
 	ofi_copy_from_iov(cp, msgsz, msg->msg_iov, msg->iov_count, 0);
@@ -426,9 +473,17 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	explst = flags & FI_TAGGED ? &tfi_tag_uexplst : &tfi_msg_uexplst;
 	utf_msglst_append(explst, req);
     }
+    if (flags & FI_INJECT) {
+	utf_printf("%s: YI################ no send completion is generated\n",  __func__);
+	goto ext;
+    }
     /* generating send notification */
     if ((req = utf_sendreq_alloc()) == NULL) { // rc = ERR_NOMORE_REQBUF;
-	fc = -FI_EAGAIN; goto err;
+	utf_printf("%s: YI########### EAGAIN no more sendreq resource\n", __func__);
+	DEBUG(DLEVEL_PROTOCOL) {
+	    utf_printf("%s: EAGAIN no more sendreq resource\n", __func__);
+	}
+	fc = -FI_EAGAIN; goto ext;
     }
     req->hdr.src = src;
     req->hdr.tag = tag;
@@ -437,12 +492,13 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
     req->hdr.size = msgsz;
     req->state = REQ_NONE;
     req->type = REQ_SND_BUFFERED_EAGER;
+    req->buf = msg->msg_iov[0].iov_base;
     req->notify = tofu_catch_sndnotify;
     req->fi_ctx = ctx;
     req->fi_flgs = flags;
     req->fi_ucontext = msg->context;
     tofu_catch_sndnotify(req);
-err:
+ext:
     return fc;
 }
 
@@ -464,9 +520,10 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
     minfo->msghdr.sidx = usp->mypos; /* 8 bit */
     minfo->mreq = req;
     minfo->scntr = usp;
-    minfo->fi_context = msg->context;
+    //QWE minfo->fi_context = msg->context;
     sbufp->pkt.hdr = minfo->msghdr; /* header */
     sbufp->pkt.pyld.fi_msg.data = msg->data; /* fi data */
+    req->fi_ucontext = msg->context;
     req->allflgs = 0;
     if (size <= MSG_FI_EAGER_PIGBACK_SZ) {
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER_PIGBACK;
@@ -538,10 +595,15 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 
     // INITCHECK();
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
-    DEBUG(DLEVEL_PROTO_RENDEZOUS|DLEVEL_ADHOC|DLEVEL_CHAIN) utf_printf("%s: SRC DST(%d) LEN(%ld)\n", __func__, dst, msgsize);
+    DEBUG(DLEVEL_PROTOCOL) {
+	utf_printf("%s: SRC DST(%d) LEN(%ld) buf(%p) flags(%s) tag(0x%lx) data(%ld) context(%p) msg(%s)\n", __func__,
+		   dst, msgsize, msg->msg_iov[0].iov_base, tofu_fi_flags_string(flags), msg->tag, msg->data, msg->context,
+		   tofu_fi_msg_data(msg));
+    }
     if ((req = utf_sendreq_alloc()) == NULL) {
 	/*rc = UTF_ERR_NOMORE_REQBUF; */
 	// utf_printf("%s: YI!!!!! return msgreq alloc fail: -FI_EAGAIN = %d\n", __func__, fc);
+	utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
 	fc = -FI_EAGAIN; goto err1;
     }
     /* av = ctx->ctx_sep->sep->sep_av */
@@ -557,11 +619,13 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	if (minfo->cntrtype == SNDCNTR_NONE) goto has_room;
 	tfi_utf_progress(NULL);
     }
+    utf_printf("%s: YI########### EAGAIN no more sendctr send area\n", __func__);
     fc = -FI_EAGAIN;
     goto err2;
 has_room:
     if (usp->inflight > MSGREQ_SENDMAX_INFLIGHT) {
 	/* rendevous messages more than MSGREQ_SENDMAX_INFLIGHT */
+	utf_printf("%s: YI########### EAGAIN MAX FLIGHT\n", __func__);
 	fc = -FI_EAGAIN;
 	goto err2;
     }
@@ -574,6 +638,7 @@ has_room:
 	fc = -FI_ENOMEM; goto err2;
     }
     fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
+    req->fi_data = msg->data;
     usp->inflight++;
     usp->dbg_idx = 0; /* for debugging */
     if (fc != FI_SUCCESS) {
@@ -619,8 +684,9 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	uexplst = &tfi_msg_uexplst;
     }
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
-	utf_printf("%s: exp SRC(%d) tag(%lx) data(%lx) ignore(%lx) flags(%s) peek(%d)\n",
-		   __func__, src, tag, data, ignore,
+	size_t  msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+	utf_printf("%s: ENTER SRC(%d) tag(%lx) size(%ld) buf(%p) data(%lx) ignore(%lx) flags(%s) peek(%d)\n",
+		   __func__, src, tag, msgsize, msg->msg_iov[0].iov_base, data, ignore,
 		   tofu_fi_flags_string(flags), peek);
     }
     if ((idx=tfi_utf_uexplst_match(uexplst, src, tag, ignore, peek)) != -1) {
@@ -679,6 +745,14 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 		       " previous context(%p) now context(%p)\n",
 		       __func__, req->fi_ucontext, msg->context);
 	}
+	if (flags & FI_MULTI_RECV) { /* buf is now pointing to user buffer */
+	    req->buf = msg->msg_iov[0].iov_base;
+	    req->fi_svdhdr.hall = 0;
+	    req->fi_svdhdr.src = src;
+	    req->fi_svdhdr.tag = tag;
+	    req->fi_ignore = ignore;
+	    req->fi_recvd = sz;
+	}
 	/* CQ is immediately generated */
 	if (peek == 0) {
 	    tofu_catch_rcvnotify(req);
@@ -713,6 +787,7 @@ req_setup:
 	if (req == 0) {
 	    req_new = 1;
 	    if ((req = utf_recvreq_alloc()) == NULL) {
+		utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
 		fc = -FI_EAGAIN; goto ext;
 	    }
 	    req->hdr.src = src;
@@ -774,15 +849,17 @@ req_setup:
 	req->fistate = 0;
 	req->fi_ucontext = msg->context;
 	if (req_new) { /* This is a new entry */
-	    explst = flags & FI_TAGGED ? &tfi_tag_explst : &tfi_msg_explst;
+	    explst = (flags & FI_TAGGED) ? &tfi_tag_explst : &tfi_msg_explst;
+	    if (flags & FI_MULTI_RECV) {
+		req->buf = msg->msg_iov[0].iov_base;
+		req->fi_recvd = 0;
+		req->fi_svdhdr = req->hdr;
+	    }
 	    mlst = utf_msglst_append(explst, req);
 	    mlst->fi_ignore = ignore;
 	    //mlst->fi_context = msg->context;
 	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("%s:\tExp req(%p) SRC(%d) sz(%ld)\n", __func__, req, src, req->usrreqsz);
-		//utf_printf("%s: YI!!!! message(size=%ld) has not arrived. register to %s expected queue\n",
-		//__func__, req->expsize, explst == &tfi_tag_explst ? "TAGGED": "REGULAR");
-		//utf_printf("%s: Insert mlst(%p) to expected queue, fi_ignore(%lx)\n", __func__, mlst, mlst->fi_ignore);
+		utf_printf("%s:\tAppend Explist req(%p) SRC(%d) sz(%ld) fi_flgs(%s)\n", __func__, req, src, req->usrreqsz, tofu_fi_flags_string(req->fi_flgs));
 	    }
 	}
     } else {
@@ -827,7 +904,7 @@ tofu_catch_rma_rmtnotify(void *fi_ctx)
 #if 0
     if (ctx->ctx_send_cq) { /* send notify */
 	tofu_reg_sndcq(ctx->ctx_send_cq, cq->fi_ucontext, flags,
-		       cq->len, cq->lmemaddr, cq->data, 0);
+		       cq->len, cq->lmemaddr, cq->data, 0, 0);
     }
     if (ctx->ctx_send_ctr) { /* counter */
 	struct tofu_cntr *ctr = ctx->ctx_send_ctr;
@@ -862,7 +939,7 @@ tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
 	    utf_printf("%s: skipping send CQ notification\n", __func__);
 	} else {
 	    tofu_reg_sndcq(ctx->ctx_send_cq, cq->fi_ucontext, flags,
-			   cq->len, cq->data, 0);
+			   cq->len, cq->data, 0, 0);
 	}
     }
     if (ctx->ctx_send_ctr) { /* counter */
@@ -875,7 +952,7 @@ tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
 	    utf_printf("%s: COUNRTER INCREMENT ctr->ctr_ctr(%ld)\n", __func__, ctr->ctr_ctr);
 	}
     }
-    if (cq->type != UTF_RMA_WRITE_INJECT && cq->lstadd != NULL) {
+    if (cq->type != UTF_RMA_WRITE_INJECT && cq->lstadd != 0) {
 	struct tofu_sep	*sep = ctx->ctx_sep;
 	utofu_vcq_hdl_t vcqh = sep->sep_myvcqh;
 	utf_mem_dereg(vcqh, cq->lstadd);

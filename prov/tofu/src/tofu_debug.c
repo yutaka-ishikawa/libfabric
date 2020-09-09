@@ -49,6 +49,23 @@ tofu_fi_flags_string(uint64_t flags)
     return buf;
 }
 
+char *
+tofu_data_dump(void *data, int len)
+{
+    static char	buf[B_SIZE];
+    char *cp = data;
+    int	i, j;
+    j = 0;
+    if (data == NULL) {
+	strcpy(buf, "<NULL>");
+	return buf;
+    }
+    for (i = 0; i < len; i++) {
+	snprintf(&buf[j], B_SIZE, "%02x:", *cp);
+	j += 3; cp++;
+    }
+    return buf;
+}
 
 char *
 tofu_fi_msg_string(const struct fi_msg_tagged *msgp)
@@ -59,6 +76,26 @@ tofu_fi_msg_string(const struct fi_msg_tagged *msgp)
 	     "context(%p) data(0x%lx)", msgp->iov_count,
 	     ofi_total_iov_len(msgp->msg_iov, msgp->iov_count),
 	     msgp->addr, msgp->tag, msgp->ignore, msgp->context, msgp->data);
+    return buf;
+}
+
+char *
+tofu_fi_msg_data(const struct fi_msg_tagged *msgp)
+{
+    static char	buf[B_SIZE];
+    int	i, j, k;
+
+    k = 0;
+    buf[0] = 0;
+    for (i = 0; i < msgp->iov_count; i++) {
+	char *cp = msgp->msg_iov[i].iov_base;
+	for (j = 0; j < msgp->msg_iov[i].iov_len && k < B_SIZE - 4; j++) {
+	    snprintf(&buf[k], B_SIZE, "%02x:", *cp);
+	    k += 3; cp++;
+	}
+	if (k >= B_SIZE) break;
+	buf[k++] = '+';	buf[k] = 0;
+    }
     return buf;
 }
 

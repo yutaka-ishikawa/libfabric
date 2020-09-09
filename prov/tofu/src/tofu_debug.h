@@ -116,6 +116,8 @@ extern char *tank2string(char *buf, size_t sz, uint64_t ui64);
 extern char *vcqid2string(char *buf, size_t sz, utofu_vcq_id_t vcqi);
 extern void dbg_show_utof_vcqh(utofu_vcq_hdl_t vcqh);
 extern void dbg_show_utof_myvcqh(size_t sz, utofu_vcq_hdl_t *vcqh);
+extern char *tofu_fi_msg_data(const struct fi_msg_tagged *msgp);
+extern char *tofu_data_dump(void *data, int len);
 
 /* Copy from mpich/src/mpid/ch4/netmod/ofi/ofi_pre.h */
 enum {

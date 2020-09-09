@@ -554,7 +554,7 @@ tofu_ctx_setopt(fid_t fid, int level,  int optname,
 	    fc = -FI_EINVAL; goto bad;
 	}
 	/* ctx_priv->min_multi_recv = ((size_t *)optval)[0]; */
-        // R_DBG("%s: FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
+        R_DBG("%s: YI###### FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
 	break;
     default:
 	fc = -FI_ENOPROTOOPT; goto bad;
