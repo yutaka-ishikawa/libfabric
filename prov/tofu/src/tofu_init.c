@@ -118,10 +118,13 @@ TOFU_INI
     // fprintf(stderr, "**** Debug option is enable\n"); fflush(stderr);
 #endif /* ~NDEBUG */
     {
-        int	myrank, nprocs, ppn;
+        int	myrank, nprocs, ppn, rc;
         utf_printf("%s: YI!!! CALLING utf_init\n", __func__);
-        utf_init(0, NULL, &myrank, &nprocs, &ppn);
-        utf_printf("%s: YI!!! RETURNING from utf_init\n", __func__);
+        rc = utf_init(0, NULL, &myrank, &nprocs, &ppn);
+        if (rc < 0) {
+            utf_printf("%s: YI!!! RETURNING from utf_init rc(%d) ERROR\n", __func__, rc);
+            abort();
+        }
     }
     {
         extern utofu_stadd_t	utf_egr_rbuf_stadd;

@@ -54,13 +54,14 @@ tofu_data_dump(void *data, int len)
 {
     static char	buf[B_SIZE];
     char *cp = data;
-    int	i, j;
+    int	i, j, k;
     j = 0;
     if (data == NULL) {
 	strcpy(buf, "<NULL>");
 	return buf;
     }
-    for (i = 0; i < len; i++) {
+    k = len > 80 ? 80 : len;
+    for (i = 0; i < k; i++) {
 	snprintf(&buf[j], B_SIZE, "%02x:", *cp);
 	j += 3; cp++;
     }

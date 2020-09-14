@@ -171,7 +171,7 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     }
     fastlock_acquire(&cq->cq_lck);
     if (ofi_cirque_isfull(cq->cq_cceq)) {
-	utf_printf("%s: cq(%p) CQE is full\n",  __func__, cq);
+	utf_printf("%s: YI########### cq(%p) CQE is full\n",  __func__, cq);
 	fc = -FI_EAGAIN; goto bad;
     }
     /* FI_CLAIM is not set because no FI_BUFFERED_RECV is set*/
@@ -215,12 +215,12 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE len(%ld)\n", __func__, len);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
-	utf_printf("%s: no recv completion is generated\n",  __func__);
+	utf_printf("%s: YI############ no recv completion is generated\n",  __func__);
 	return fc;
     }
     fastlock_acquire(&cq->cq_lck);
     if (ofi_cirque_isfull(cq->cq_ccq)) {
-	utf_printf("%s: cq(%p) CQ is full\n",  __func__, cq);
+	utf_printf("%s: YI############# cq(%p) CQ is full\n",  __func__, cq);
 	fc = -FI_EAGAIN; goto bad;
     }
     /* FI_CLAIM is not set because no FI_BUFFERED_RECV is set*/
@@ -380,7 +380,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
     fi_addr_t	src = msg->addr;
     uint64_t	tag = msg->tag;
     uint64_t	data = msg->data;
-    struct utf_msgreq	*req;
+    struct utf_msgreq	*snd_req, *rcv_req;
     uint64_t	msgsz;
     int	idx;
     int fc = FI_SUCCESS;
@@ -392,36 +392,49 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 		   __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data,
 		   msg->context, tofu_fi_msg_data(msg));
     }
+    if (flags & FI_INJECT) {
+	DEBUG(DLEVEL_PROTOCOL) {
+	    utf_printf("%s: YI################ no send completion is generated\n",  __func__);
+	}
+	snd_req = NULL;
+    } else {
+	if ((snd_req = utf_sendreq_alloc()) == NULL) { // rc = ERR_NOMORE_REQBUF;
+	    DEBUG(DLEVEL_ERR) {
+		utf_printf("%s: YI########### EAGAIN no more sendreq resource\n", __func__);
+	    }
+	    fc = -FI_EAGAIN; goto ext;
+	}
+    }
     if ((idx = tfi_utf_explst_match(explst, src, tag, 0)) != -1) {/* found */
 	uint64_t	sndsz;
 
-	req = utf_idx2msgreq(idx);
-	if (msgsz > req->usrreqsz) {
-	    sndsz = req->usrreqsz;
-	    req->overrun = 1;
+	rcv_req = utf_idx2msgreq(idx);
+	if (msgsz > rcv_req->usrreqsz) {
+	    sndsz = rcv_req->usrreqsz;
+	    rcv_req->overrun = 1;
 	} else {
 	    sndsz = msgsz;
 	}
 	DEBUG(DLEVEL_PROTOCOL) {
-	    utf_printf("%s: EXPECT req(%p)->usrreqsz(%ld) msgsz(%ld) req->fi_flgs(%s) "
-		       "req->fi_msg[0].iov_base(%lx) req->fi_msg[0].iov_len(%ld) "
+	    utf_printf("%s: EXPECT rcv_req(%p)->usrreqsz(%ld) msgsz(%ld) rcv_req->fi_flgs(%s) "
+		       "rcv_req->fi_msg[0].iov_base(%lx) rcv_req->fi_msg[0].iov_len(%ld) "
 		       "sndsz(%ld) msg->iov_count(%ld)\n",
-		       __func__, req, req->usrreqsz, msgsz, tofu_fi_flags_string(req->fi_flgs),
-		       req->fi_msg[0].iov_base, req->fi_msg[0].iov_len, sndsz, msg->iov_count);
+		       __func__, rcv_req, rcv_req->usrreqsz, msgsz, tofu_fi_flags_string(rcv_req->fi_flgs),
+		       rcv_req->fi_msg[0].iov_base, rcv_req->fi_msg[0].iov_len, sndsz, msg->iov_count);
 	    utf_printf("%s:\tflags(%s)\n", __func__, tofu_fi_flags_string(flags));
 	}
 	/* sender data is copied to the specified buffer */
-	if (req->fi_flgs & FI_MULTI_RECV) { /* copy to the buffer */
-	    ofi_copy_from_iov(req->buf, sndsz,
+	if (rcv_req->fi_flgs & FI_MULTI_RECV) { /* copy to the buffer */
+	    ofi_copy_from_iov(rcv_req->buf, sndsz,
 			      msg->msg_iov, msg->iov_count, 0);
 	} else {
-	    if (req->fi_iov_count == 1) {
-		/* req->fi_msg[0].iov_base <-- msg->msg_iov */
-		ofi_copy_from_iov(req->fi_msg[0].iov_base, req->fi_msg[0].iov_len,
+	    if (rcv_req->fi_iov_count == 1) {
+		/* rcv_req->fi_msg[0].iov_base <-- msg->msg_iov */
+		ofi_copy_from_iov(rcv_req->fi_msg[0].iov_base, rcv_req->fi_msg[0].iov_len,
 				  msg->msg_iov, msg->iov_count, 0);
 	    } else if (msg->iov_count == 1) {
-		/* req->fi_msg <-- msg->msg_iov[0].iov_base */
-		ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
+		/* rcv_req->fi_msg <-- msg->msg_iov[0].iov_base */
+		ofi_copy_to_iov(rcv_req->fi_msg, rcv_req->fi_iov_count, 0,
 				msg->msg_iov[0].iov_base, sndsz);
 	    } else {
 		/* This is a naive copy. we should optimize this copy */
@@ -431,73 +444,65 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 		}
 		ofi_copy_from_iov(cp, sndsz,
 				  msg->msg_iov, msg->iov_count, 0);
-		ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
+		ofi_copy_to_iov(rcv_req->fi_msg, rcv_req->fi_iov_count, 0,
 				cp, sndsz);
 		utf_free(cp);
 	    }
 	}
-	/** req->fi_flgs |= flags & (FI_REMOTE_CQ_DATA|FI_TAGGED);**/
-	req->fi_data = data;
-	req->rsize = sndsz; /* actual received size */
-	req->hdr.src = src;
-	req->hdr.size = msgsz;
-	req->state = REQ_DONE;
-	tofu_catch_rcvnotify(req);
+	/** rcv_req->fi_flgs |= flags & (FI_REMOTE_CQ_DATA|FI_TAGGED);**/
+	rcv_req->fi_data = data;
+	rcv_req->rsize = sndsz; /* actual received size */
+	rcv_req->hdr.src = src;
+	rcv_req->hdr.size = msgsz;
+	rcv_req->state = REQ_DONE;
+	tofu_catch_rcvnotify(rcv_req);
     } else { /* insert the new req into the unexpected message queue */
 	uint8_t	*cp = utf_malloc(msgsz);
 	if (cp == NULL) {
 	    fc = -FI_ENOMEM; goto ext;
 	}
-	if ((req = utf_recvreq_alloc()) == NULL) {
-	    utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
-	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("%s: EAGAIN no more recvreq resource\n", __func__);
+	if ((rcv_req = utf_recvreq_alloc()) == NULL) {
+	    DEBUG(DLEVEL_ERR) {
+		utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+	    }
+	    if (snd_req) {
+		utf_sendreq_free(snd_req);
 	    }
 	    fc = -FI_EAGAIN; goto ext;
 	}
 	/* This is a naive copy. we should optimize this copy */
 	ofi_copy_from_iov(cp, msgsz, msg->msg_iov, msg->iov_count, 0);
-	req->allflgs = 0;
-	req->state = REQ_DONE;
-	req->buf = cp;
-	req->hdr.src = src;
-	req->hdr.tag = tag;
-	req->fi_data = data;
-	req->hdr.size = msgsz;
-	req->rsize = msgsz;
-	req->fistate = REQ_SELFSEND;
-	req->type = REQ_RECV_UNEXPECTED;
-	req->fi_ctx = ctx;	/* used for completion */
-	req->fi_flgs = flags;
-	req->fi_ucontext = msg->context;
+	rcv_req->allflgs = 0;
+	rcv_req->state = REQ_DONE;
+	rcv_req->buf = cp;
+	rcv_req->hdr.src = src;
+	rcv_req->hdr.tag = tag;
+	rcv_req->fi_data = data;
+	rcv_req->hdr.size = msgsz;
+	rcv_req->rsize = msgsz;
+	rcv_req->fistate = REQ_SELFSEND;
+	rcv_req->type = REQ_RECV_UNEXPECTED;
+	rcv_req->fi_ctx = ctx;	/* used for completion */
+	rcv_req->fi_flgs = flags;
+	rcv_req->fi_ucontext = msg->context;
 	explst = flags & FI_TAGGED ? &tfi_tag_uexplst : &tfi_msg_uexplst;
-	utf_msglst_append(explst, req);
+	utf_msglst_append(explst, rcv_req);
     }
-    if (flags & FI_INJECT) {
-	utf_printf("%s: YI################ no send completion is generated\n",  __func__);
-	goto ext;
+    if (snd_req) {
+	snd_req->hdr.src = src;
+	snd_req->hdr.tag = tag;
+	snd_req->allflgs = 0;
+	snd_req->fi_data = data;
+	snd_req->hdr.size = msgsz;
+	snd_req->state = REQ_NONE;
+	snd_req->type = REQ_SND_BUFFERED_EAGER;
+	snd_req->buf = msg->msg_iov[0].iov_base;
+	snd_req->notify = tofu_catch_sndnotify;
+	snd_req->fi_ctx = ctx;
+	snd_req->fi_flgs = flags;
+	snd_req->fi_ucontext = msg->context;
+	tofu_catch_sndnotify(snd_req);
     }
-    /* generating send notification */
-    if ((req = utf_sendreq_alloc()) == NULL) { // rc = ERR_NOMORE_REQBUF;
-	utf_printf("%s: YI########### EAGAIN no more sendreq resource\n", __func__);
-	DEBUG(DLEVEL_PROTOCOL) {
-	    utf_printf("%s: EAGAIN no more sendreq resource\n", __func__);
-	}
-	fc = -FI_EAGAIN; goto ext;
-    }
-    req->hdr.src = src;
-    req->hdr.tag = tag;
-    req->allflgs = 0;
-    req->fi_data = data;
-    req->hdr.size = msgsz;
-    req->state = REQ_NONE;
-    req->type = REQ_SND_BUFFERED_EAGER;
-    req->buf = msg->msg_iov[0].iov_base;
-    req->notify = tofu_catch_sndnotify;
-    req->fi_ctx = ctx;
-    req->fi_flgs = flags;
-    req->fi_ucontext = msg->context;
-    tofu_catch_sndnotify(req);
 ext:
     return fc;
 }
@@ -603,7 +608,9 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     if ((req = utf_sendreq_alloc()) == NULL) {
 	/*rc = UTF_ERR_NOMORE_REQBUF; */
 	// utf_printf("%s: YI!!!!! return msgreq alloc fail: -FI_EAGAIN = %d\n", __func__, fc);
-	utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+	}
 	fc = -FI_EAGAIN; goto err1;
     }
     /* av = ctx->ctx_sep->sep->sep_av */
@@ -612,39 +619,41 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	// utf_printf("%s: YI!!!!! return sender cntrl fail: -FI_ENOMEM = %d\n", __func__, fc);
 	goto err2;
     }
-    /* wait for completion of previous send massages */
-    minfo = &usp->msginfo[usp->mient];
-    //utf_printf("%s: YI!!! usp->mient(%d) minfo(%p)->cntrtype(%d)\n", __func__, usp->mient, minfo, minfo->cntrtype);
-    for (retry = 0; retry < 3; retry++) {
-	if (minfo->cntrtype == SNDCNTR_NONE) goto has_room;
-	tfi_utf_progress(NULL);
-    }
-    utf_printf("%s: YI########### EAGAIN no more sendctr send area\n", __func__);
-    fc = -FI_EAGAIN;
-    goto err2;
-has_room:
     if (usp->inflight > MSGREQ_SENDMAX_INFLIGHT) {
 	/* rendevous messages more than MSGREQ_SENDMAX_INFLIGHT */
-	utf_printf("%s: YI########### EAGAIN MAX FLIGHT\n", __func__);
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("%s: YI########### EAGAIN MAX FLIGHT\n", __func__);
+	}
 	fc = -FI_EAGAIN;
 	goto err2;
     }
-    //utf_printf("%s: YI!!! NOW ENQUEUE usp->mient(%d)\n", __func__, usp->mient);
+    /* wait for completion of previous send massages */
+    for (retry = 0; retry < 3; retry++) {
+	minfo = &usp->msginfo[usp->mient];
+	if (minfo->cntrtype == SNDCNTR_NONE) goto has_room;
+	tfi_utf_progress(NULL);
+    }
+    DEBUG(DLEVEL_ERR) {
+	utf_printf("%s: YI########### EAGAIN no more sendctr send area\n", __func__);
+    }
+    fc = -FI_EAGAIN;
+    goto err2;
+has_room:
     usp->mient = (usp->mient + 1) % COM_SCNTR_MINF_SZ; /* advanced */
     sbufp = (minfo->sndbuf == NULL) ?
 	tfi_utf_egr_sbuf_alloc(&minfo->sndstadd) : minfo->sndbuf;
     if (sbufp == NULL) {/*rc = UTF_ERR_NOMORE_SNDBUF;*/
-	utf_printf("%s: usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
+	utf_printf("%s: YI######## FI_ENOMEM usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
 	fc = -FI_ENOMEM; goto err2;
     }
     fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
-    req->fi_data = msg->data;
-    usp->inflight++;
-    usp->dbg_idx = 0; /* for debugging */
     if (fc != FI_SUCCESS) {
 	/* error message was shown in minfo_setup */
 	goto err2;
     }
+    req->fi_data = msg->data;
+    usp->inflight++;
+    usp->dbg_idx = 0; /* for debugging */
     if (usp->state == S_NONE) {
 	utf_send_start(usp, minfo);
     }
@@ -787,7 +796,9 @@ req_setup:
 	if (req == 0) {
 	    req_new = 1;
 	    if ((req = utf_recvreq_alloc()) == NULL) {
-		utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+		DEBUG(DLEVEL_ERR) {
+		    utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+		}
 		fc = -FI_EAGAIN; goto ext;
 	    }
 	    req->hdr.src = src;
