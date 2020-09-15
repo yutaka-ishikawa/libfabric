@@ -508,10 +508,9 @@ tofu_ctx_cancel(fid_t fid, void *context)
     assert(fid != 0);
     ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
 
-    R_DBG("%s: is not yet implemented. user_context(%p) class(%s)",
+    R_DBG("%s: YI#### user_context(%p) class(%s)",
           __func__, context, tofu_fi_class_string[ctx_priv->ctx_fid.fid.fclass]);
-
-    fc = -FI_ENOSYS;
+    fc = tfi_utf_cancel(ctx_priv, context);
     return fc;
 }
 

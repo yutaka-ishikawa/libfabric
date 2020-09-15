@@ -46,6 +46,8 @@ tofu_fi_flags_string(uint64_t flags)
     if (flags & FI_SOURCE) strncat(buf, ", FI_SOURCE", B_SIZE);
     if (flags & FI_NAMED_RX_CTX) strncat(buf, ", FI_NAMED_RX_CTX", B_SIZE);
     if (flags & FI_DIRECTED_RECV) strncat(buf, ", FI_DIRECTED_RECV", B_SIZE);
+    if (flags & FI_CLAIM) strncat(buf, ", FI_CLAIM", B_SIZE);
+    if (flags & FI_DISCARD) strncat(buf, ", FI_DISCARD", B_SIZE);
     return buf;
 }
 

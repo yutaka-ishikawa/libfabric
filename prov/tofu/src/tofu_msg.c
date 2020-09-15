@@ -422,7 +422,7 @@ tofu_ctx_tag_recvv(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    fprintf(stderr, "\tYIYI: NEEDS to implement\n");
+    utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
     R_DBG0(RDBG_LEVEL3, "NEEDS TO IMPLEMENT: fi_recvv len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(0)",
           iov[0].iov_len,iov[0].iov_base, tag, ignore);
     return ret;
@@ -456,7 +456,7 @@ tofu_ctx_tag_send(struct fid_ep *fid_ep, const void *buf, size_t len,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
+    utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
     R_DBG1(RDBG_LEVEL3, "NEEDS to implement: fi_tsend dest(%s) len(%ld) buf(%p) desc(%p) tag(%lx)",
           fi_addr2string(buf1, 128, dest_addr, fid_ep),
           len, buf, desc, tag);
@@ -475,7 +475,7 @@ tofu_ctx_tag_sendv(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
+    utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
     R_DBG1(RDBG_LEVEL3, "NEEDS to implement: fi_tsendv dest(%s) len(%ld) FI_COMPLETION",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), iov[0].iov_len);
 
@@ -489,13 +489,11 @@ static ssize_t
 tofu_ctx_tag_sendmsg(struct fid_ep *fid_ep,
                      const struct fi_msg_tagged *msg, uint64_t flags)
 {
-    ssize_t ret = -FI_ENOSYS;
+    ssize_t ret;
+    uint64_t	myflgs;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
-    R_DBG1(RDBG_LEVEL3, "Needs to implement: fi_senddata dest(%s) len(%ld) data(%ld) flags(0x%lx)",
-           fi_addr2string(buf1, 128, msg->addr, fid_ep),
-           msg->msg_iov[0].iov_len, msg->data, flags);
-
+    myflgs = flags | FI_TAGGED;
+    ret = tofu_ctx_msg_send_common(fid_ep, msg, myflgs);
     return ret;
 }
 
@@ -509,7 +507,7 @@ tofu_ctx_tag_inject(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    fprintf(stderr, "YI***** %s needs to implement\n", __func__);
+    utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
     R_DBG1(RDBG_LEVEL3, "Needs to implement: fi_tinject dest(%s) len(%ld) FI_INJECT",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), len);
 

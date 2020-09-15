@@ -19,6 +19,7 @@ extern int	tfi_utf_init_1(struct tofu_av*, struct tofu_ctx*, int cls, struct tni
 extern void	tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs);
 extern void	tfi_utf_finalize(struct tni_info*);
 extern void	tfi_dom_setuptinfo(struct tni_info *tinfo, struct tofu_vname *vnmp);
+extern int	tfi_utf_cancel(struct tofu_ctx*, void *context);
 
 struct tni_info;
 static inline void
