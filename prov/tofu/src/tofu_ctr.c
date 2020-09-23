@@ -135,6 +135,8 @@ tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
 {
     int fc = FI_SUCCESS;
     struct tofu_cntr *ctr_priv;
+    uint64_t    cntr;
+    uint64_t    i, tm_10usec = timeout*100; /* timeout is msec */
 
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
     R_DBG0(RDBG_LEVEL3, "fi_cntr_wait: fid(%p)", cntr_fid);
@@ -142,8 +144,17 @@ tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
     assert(cntr_fid != 0);
     ctr_priv = container_of(cntr_fid, struct tofu_cntr, ctr_fid);
     tfi_utf_progress(ctr_priv->ctr_dom->tinfo);
-
+    cntr = ofi_atomic_get64(&ctr_priv->ctr_ctr);
+    for (i = 0; i < tm_10usec; i++) {
+        usleep(10);
+        tfi_utf_progress(ctr_priv->ctr_dom->tinfo);
+        cntr = ofi_atomic_get64(&ctr_priv->ctr_ctr);
+        if (cntr >= threshold) {
+            goto ok;
+        }
+    }
     fc = -FI_ETIMEDOUT;
+ok:
     return fc;
 }
 

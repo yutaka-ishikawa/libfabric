@@ -222,8 +222,10 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     }
     fastlock_acquire(&cq->cq_lck);
     if (ofi_cirque_isfull(cq->cq_ccq)) {
-	utf_printf("%s: YI############# cq(%p) CQ is full\n",  __func__, cq);
-	fc = -FI_EAGAIN; goto bad;
+	/* Never hapens if configuration is correct */
+	utf_printf("%s: YI############# ERROR cq(%p) CQ is full usedcnt(%ld)\n",  __func__, cq, ofi_cirque_usedcnt(cq->cq_ccq));
+	utf_printf("%s: checking CONF_TOFU_CQSIZE, MSGREQ_SEND_SZ, MSGREQ_RECV_SZ\n",  __func__);
+	abort();
     }
     /* FI_CLAIM is not set because no FI_BUFFERED_RECV is set*/
     cq_e->op_context	= context;
@@ -261,7 +263,9 @@ tofu_catch_rcvnotify(struct utf_msgreq *req)
 	&& (req->fi_msg[0].iov_len - req->fi_recvd) < 16384) {
 	/* overvflow */
 	flags |= FI_MULTI_RECV;
-	utf_printf("%s: YI%%%%%%%%%%%%%%%%%% re(%p) FI_MULTI_RECV\n", __func__, req);
+	DEBUG(DLEVEL_PROTOCOL) {
+	    utf_printf("%s: YI%%%%%%%%%%%%%%%%%% req(%p) FI_MULTI_RECV\n", __func__, req);
+	}
     }
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
 	utf_printf("%s: notification received SRC(%d) type(%d) rsize(%ld) overrun(%d) req(%p)->buf(%p) "
@@ -545,29 +549,44 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 			  size, msg->msg_iov, msg->iov_count, 0);
 	sbufp->pkt.hdr.pyldsz = size;
 	req->type = REQ_SND_BUFFERED_EAGER;
-    } else if (utf_mode_msg != MSG_RENDEZOUS) {
-	if (msg->iov_count != 1) {
-	    utf_printf("%s: cannot handle message vector\n", __func__);
-	    fc = FI_EIO; goto err;
+    } else if (size <= MSG_FI_EAGER_INPLACE_SZ || utf_mode_msg != MSG_RENDEZOUS) {
+	if (msg->iov_count == 1) {
+	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER1;
+	    minfo->usrbuf = msg->msg_iov[0].iov_base;
+	} else {
+	    utf_printf("%s: INPLACE_EAGER. totalsize(%ld) iov_count(%d)\n", __func__, size, msg->iov_count);
+	    minfo->usrbuf = utf_malloc(size);
+	    ofi_copy_from_iov(minfo->usrbuf, size, msg->msg_iov, msg->iov_count, 0);
+	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER2;
 	}
-	minfo->cntrtype = SNDCNTR_INPLACE_EAGER;
-	minfo->usrbuf = msg->msg_iov[0].iov_base;
 	memcpy(sbufp->pkt.pyld.fi_msg.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ);
 	sbufp->pkt.hdr.pyldsz = MSG_FI_PYLDSZ;
 	req->type = REQ_SND_INPLACE_EAGER;
     } else { /* rendezvous */
-	if (msg->iov_count != 1) {
-	    utf_printf("%s: cannot handle message vector\n", __func__);
-	    fc = -FI_EIO; goto err;
-	}
 	minfo->cntrtype = SNDCNTR_RENDEZOUS;
-	minfo->rgetaddr.nent = 1;
-	minfo->usrbuf = msg->msg_iov[0].iov_base;
-	sbufp->pkt.pyld.fi_msg.rndzdata.vcqid[0]
-	    = minfo->rgetaddr.vcqid[0] = usp->svcqid;
-	sbufp->pkt.pyld.fi_msg.rndzdata.stadd[0]
-	    = minfo->rgetaddr.stadd[0] = utf_mem_reg(utf_info.vcqh, minfo->usrbuf, size);
-	sbufp->pkt.pyld.fi_msg.rndzdata.nent = 1;
+	if (msg->iov_count == 1) {
+	    minfo->rgetaddr.nent = 1;
+	    minfo->usrbuf = msg->msg_iov[0].iov_base;
+	    sbufp->pkt.pyld.fi_msg.rndzdata.vcqid[0]
+		= minfo->rgetaddr.vcqid[0] = usp->svcqid;
+	    sbufp->pkt.pyld.fi_msg.rndzdata.stadd[0]
+		= minfo->rgetaddr.stadd[0] = utf_mem_reg(utf_info.vcqh, minfo->usrbuf, size);
+	    sbufp->pkt.pyld.fi_msg.rndzdata.len[0] = size;
+	    sbufp->pkt.pyld.fi_msg.rndzdata.nent = 1;
+	} else {
+	    int	i;
+	    minfo->rgetaddr.nent = 
+		sbufp->pkt.pyld.fi_msg.rndzdata.nent = msg->iov_count;
+	    for (i = 0; i < msg->iov_count; i++) {
+		sbufp->pkt.pyld.fi_msg.rndzdata.vcqid[i]
+		    = minfo->rgetaddr.vcqid[i] = usp->svcqid;
+		sbufp->pkt.pyld.fi_msg.rndzdata.stadd[i]
+		    = minfo->rgetaddr.stadd[i]
+		    = utf_mem_reg(utf_info.vcqh,
+				  msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
+		sbufp->pkt.pyld.fi_msg.rndzdata.len[i] = msg->msg_iov[i].iov_len;
+	    }
+	}
 	sbufp->pkt.hdr.pyldsz = MSG_RCNTRSZ + sizeof(uint64_t); /* data area */
 	sbufp->pkt.hdr.rndz = MSG_RENDEZOUS;
 	req->type = REQ_SND_RENDEZOUS;
@@ -973,13 +992,8 @@ tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
     }
     if (ctx->ctx_send_ctr) { /* counter */
 	struct tofu_cntr *ctr = ctx->ctx_send_ctr;
-	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
-	    utf_printf("%s: cntr->ctr_tsl(%d)\n", __func__, ctr->ctr_tsl);
-	}
-	if (flags & (FI_COMPLETION|FI_DELIVERY_COMPLETE|FI_INJECT_COMPLETE)) {
-	    ofi_atomic_inc64(&ctr->ctr_ctr);
-	    utf_printf("%s: COUNRTER INCREMENT ctr->ctr_ctr(%ld)\n", __func__, ctr->ctr_ctr);
-	}
+	ofi_atomic_inc64(&ctr->ctr_ctr);
+	utf_printf("%s: COUNRTER INCREMENT ctr->ctr_ctr(%ld)\n", __func__, ctr->ctr_ctr);
     }
     if (cq->type != UTF_RMA_WRITE_INJECT && cq->lstadd != 0) {
 	struct tofu_sep	*sep = ctx->ctx_sep;
@@ -1116,25 +1130,21 @@ tfi_utf_read_post(struct tofu_ctx *ctx,
 			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq, &len);
     if (fc == 0) {
 	struct utf_send_cntr *newusp = NULL;
-	newusp = remote_get(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
+	newusp = remote_get(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA | rma_cq->mypos, flgs, rma_cq);
 	if (newusp) {
 	    utf_sendengine_prep(utf_info.vcqh, newusp);
 	}
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_READ;
 	// utf_rmacq_waitappend(rma_cq);
-	//utfslist_append(&utf_wait_rmacq, &rma_cq->slst);
     }
-#if 0
     {
 	int i;
 	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
 	for (i = 0; i < 10; i++) {
 	    tfi_utf_progress(tinfo);
-	    usleep(10000);
 	}
     }
-#endif
     return fc;
 }
 
@@ -1162,7 +1172,7 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
 	tofu_dbg_show_rma(__func__, msg, flags);
     }
     if (fc == 0) {
-	remote_put(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA, flgs, rma_cq);
+	remote_put(vcqh, rvcqid, lstadd, rstadd, len, EDAT_RMA | rma_cq->mypos, flgs, rma_cq);
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_WRITE;
 	// utf_rmacq_waitappend(rma_cq);
@@ -1173,7 +1183,6 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
 	
 	for (i = 0; i < 10; i++) {
 	    tfi_utf_progress(tinfo);
-	    //usleep(100);
 	}
     }
     return fc;

@@ -46,7 +46,10 @@ static char *str_dtype[] = {
     "FI_FLOAT_COMPLEX",	"FI_DOUBLE_COMPLEX", "FI_LONG_DOUBLE",
     "FI_LONG_DOUBLE_COMPLEX", "FI_DATATYPE_LAST" };
 
-/* fi_atomicvalid() */
+/*
+ * fi_atomicvalid()
+ *      ep->atomic->writevalid(ep, datatype, op, count);
+ */
 static int
 tofu_ctx_atm_writevalid(struct fid_ep *ep, enum fi_datatype datatype,
                         enum fi_op op, size_t *count)
@@ -89,13 +92,17 @@ tofu_ctx_atm_writevalid(struct fid_ep *ep, enum fi_datatype datatype,
     }
     count[0] = 1;
 bad:
+    //fprintf(stderr, "%s: op(%d)=%s dtype(%d)=%s return(%d)\n", __func__, op, str_atmop[op], datatype, str_dtype[datatype], fc);
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL,
             "in %s, op(%d)=%s dtype(%d)=%s fc(%d)\n",
             __FILE__, op, str_atmop[op], datatype, str_dtype[datatype], fc);
     return fc;
 }
 
-/* fi_fetch_atomicvalid() */
+/*
+ * fi_fetch_atomicvalid
+ *      ep->atomic->readwritevalid(ep, datatype, op, count)
+ */
 static int
 tofu_ctx_atm_readwritevalid(struct fid_ep *ep, enum fi_datatype datatype,
                             enum fi_op op, size_t *count)
@@ -139,13 +146,17 @@ tofu_ctx_atm_readwritevalid(struct fid_ep *ep, enum fi_datatype datatype,
     }
     count[0] = 1;
 bad:
+    //fprintf(stderr, "%s: op(%d)=%s dtype(%d)=%s return(%d)\n", __func__, op, str_atmop[op], datatype, str_dtype[datatype], fc);
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL,
             "in %s, op(%d)=%s dtype(%d)=%s fc(%d)\n",
             __FILE__, op, str_atmop[op], datatype, str_dtype[datatype], fc);
     return fc;
 }
 
-/* fi_compare_atomicvalid() */
+/*
+ * fi_compare_atomicvalid
+ *      ep->atomic->compwritevalid(ep, datatype, op, count)
+ */
 static int
 tofu_ctx_atm_compwritevalid(struct fid_ep *ep, enum fi_datatype datatype,
                             enum fi_op op, size_t *count)
@@ -153,6 +164,8 @@ tofu_ctx_atm_compwritevalid(struct fid_ep *ep, enum fi_datatype datatype,
     int fc = FI_SUCCESS;
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     fc = -FI_EOPNOTSUPP;
+
+    //fprintf(stderr, "%s: op(%d)=%s dtype(%d)=%s return(%d)\n", __func__, op, str_atmop[op], datatype, str_dtype[datatype], fc);
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL,
             "in %s, op(%d)=%s dtype(%d)=%s fc(%d)\n",
             __FILE__, op, str_atmop[op], datatype, str_dtype[datatype], fc);
@@ -375,7 +388,10 @@ bad:
     return fc;
 }
 
-/* fi_atomicmsg() */
+/*
+ * fi_atomicmsg()
+ *      ep->atomic->writemsg(ep, msg, flags)
+ */
 static ssize_t
 tofu_ctx_atm_writemsg(struct fid_ep *fid_ep,
                       const struct fi_msg_atomic *msg,
@@ -384,7 +400,7 @@ tofu_ctx_atm_writemsg(struct fid_ep *fid_ep,
     ssize_t ret = 0;
     struct tofu_ctx *ctx_priv = 0;
 
-    R_DBGMSG("YI******\n");
+    R_DBGMSG("YI**MUST BE IMPLEMENTED**** fi_atomicmsg\n");
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;
@@ -425,7 +441,10 @@ bad:
     return ret;
 }
 
-/* fi_fetch_atomicmsg() */
+/*
+ * fi_fetch_atomicmsg()
+ *      ep->atomic->readwritemsg(ep, msg, resultv, result_desc, result_count, flags)
+ */
 static ssize_t
 tofu_ctx_atm_readwritemsg(struct fid_ep *fid_ep,
                           const struct fi_msg_atomic *msg,
@@ -435,7 +454,7 @@ tofu_ctx_atm_readwritemsg(struct fid_ep *fid_ep,
     ssize_t ret = 0;
     struct tofu_ctx *ctx_priv = 0;
 
-    R_DBGMSG("YI******\n");
+    R_DBGMSG("YI**MUST BE IMPLEMENTED**** fi_fetch_atomicmsg\n");
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "in %s\n", __FILE__);
     if (fid_ep->fid.fclass != FI_CLASS_TX_CTX) {
         ret = -FI_EINVAL; goto bad;

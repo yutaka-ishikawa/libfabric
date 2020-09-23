@@ -101,7 +101,7 @@ static struct fi_tx_attr tofu_tx_attr = {
 		/* | FI_ORDER_DATA */
 	    ,
     .inject_size = CONF_TOFU_INJECTSIZE,
-    .size = 4, /* minimu number of transmit without returning -FI_EAGAIN */
+    .size = 4, /* minimum number of transmit without returning -FI_EAGAIN */
     .iov_limit = 1, /* XXX TOFU_IOV_LIMIT */
     .rma_iov_limit = 1, /* XXX TOFU_IOV_LIMIT */
 };
@@ -172,7 +172,7 @@ static struct fi_rx_attr tofu_rx_attr = {
 		/* | FI_ORDER_DATA */
 	    ,
     .total_buffered_recv = 0,
-    .size = 256, /* minimu number of receive without returning -FI_EAGAIN */
+    .size = 256, /* minimum number of receive without returning -FI_EAGAIN */
     .iov_limit = 0, /* XXX TOFU_IOV_LIMIT */
 };
 
