@@ -4,6 +4,26 @@
 #include "tofu_impl.h"
 #include "tofu_addr.h"
 
+/*
+ * FI_MSG           : 0x000002
+ * FI_RMA	    : 0x000004
+ * FI_TAGGED	    : 0x000008
+ * FI_ATOMIC	    : 0x000010
+ * FI_MULTICAST	    : 0x000020
+ * FI_RECV          : 0x000400
+ * FI_SEND          : 0x000800
+ * FI_REMOTE_READ   : 0x001000
+ * FI_REMOTE_WRITE  : 0x002000
+ * FI_MULTI_RECV    : 0x010000
+ * FI_REMOTE_CQ_DATA: 0x020000
+ * FI_MORE	    : 0x040000
+ * FI_PEEK	    : 0x080000
+ * FI_TRIGGER	    : 0x100000
+ * FI_FENCE	    : 0x200000
+ * FI_COMPLETION    :0x1000000
+ * FI_INJECT	    :0x2000000
+ */
+
 #define B_SIZE	1024
 char *
 tofu_fi_flags_string(uint64_t flags)
@@ -92,12 +112,37 @@ tofu_fi_msg_data(const struct fi_msg_tagged *msgp)
     buf[0] = 0;
     for (i = 0; i < msgp->iov_count; i++) {
 	char *cp = msgp->msg_iov[i].iov_base;
-	for (j = 0; j < msgp->msg_iov[i].iov_len && k < B_SIZE - 4; j++) {
+	int cnt = msgp->msg_iov[i].iov_len > 32 ? 32 : msgp->msg_iov[i].iov_len;
+	for (j = 0; j < cnt && k < B_SIZE - 4; j++) {
 	    snprintf(&buf[k], B_SIZE, "%02x:", *cp);
 	    k += 3; cp++;
 	}
 	if (k >= B_SIZE) break;
 	buf[k++] = '+';	buf[k] = 0;
+    }
+    return buf;
+}
+
+char *
+tofu_fi_err_string(int cc)
+{
+    static char	buf[B_SIZE];
+    switch(cc) {
+    case -FI_EIO:
+	strcpy(buf, "-FI_EIO");
+	break;
+    case -FI_EAGAIN:
+	strcpy(buf, "-FI_EAGAIN");
+	break;
+    case -FI_ENOMEM:
+	strcpy(buf, "-FI_ENOMEM");
+	break;
+    case FI_SUCCESS:
+	strcpy(buf, "FI_SUCCESS");
+	break;
+    default:
+	strcpy(buf, "???");
+	break;
     }
     return buf;
 }

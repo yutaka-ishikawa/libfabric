@@ -101,11 +101,10 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 
     cq = container_of(fid_cq, struct tofu_cq, cq_fid);
 
-    ent = tofu_progress(cq);
-    if (ent == 0) {
-        ent = ofi_cirque_usedcnt(cq->cq_ccq);
-    }
+    tofu_progress(cq);
+    ent = ofi_cirque_usedcnt(cq->cq_ccq);
     ent = (ent > count) ? count : ent;
+    // fprintf(stderr, "%s: COUNT(%ld) ENT(%ld) TOTAL(%ld)\n", __func__, count, ent, ofi_cirque_usedcnt(cq->cq_ccq));
     fastlock_acquire(&cq->cq_lck);
     if (ent > 0) {
         struct fi_cq_tagged_entry *cq_etag = (struct fi_cq_tagged_entry *) buf;

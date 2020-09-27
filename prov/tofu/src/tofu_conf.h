@@ -17,7 +17,7 @@
 #define CONF_TOFU_CTXC  	8   /* fi_ep_attr . [rt]x_ctx_cnt */
 #define CONF_TOFU_CQSIZE        20000 /*
                                        * MUST BE larger than MSGREQ_SEND_SZ + MSG_REA_RECV_SZ.
-                                       * CQ entries will be consumed for MPICH RMA with active message impementations.
+                                       * CQ entries will be consumed for MPICH RMA with active message implementations.
                                        */
 #define CONF_TOFU_INJECTSIZE    228    /* MUST BE the same size of TOFU_INJECTSIZE in utf_conf.h */
 //#define CONF_TOFU_INJECTSIZE    1856    /* 1878 */

@@ -12,6 +12,7 @@ extern char	*tofu_fi_flags_string(uint64_t flags);
 struct fi_msg_tagged;
 extern char     *tofu_fi_msg_string(const struct fi_msg_tagged *msgp);
 extern char     *tofu_fi_class_string[];
+extern char     *tofu_fi_err_string(int);
 
 extern int rdbgf, rdbgl;
 
