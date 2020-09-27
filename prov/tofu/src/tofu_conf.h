@@ -15,7 +15,7 @@
 //#define CONF_TOFU_CMPID         0x7
 //#define CONF_TOFU_CMPID         0x6
 #define CONF_TOFU_CTXC  	8   /* fi_ep_attr . [rt]x_ctx_cnt */
-#define CONF_TOFU_CQSIZE        20000 /*
+#define CONF_TOFU_CQSIZE        65536 /* MUST BE power of 2
                                        * MUST BE larger than MSGREQ_SEND_SZ + MSG_REA_RECV_SZ.
                                        * CQ entries will be consumed for MPICH RMA with active message implementations.
                                        */
@@ -37,5 +37,6 @@
 #define CONF_TOFU_ATTR_MAX_EP_TXRX_CTX  4 /* 4 or 6 */
 #define CONF_TOFU_ATTR_CNTR_CNT         (44 * 2) /* tx+rx */
 
+#define CONF_TOFU_FI_COMPL_PENDING      80
 
 #endif	/* _TOFU_CONF_H */

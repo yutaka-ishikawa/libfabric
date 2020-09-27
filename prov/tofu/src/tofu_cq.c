@@ -101,10 +101,17 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 
     cq = container_of(fid_cq, struct tofu_cq, cq_fid);
 
-    tofu_progress(cq);
     ent = ofi_cirque_usedcnt(cq->cq_ccq);
+    if (ent < tfi_progress_compl_pending) {
+        /*
+         * The progress engine is invoked if the number of pending completions
+         * is lower than CONF_TOFU_FI_COMPL_PENDING in default.
+         */
+        tofu_progress(cq);
+        ent = ofi_cirque_usedcnt(cq->cq_ccq);
+    }
     ent = (ent > count) ? count : ent;
-    // fprintf(stderr, "%s: COUNT(%ld) ENT(%ld) TOTAL(%ld)\n", __func__, count, ent, ofi_cirque_usedcnt(cq->cq_ccq));
+    //fprintf(stderr, "%s: COUNT(%ld) ENT(%ld) TOTAL(%ld)\n", __func__, count, ent, ofi_cirque_usedcnt(cq->cq_ccq)); fflush(stderr);
     fastlock_acquire(&cq->cq_lck);
     if (ent > 0) {
         struct fi_cq_tagged_entry *cq_etag = (struct fi_cq_tagged_entry *) buf;

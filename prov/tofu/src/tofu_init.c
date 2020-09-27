@@ -109,6 +109,7 @@ extern void utf_redirect();
 extern int utf_dbg_progress(int);
 int rdbgf;
 int rdbgl;
+int tfi_progress_compl_pending;
 
 TOFU_INI
 {
@@ -161,6 +162,13 @@ TOFU_INI
     if (cp) {
         utf_mode_mrail = atoi(cp);
     }
+    cp = getenv("TFI_COMPLETION_PENDING");
+    if (cp) {
+        tfi_progress_compl_pending = atoi(cp);
+    } else {
+        tfi_progress_compl_pending = CONF_TOFU_FI_COMPL_PENDING;
+    }
+    fprintf(stderr, "TFI_COMPLETION_PENDING = %d\n", tfi_progress_compl_pending);
     return &tofu_prov;
 }
 

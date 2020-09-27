@@ -14,6 +14,8 @@
 #define TFI_FIFLGS_TAGGED	MSGHDR_FLGS_FI_TAGGED /* 0x02: see utf_queue.h */
 #define TFI_FIFLGS_CQDATA	0x04	/* FI_REMOTE_CQ_DATA */
 
+extern int tfi_progress_compl_pending;
+
 struct tofu_av;
 extern int	tfi_utf_init_1(struct tofu_av*, struct tofu_ctx*, int cls, struct tni_info*, size_t pigsz);
 extern void	tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs);
