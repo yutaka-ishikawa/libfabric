@@ -7,12 +7,14 @@
 #include <assert.h>	    /* for assert() */
 
 extern utofu_stadd_t    utf_mem_reg(utofu_vcq_hdl_t vcqh, void *buf, size_t size);
+extern void             utf_mem_dereg(utofu_vcq_id_t vcqh, utofu_stadd_t stadd);
 
 static int
 tofu_mr_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
     struct tofu_mr *mr_priv;
+    utofu_stadd_t      stadd;
 
     FI_INFO(&tofu_prov, FI_LOG_MR, "in %s\n", __FILE__);
     assert(fid != 0);
@@ -23,8 +25,13 @@ tofu_mr_close(struct fid *fid)
     }
     fastlock_destroy( &mr_priv->mr_lck );
 
+    stadd = EXTRCT_STADD(mr_priv->mr_fid.key);
+    DEBUG(DLEVEL_PROTO_RMA) {
+        utf_printf("%s: vcqh(%lx) key(%lx) KEY_TO_STADD(%lx)\n",
+                   __func__, mr_priv->mr_dom->myvcqh, mr_priv->mr_fid.key, stadd);
+    }
+    utf_mem_dereg(mr_priv->mr_dom->myvcqh, stadd);
     free(mr_priv);
-
 bad:
     return fc;
 }
@@ -57,7 +64,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     int uc = 0;
     struct tofu_domain *dom_priv;
     struct tofu_mr     *mr_priv = 0;
-    utofu_stadd_t      stadd;
+    utofu_stadd_t      stadd, key;
 
     FI_INFO(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) offset(0x%lx) key(0x%lx) flags(0x%lx) context(%p) in %s\n", buf, len, offset, requested_key, flags, context, __FILE__);
 
@@ -84,6 +91,11 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
         fprintf(stderr, "%s: utofu_reg_mem error uc(%d)\n", __func__, uc);
         fc = -FI_ENOMEM; goto bad;
     }
+    key = MAKE_KEY(stadd, buf);
+    DEBUG(DLEVEL_PROTO_RMA) {
+        utf_printf("%s: size(%ld/0x%lx) vcqh(%lx) buf(%p) stadd(%lx) KEY(%lx)\n",
+                   __func__, len, len, dom_priv->myvcqh, buf, stadd, key);
+    }
 #if 0
     for (i = 0; i < dom_priv->dom_nvcq; i++) {
         unsigned int    stag = 20; /* temporal hack */
@@ -106,7 +118,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
 	mr_priv->mr_fid.fid.context = context;
 	mr_priv->mr_fid.fid.ops     = &tofu_mr_fi_ops;
 	mr_priv->mr_fid.mem_desc    = mr_priv; /* YYY */
-	mr_priv->mr_fid.key         = (uintptr_t) stadd;
+	mr_priv->mr_fid.key         = (uintptr_t) key;
 	/* dlist_init( &mr_priv->mr_ent ); */
     }
     /* fi_mr_attr */
@@ -130,7 +142,6 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
     }
     FI_DBG(&tofu_prov, FI_LOG_MR, " buf(%p) len(%ld) registered key(0x%lx)\n",
            buf, len, mr_priv->mr_fid.key);
-    //R_DBG("YIMR_REG: buf(%p) len(%ld) registered key(lcl_stadd)(0x%lx)\n", buf, len, mr_priv->mr_fid.key);
 
     /* return fid_dom */
     fid_mr_[0] = &mr_priv->mr_fid;

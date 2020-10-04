@@ -1267,7 +1267,10 @@ utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t fla
     /* convert destination fi_addr to utofu_vcq_id_t: r_vcqid */
     fc = tofu_av_lookup_vcqid_by_fia(av, msg->addr, rvcqid, utf_flgs);
     if (fc != FI_SUCCESS) goto bad;
-    *rstadd = msg->rma_iov[0].key;
+    *rstadd = CALC_STADD(msg->rma_iov[0].key, msg->rma_iov[0].addr);
+    DEBUG(DLEVEL_PROTO_RMA) {
+	utf_printf("%s: KEY(0x%lx) VIRT(0x%lx) STADD(0x%lx)\n", __func__, msg->rma_iov[0].key, msg->rma_iov[0].addr, *rstadd);
+    }
     *lstadd = utf_mem_reg(*vcqh, msg->msg_iov[0].iov_base, rmalen);
     if (flags & FI_REMOTE_CQ_DATA) {
 	utf_printf("FI_REMOTE_CQ_DATA is not supported in RMA operations\n");
@@ -1394,6 +1397,7 @@ tfi_utf_write_inject(struct tofu_ctx *ctx, const void *buf, size_t len,
     struct tofu_sep	*sep;
     utofu_vcq_hdl_t	vcqh;
     utofu_vcq_id_t	rvcqid;
+    utofu_stadd_t	rstadd;
     struct utf_rma_cq	*rma_cq;
 
     rma_cq = utf_rmacq_alloc();
@@ -1406,9 +1410,11 @@ tfi_utf_write_inject(struct tofu_ctx *ctx, const void *buf, size_t len,
     vcqh = rma_cq->vcqh = sep->sep_myvcqh;
     memcpy(rma_cq->inject, buf, len);
     rma_cq->lstadd = utf_rmacq_stadd + ((uint64_t)rma_cq - (uint64_t) utf_rmacq_pool) + (uint64_t) &((struct utf_rma_cq*)0)->inject;
-    remote_put(vcqh, rvcqid, rma_cq->lstadd, key, len, EDAT_RMA | rma_cq->mypos, 0, rma_cq);
+    rstadd = CALC_STADD(key, addr);
+    remote_put(vcqh, rvcqid, rma_cq->lstadd, rstadd, len, EDAT_RMA | rma_cq->mypos, 0, rma_cq);
 
     DEBUG(DLEVEL_PROTO_RMA) {
+	utf_printf("%s: KEY(0x%lx) VIRT(0x%lx) STADD(0x%lx)\n", __func__, key, addr, rstadd);
 	utf_printf("%s: YI##### buf(%p) len(%ld) DST(%ld) addr(0x%lx) key=rmtadd(0x%lx) "
 		   "vcqh(%lx) rvcqid(%lx) lstadd(%lx) rma_cq(%p) rma_cq->mypos(%d)\n",
 		   __func__, buf, len, dst, addr, key,
