@@ -39,7 +39,9 @@ tofu_ctx_init(int index, struct tofu_ctx *ctx, struct tofu_sep *sep,
 {
     int fc = FI_SUCCESS;
 
-    fprintf(stderr, "%d:%d %s ctx(%p) sep(%p) class(%s)\n", utf_info.mypid, utf_info.myrank, __func__, ctx, sep, class == FI_CLASS_TX_CTX ? "TX" : "RX");
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "%d:%d %s ctx(%p) sep(%p) class(%s)\n", utf_info.mypid, utf_info.myrank, __func__, ctx, sep, class == FI_CLASS_TX_CTX ? "TX" : "RX");
+    }
     /* initialize fabric members */
     ctx->ctx_fid.fid.fclass  = class;
     ctx->ctx_fid.fid.context = context;
@@ -212,10 +214,12 @@ tofu_ictx_close(struct tofu_ctx *ctx)
                 ctx, ctx->ctx_sep); fflush(stderr);
 	uc = UTOFU_ERR_INVALID_ARG; goto bad;
     }
+#if 0
     if (utf_info.myrank == 0) {
         static int nfst = 0;
         if (nfst == 0) { R_DBG("%s: Needs to checking if it's all in closing utofu", __func__); nfst = 1; }
     }
+#endif
 bad:
     return uc;
 }
@@ -249,10 +253,12 @@ static int tofu_ctx_close(struct fid *fid)
 	    tofu_sep_rem_ctx_rx(ctx_priv->ctx_sep, ctx_priv);
 	}
     }
+#if 0
     if (utf_info.myrank == 0) {
         static int nfst = 0;
         if (nfst == 0) { R_DBG("%s: NEEDS TO clean up ", __func__); nfst = 1; }
     }
+#endif
 #if 0
     if (ctx_priv->ctx_trx != 0) {
 	if (ctx_priv->ctx_trx->ctx_trx != 0) {
@@ -332,7 +338,9 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		 *   using FI_WRITE.
 		 */
                 cq_priv->cq_ssel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
-                R_DBG("FI_SEND FI_SELECTIVE_COMPLETION(%d)", cq_priv->cq_ssel);
+                DEBUG(DLEVEL_INIFIN) {
+                    R_DBG("FI_SEND FI_SELECTIVE_COMPLETION(%d)", cq_priv->cq_ssel);
+                }
 		if (ctx_priv->ctx_send_cq != 0) {
 		    fc = -FI_EBUSY; goto bad;
 		}
@@ -350,7 +358,9 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 		ctx_priv->ctx_recv_cq = cq_priv;
 		tofu_cq_ins_ctx_rx(cq_priv, ctx_priv);
                 cq_priv->cq_rsel = flags&FI_SELECTIVE_COMPLETION ? 1 : 0;
-                R_DBG("FI_RECV FI_SELECTIVE_COMPLETION(%d)", cq_priv->cq_rsel);
+                DEBUG(DLEVEL_INIFIN) {
+                    R_DBG("FI_RECV FI_SELECTIVE_COMPLETION(%d)", cq_priv->cq_rsel);
+                }
 	    }
 	    break;
 	default:
@@ -359,13 +369,17 @@ static int tofu_ctx_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
         break;
     case FI_CLASS_CNTR:
 	ctr_priv = container_of(bfid, struct tofu_cntr, ctr_fid.fid);
-        R_DBG("YI###### bind: CNTR ctx_priv(%p) cq_priv(%p) flags(%lx)\n", ctx_priv, ctr_priv, flags);
+        DEBUG(DLEVEL_INIFIN) {
+            R_DBG("YI###### bind: CNTR ctx_priv(%p) cq_priv(%p) flags(%lx)\n", ctx_priv, ctr_priv, flags);
+        }
 	if (ctx_priv->ctx_sep->sep_dom != ctr_priv->ctr_dom) {
 	    fc = -FI_EDOMAIN /* -FI_EINVAL */; goto bad;
 	}
 	switch (fid->fclass) {
 	case FI_CLASS_TX_CTX:
-            R_DBGMSG("YI***** TRANSMIT CONTEXT\n");
+            DEBUG(DLEVEL_INIFIN) {
+                R_DBGMSG("YI***** TRANSMIT CONTEXT\n");
+            }
 	    if (flags & (FI_SEND | FI_WRITE | FI_TRANSMIT)) {
 		if (ctx_priv->ctx_send_ctr != 0) {
 		    fc = -FI_EBUSY; goto bad;
@@ -427,24 +441,31 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
     if ((ctx->ctx_idx < 0) || (ctx->ctx_idx >= dom->ntni)) {
         uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
     }
+    fprintf(stderr, "%s: myvcqh(%lx)\n", __func__, dom->myvcqh);
     sep->sep_myvcqh = dom->myvcqh;
     utofu_query_vcq_id(dom->myvcqh, &sep->sep_myvcqid);
-    fprintf(stderr, "%d: YI!!! my vcqh = %lx\n", utf_info.mypid, sep->sep_myvcqh);
-    dbg_show_utof_vcqh(sep->sep_myvcqh);
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "%d: YI!!! my vcqh = %lx\n", utf_info.mypid, sep->sep_myvcqh);
+        dbg_show_utof_vcqh(sep->sep_myvcqh);
+    }
     /*
      * Initializing utf library
      */
     {
         struct tofu_domain *dom = sep->sep_dom;
-        fprintf(stderr, "[%d] %s YI!!!! ", utf_info.myrank, __func__); dbg_show_utof_vcqh(sep->sep_myvcqh);
+        DEBUG(DLEVEL_INIFIN) {
+            fprintf(stderr, "[%d] %s YI!!!! ", utf_info.myrank, __func__); dbg_show_utof_vcqh(sep->sep_myvcqh);
+        }
         uc = tfi_utf_init_1(ctx->ctx_av, ctx, class == FI_CLASS_TX_CTX ? TFI_UTF_TX_CTX : TFI_UTF_RX_CTX,
                              dom->tinfo, dom->max_piggyback_size);
         /* In case of TOFU_NAMED_AV=1, the address vector and nprocs are already initialized.
          * In case of TOFU_NAMED_AV=0, the address vector will be initialized in
          * tofu_av_insert, and thus utf_init_2 is called in that function  */
         if (ctx->ctx_av->av_tab[0].nct > 0) {
-            fprintf(stderr, "[%d] %s CALLING utf_init_2 nproc(%ld)\n",
-                    utf_info.myrank, __func__, ctx->ctx_av->av_tab[0].nct);
+            DEBUG(DLEVEL_INIFIN) {
+                fprintf(stderr, "[%d] %s CALLING utf_init_2 nproc(%ld)\n",
+                        utf_info.myrank, __func__, ctx->ctx_av->av_tab[0].nct);
+            }
             tfi_utf_init_2(sep->sep_av_, dom->tinfo, ctx->ctx_av->av_tab[0].nct);
         }
     }
@@ -508,8 +529,10 @@ tofu_ctx_cancel(fid_t fid, void *context)
     assert(fid != 0);
     ctx_priv = container_of(fid, struct tofu_ctx, ctx_fid.fid);
 
-    R_DBG("%s: YI#### user_context(%p) class(%s)",
-          __func__, context, tofu_fi_class_string[ctx_priv->ctx_fid.fid.fclass]);
+    DEBUG(DLEVEL_INIFIN) {
+        R_DBG("%s: YI#### user_context(%p) class(%s)",
+              __func__, context, tofu_fi_class_string[ctx_priv->ctx_fid.fid.fclass]);
+    }
     fc = tfi_utf_cancel(ctx_priv, context);
     return fc;
 }
@@ -553,7 +576,9 @@ tofu_ctx_setopt(fid_t fid, int level,  int optname,
 	    fc = -FI_EINVAL; goto bad;
 	}
 	/* ctx_priv->min_multi_recv = ((size_t *)optval)[0]; */
-        R_DBG("%s: YI###### FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
+        DEBUG(DLEVEL_INIFIN) {
+            R_DBG("%s: YI###### FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
+        }
 	break;
     default:
 	fc = -FI_ENOPROTOOPT; goto bad;

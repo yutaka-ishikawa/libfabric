@@ -120,14 +120,17 @@ TOFU_INI
 #endif /* ~NDEBUG */
     {
         int	myrank, nprocs, ppn, rc;
-        utf_printf("%s: YI!!! CALLING utf_init\n", __func__);
+
+        DEBUG(DLEVEL_INIFIN) {
+            utf_printf("%s: YI!!! CALLING utf_init\n", __func__);
+        }
         rc = utf_init(0, NULL, &myrank, &nprocs, &ppn);
         if (rc < 0) {
             utf_printf("%s: YI!!! RETURNING from utf_init rc(%d) ERROR\n", __func__, rc);
             abort();
         }
     }
-    {
+    DEBUG(DLEVEL_INIFIN) {
         extern utofu_stadd_t	utf_egr_rbuf_stadd;
         utf_printf("TOFU: eager receive buffer addresses:\n"
                    " utf_egr_rbuf : 0x%lx (stadd: 0x%lx)"
@@ -162,13 +165,16 @@ TOFU_INI
     if (cp) {
         utf_mode_mrail = atoi(cp);
     }
+    /* might be obsolete 2020/10/10 */
     cp = getenv("TFI_COMPLETION_PENDING");
     if (cp) {
         tfi_progress_compl_pending = atoi(cp);
     } else {
         tfi_progress_compl_pending = CONF_TOFU_FI_COMPL_PENDING;
     }
-    fprintf(stderr, "TFI_COMPLETION_PENDING = %d\n", tfi_progress_compl_pending);
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "TFI_COMPLETION_PENDING = %d\n", tfi_progress_compl_pending);
+    }
     return &tofu_prov;
 }
 
@@ -208,7 +214,7 @@ int fi_tofu_cntrl(int cmd, ...)
         }
         break;
     case 4:
-        utf_cqtab_show();
+        utf_cqtab_show(stderr);
         break;
     }
     va_end(ap);

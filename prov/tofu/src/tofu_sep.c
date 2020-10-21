@@ -64,10 +64,12 @@ static int tofu_sep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 	    fc = -FI_EBUSY; goto bad;
 	}
 	sep->sep_av_ = av;
-        utf_printf("%s: YI!!! MUST BE CHECK utf_info.myrank(%d)\n", __func__, utf_info.myrank);
+        // utf_printf("%s: YI!!! MUST BE CHECK utf_info.myrank(%d)\n", __func__, utf_info.myrank);
         if (utf_info.myrank != -1) {
-            R_DBG("sep->sep_myrank is set myrank(%d) sep->sep_dom->myrank(%d) sep->sep_dom->mynrnk(%d)", 
-                  utf_info.myrank, sep->sep_dom->myrank, sep->sep_dom->mynrnk);
+            DEBUG(DLEVEL_INIFIN) {
+                R_DBG("sep->sep_myrank is set myrank(%d) sep->sep_dom->myrank(%d) sep->sep_dom->mynrnk(%d)", 
+                      utf_info.myrank, sep->sep_dom->myrank, sep->sep_dom->mynrnk);
+            }
             sep->sep_myrank = sep->sep_dom->myrank;
         }
 	break;
@@ -126,7 +128,9 @@ int tofu_sep_open(struct fid_domain *fid_dom,  struct fi_info *info,
     struct tofu_domain *dom;
     struct tofu_sep *sep = 0;
 
-    R_DBG("YI**** fid_dom(%p)", fid_dom);
+    DEBUG(DLEVEL_INIFIN) {
+        R_DBG("YI**** fid_dom(%p)", fid_dom);
+    }
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     assert(fid_dom != 0);
     dom = container_of(fid_dom, struct tofu_domain, dom_fid);

@@ -192,8 +192,9 @@ int tofu_cq_open(struct fid_domain *fid_dom, struct fi_cq_attr *attr,
     assert(fid_dom != 0);
     dom_priv = container_of(fid_dom, struct tofu_domain, dom_fid);
 
-    fprintf(stderr, "%s: YYI!!!!!!!\n", __func__); fflush(stderr);
-
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "%s: YYI!!!!!!!\n", __func__); fflush(stderr);
+    }
     if (attr != 0) {
 	FI_INFO(&tofu_prov, FI_LOG_CQ, "Requested: FI_CQ_FORMAT_%s\n",
 	    (attr->format == FI_CQ_FORMAT_UNSPEC)?  "UNSPEC":
@@ -206,7 +207,7 @@ int tofu_cq_open(struct fid_domain *fid_dom, struct fi_cq_attr *attr,
 	    goto bad;
 	}
         if (attr->format != FI_CQ_FORMAT_TAGGED) {
-            /* FI_CQ_FORMAT_TAGGED is only supported in this version */
+            fprintf(stderr, "FI_CQ_FORMAT_TAGGED is only supported in this version\n");
             fc = -1;
             goto bad;
         }
@@ -252,6 +253,8 @@ bad:
 	tofu_cq_close(&cq_priv->cq_fid.fid);
     }
 ok:
-    fprintf(stderr, "%s: YYI!!!!!!! return %d\n", __func__, fc); fflush(stderr);
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "%s: YYI!!!!!!! return %d\n", __func__, fc); fflush(stderr);
+    }
     return fc;
 }

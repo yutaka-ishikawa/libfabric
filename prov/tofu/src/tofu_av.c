@@ -35,7 +35,7 @@ tofu_av_close(struct fid *fid)
 	fc = -FI_EBUSY; goto bad;
     }
     /* tab */
-    fprintf(stderr, "%s: vname will be freed in UTF\n", __func__);
+    //fprintf(stderr, "%s: vname will be freed in UTF\n", __func__);
 #if 0
     for (i = 0; i < CONF_TOFU_ATTR_MAX_EP_TXRX_CTX; i++) {
         if (av_priv->av_tab[i].vnm != 0) {
@@ -227,7 +227,8 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
 
     /* tofu_chck_av_attr */
     if (attr != 0) {
-        /* av_type: 1 FI_AV_TABLE
+        /* av_type: 1 FI_AV_MAP, must be
+         *av_type : 2 FI_TABLE
          * name: FI_NAMED_AV_0 */
         { /* av_type(1) bits(8) count(0) e/n(0) name={"FI_NAMED_AV_0\n" or NULL} */
             char *cp;
@@ -235,9 +236,11 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
                 && (cp = index(attr->name, '\n')) != NULL) {
                 *cp = 0;
             }
-            R_DBG("av_type(%d) bits(%d) count(%ld) e/n(%ld) name=%s",
-                  attr->type, attr->rx_ctx_bits, attr->count,
-                  attr->ep_per_node, attr->name == 0 ? "NULL": attr->name);
+            DEBUG(DLEVEL_INIFIN) {
+                R_DBG("av_type(%d) bits(%d) count(%ld) e/n(%ld) name=%s",
+                      attr->type, attr->rx_ctx_bits, attr->count,
+                      attr->ep_per_node, attr->name == 0 ? "NULL": attr->name);
+            }
         }
 	fc = tofu_chck_av_attr(attr);
 	if (fc != FI_SUCCESS) goto bad;
@@ -265,7 +268,9 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
         extern struct tofu_vname *utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp);
         struct tofu_vname *vnam;
 
-        R_DBGMSG("address vector is now being registered");
+        DEBUG(DLEVEL_INIFIN) {
+            R_DBGMSG("address vector is now being registered");
+        }
         /* at this time av->av_tab cannot be allocated */
         vnam = utf_get_peers((uint64_t**) &attr->map_addr, &np, &ppn, &rank);
         if (vnam) {
@@ -273,12 +278,12 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
             av->av_tab[0].mct = np;
             av->av_tab[0].nct = np;
         }
-        R_DBG("attr->map_addr=%p, av->av_tab[0].vnm=%p, nprocs=%d ppn=%d",
-              attr->map_addr, vnam, np, ppn);
-        {
+        DEBUG(DLEVEL_INIFIN) {
             int i;
             uint64_t    *addr = (uint64_t*) attr->map_addr;
             char        buf[128];
+            fprintf(stderr, "attr->map_addr=%p, av->av_tab[0].vnm=%p, nprocs=%d ppn=%d",
+                    attr->map_addr, vnam, np, ppn);
             for (i = 0; i < np; i++) {
                 fprintf(stderr, "\t: %ld -> %lx (%s)\n", *(addr + i), vnam[i].vcqid,
                         vcqid2string(buf, 128, vnam[i].vcqid));
@@ -287,12 +292,16 @@ tofu_av_open(struct fid_domain *fid_dom, struct fi_av_attr *attr,
         }
         /* setup vnamep of tinfo */
         tfi_dom_setuptinfo(dom->tinfo, vnam);
-        R_DBG("myrank(%d) nprocs(%d) fc(%d)", utf_info.myrank, utf_info.nprocs, fc);
+        DEBUG(DLEVEL_INIFIN) {
+            fprintf(stderr, "myrank(%d) nprocs(%d) fc(%d)", utf_info.myrank, utf_info.nprocs, fc);
+        }
         /* fastlock_release(&av->av_lck); */
     }
-    if (utf_info.myrank == 0) { /* for debugging */
-	fprintf(stderr, "%s: VNAME\n", __func__);
-	utf_vname_show(stderr);
+    DEBUG(DLEVEL_INIFIN) {
+        if (utf_info.myrank == 0) { /* for debugging */
+            fprintf(stderr, "%s: VNAME\n", __func__);
+            utf_vname_show(stderr);
+        }
     }
     /* return fid_dom */
     fid_av_[0] = &av->av_fid;

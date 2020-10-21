@@ -9,7 +9,7 @@
 
 #define TOFU_CAPS (FI_MSG                       \
                         | FI_RMA                \
-                         /* | FI_TAGGED */      \
+                        | FI_TAGGED             \
                         | FI_ATOMIC             \
                          /* | FI_MULTICAST */   \
                         | FI_NAMED_RX_CTX       \
@@ -37,7 +37,7 @@ static struct fi_tx_attr tofu_tx_attr = {
     .caps = 0
 	    | FI_MSG
 	    | FI_RMA
-		/* | FI_TAGGED */
+            | FI_TAGGED
 	    | FI_ATOMIC
 		/* | FI_MULTICAST */
 	    | FI_NAMED_RX_CTX
@@ -112,7 +112,7 @@ static struct fi_rx_attr tofu_rx_attr = {
     .caps = 0
 	    | FI_MSG
 	    | FI_RMA
-		/* | FI_TAGGED */
+            | FI_TAGGED
 	    | FI_ATOMIC
 		/* | FI_MULTICAST */
 	    | FI_NAMED_RX_CTX
@@ -182,7 +182,7 @@ static struct fi_ep_attr tofu_ep_attr = {
     .type = FI_EP_RDM,
     .protocol = FI_PROTO_UNSPEC,
 		/* = FI_PROTO_TOFU */
-    .protocol_version = FI_VERSION(0,0),
+    .protocol_version = FI_VERSION(1, 7),
 		/* FX1  (0), MP10 (1), FX10 (2), FX100 (3) */
     .max_msg_size = CONF_TOFU_MSGSIZE,
     .msg_prefix_size = 0, /* YYY */
@@ -212,12 +212,17 @@ static struct fi_domain_attr tofu_domain_attr = {
 		/* = FI_PROGRESS_AUTO */
 		/* = FI_PROGRESS_UNSPEC */
     .resource_mgmt = FI_RM_ENABLED,
-    .av_type = FI_AV_UNSPEC,
-		/* = FI_AV_MAP */
-		/* = FI_AV_TABLE */
-    .mr_mode = FI_MR_BASIC /*| FI_MR_ENDPOINT*/,
-		/* = FI_MR_BASIC , FI_MR_SCALABLE */
+    .av_type = FI_AV_MAP, /* 1 */
+		/* FI_AV_UNSPEC, 0 */
+                /* FI_AV_TABLE, 2 */
+    .mr_mode =  FI_MR_PROV_KEY | FI_MR_VIRT_ADDR, /* MPICH 3.4.X uses this mode,
+                                 * key and offset pair.
+                                 * export MPIDI_OFI_ENABLE_MR_VIRT_ADDRESS=1 enables MPICH 3.3.X env.
+                                 */
+                /* = FI_MR_BASIC : MPICH 3.3.X assumes this mode, key and virtual address pair */
 		/* =  0 */
+		/* |= FI_MR_SCALABLE */
+                /* | FI_MR_ENDPOINT*/
 		/* |= FI_MR_LOCAL */
 		/* |= FI_MR_ALLOCATED */
 		/* |= FI_MR_PROV_KEY */
@@ -239,7 +244,7 @@ static struct fi_domain_attr tofu_domain_attr = {
     .auth_key = NULL,
     .auth_key_size = 0,
     .max_err_data = 0,
-    .mr_cnt = 65535,			    /* YYY */
+    .mr_cnt = 256,			    /* old one 65535 */
 };
 
 /* === struct fi_fabric_attr ========================================== */
@@ -411,6 +416,7 @@ tofu_chck_dom_attr(const struct fi_domain_attr *prov_attr,
     struct fi_provider *prov = &tofu_prov;
 
     FI_DBG( &tofu_prov, FI_LOG_DOMAIN, "in %s\n", __FILE__);
+    fprintf(stderr, "YI***** %s in %s prov_attr(%p) user_info(%p)\n", __func__, __FILE__, prov_attr, user_info);
     if (prov_attr == 0) {
 	prov_attr = &tofu_domain_attr; /* &tofu_prov_info.domain_attr */
     }
@@ -418,12 +424,15 @@ tofu_chck_dom_attr(const struct fi_domain_attr *prov_attr,
 	&& (user_info->domain_attr->name != 0)
 	&& (strcasecmp(user_info->domain_attr->name, "tofu") != 0)
     ) {
+        fprintf(stderr, "YI***** %s in %s NOT TOFU\n", __func__, __FILE__);
 	fc = -FI_EINVAL; goto bad;
     }
 
     if (user_info->domain_attr != 0) {
-	uint32_t api_version = FI_VERSION(0,0); /* YYY */
+	uint32_t api_version = FI_VERSION(1, 7); /* 1.7 now */
+        fprintf(stderr, "YI***** %s in %s calling ATTREIBUTE\n", __func__, __FILE__);
 	fc = ofi_check_domain_attr(prov, api_version, prov_attr, user_info);
+        fprintf(stderr, "YI***** %s in %s DONE (%d)\n", __func__, __FILE__, fc);
 	if (fc != 0) { goto bad; }
     }
 
@@ -536,7 +545,7 @@ tofu_chck_ep_attr(const struct fi_info *prov_info,
 	prov_info = &tofu_prov_info;
     }
     if (user_info != 0) {
-	uint32_t api_version = FI_VERSION(0,0); /* YYY */
+	uint32_t api_version = FI_VERSION(1,7); /* YYY */
 
 	fc = ofi_check_ep_attr( &util_prov, api_version, prov_info, user_info);
 	if (fc != 0) { goto bad; }

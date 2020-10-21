@@ -20,10 +20,30 @@ tofu_ctx_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
                   void *context)
 {
     ssize_t             ret = FI_SUCCESS;
-//    uint64_t            flags = FI_COMPLETION; /* must be set 2019/08/15 */
+    struct tofu_ctx     *ctx_priv;
+    uint64_t            flags = FI_COMPLETION | FI_READ | FI_RMA;
+    struct iovec        iov[1];
+    struct fi_rma_iov   rma_iov[1];
+    struct fi_msg_rma   tmsg;
 
     FI_INFO(&tofu_prov, FI_LOG_EP_DATA, "buf(%p) len(%ld) desc(%p) addr(0x%lx) key(%lx) context(%p) in %s\n", buf, len, desc, addr, key, context, __FILE__);
-//    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    fprintf(stderr, "YI****** %s is called buf(%p) src_addr(%ld) addr(0x%lx) key(0x%lx)\n", __func__, buf, src_addr, addr, key);
+    ctx_priv = container_of(fid_ep, struct tofu_ctx, ctx_fid);
+    iov->iov_base  = buf;
+    iov->iov_len   = len;
+    rma_iov->addr = addr;
+    rma_iov->len = len;
+    rma_iov->key = key;
+    /**/
+    tmsg.msg_iov = iov;
+    tmsg.desc = 0;
+    tmsg.iov_count = 1;
+    tmsg.addr = src_addr;       /* peer rank */
+    tmsg.rma_iov = rma_iov;
+    tmsg.rma_iov_count = 1;
+    tmsg.context = context;
+    tmsg.data = 0;
+    ret = tfi_utf_read_post(ctx_priv, &tmsg, flags);
 
     FI_DBG(&tofu_prov, FI_LOG_EP_DATA, "return %ld\n", ret);
     return ret;

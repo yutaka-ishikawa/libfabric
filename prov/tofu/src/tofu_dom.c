@@ -160,8 +160,10 @@ tofu_domain_open(struct fid_fabric *fid_fab, struct fi_info *info,
     dom->max_piggyback_size = utf_info.max_piggyback_size;
     dom->max_edata_size     = utf_info.max_edata_size;
 
-    fprintf(stderr, "\t dom->tinfo(%p)\n", dom->tinfo);
-    utf_cqtab_show();
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "\t dom->tinfo(%p)\n", dom->tinfo);
+        utf_cqtab_show(stderr);
+    }
     /* return fid_dom */
     fid_dom[0] = &dom->dom_fid;
     dom = 0; /* ZZZ */

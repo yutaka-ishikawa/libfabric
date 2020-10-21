@@ -455,12 +455,25 @@ tofu_ctx_tag_send(struct fid_ep *fid_ep, const void *buf, size_t len,
                   void *desc, fi_addr_t dest_addr,  uint64_t tag, void *context)
 {
     ssize_t ret = -FI_ENOSYS;
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
-    R_DBG1(RDBG_LEVEL3, "NEEDS to implement: fi_tsend dest(%s) len(%ld) buf(%p) desc(%p) tag(%lx)",
-          fi_addr2string(buf1, 128, dest_addr, fid_ep),
-          len, buf, desc, tag);
+    struct fi_msg_tagged tmsg;
+    struct iovec iovs[1];
+    uint64_t flags = FI_TAGGED | FI_COMPLETION | FI_SEND;
 
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    utf_printf("YI****** MUST CHECK THIS FUNCTION buf(%p) len(%ld)\n", buf, len);
+
+    iovs->iov_base  = (void*) buf;
+    iovs->iov_len   = len;
+    tmsg.msg_iov    = iovs;
+    tmsg.desc	    = desc;
+    tmsg.iov_count  = 1;
+    tmsg.addr	    = dest_addr;
+    tmsg.tag	    = tag;	/* tag */
+    tmsg.ignore	    = -1ULL;	/* All ignore */
+    tmsg.context    = context;
+    tmsg.data	    = 0;
+
+    ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
     return ret;
 }
 
@@ -506,11 +519,33 @@ tofu_ctx_tag_inject(struct fid_ep *fid_ep,
                     fi_addr_t dest_addr, uint64_t tag)
 {
     ssize_t ret = -FI_ENOSYS;
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
-    utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
-    R_DBG1(RDBG_LEVEL3, "Needs to implement: fi_tinject dest(%s) len(%ld) FI_INJECT",
-          fi_addr2string(buf1, 128, dest_addr, fid_ep), len);
+    struct fi_msg_tagged tmsg;
+    struct iovec iovs[1];
+    uint64_t flags = FI_INJECT;
 
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "%s in %s  len(%ld)\n", __func__, __FILE__, len);
+    R_DBG1(RDBG_LEVEL3, "fi_inject dest(%s) len(%ld) buf(%p) FI_INJECT",
+          fi_addr2string(buf1, 128, dest_addr, fid_ep),
+	   len, buf);
+
+    if (len > CONF_TOFU_INJECTSIZE) {
+	R_DBG("%s: Message size(%ld) is larger than the INJECT SIZE (%d)\n",
+	      __func__, len, CONF_TOFU_INJECTSIZE);
+	return -FI_ENOMEM;
+    }
+    iovs->iov_base  = (void*) buf;
+    iovs->iov_len   = len;
+    tmsg.msg_iov    = iovs;
+    tmsg.desc	    = 0;
+    tmsg.iov_count  = 1;
+    tmsg.addr	    = dest_addr;
+    tmsg.tag	    = tag;	/* tag */
+    tmsg.ignore	    = -1ULL;	/* All ignore */
+    tmsg.context    = 0;
+    tmsg.data	    = 0;
+
+    ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
     return ret;
 }
 
