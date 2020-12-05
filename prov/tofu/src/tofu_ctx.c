@@ -441,7 +441,9 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
     if ((ctx->ctx_idx < 0) || (ctx->ctx_idx >= dom->ntni)) {
         uc = UTOFU_ERR_INVALID_TNI_ID; goto bad;
     }
-    fprintf(stderr, "%s: myvcqh(%lx)\n", __func__, dom->myvcqh);
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "%s: myvcqh(%lx)\n", __func__, dom->myvcqh);
+    }
     sep->sep_myvcqh = dom->myvcqh;
     utofu_query_vcq_id(dom->myvcqh, &sep->sep_myvcqid);
     DEBUG(DLEVEL_INIFIN) {

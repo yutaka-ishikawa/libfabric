@@ -416,7 +416,9 @@ tofu_chck_dom_attr(const struct fi_domain_attr *prov_attr,
     struct fi_provider *prov = &tofu_prov;
 
     FI_DBG( &tofu_prov, FI_LOG_DOMAIN, "in %s\n", __FILE__);
-    fprintf(stderr, "YI***** %s in %s prov_attr(%p) user_info(%p)\n", __func__, __FILE__, prov_attr, user_info);
+    DEBUG(DLEVEL_INIFIN) {
+        fprintf(stderr, "YI***** %s in %s prov_attr(%p) user_info(%p)\n", __func__, __FILE__, prov_attr, user_info);
+    }
     if (prov_attr == 0) {
 	prov_attr = &tofu_domain_attr; /* &tofu_prov_info.domain_attr */
     }
@@ -430,9 +432,13 @@ tofu_chck_dom_attr(const struct fi_domain_attr *prov_attr,
 
     if (user_info->domain_attr != 0) {
 	uint32_t api_version = FI_VERSION(1, 7); /* 1.7 now */
-        fprintf(stderr, "YI***** %s in %s calling ATTREIBUTE\n", __func__, __FILE__);
+        DEBUG(DLEVEL_INIFIN) {
+            fprintf(stderr, "YI***** %s in %s calling ATTRIBUTE\n", __func__, __FILE__);
+        }
 	fc = ofi_check_domain_attr(prov, api_version, prov_attr, user_info);
-        fprintf(stderr, "YI***** %s in %s DONE (%d)\n", __func__, __FILE__, fc);
+        DEBUG(DLEVEL_INIFIN) {
+            fprintf(stderr, "YI***** %s in %s DONE (%d)\n", __func__, __FILE__, fc);
+        }
 	if (fc != 0) { goto bad; }
     }
 

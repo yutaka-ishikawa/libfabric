@@ -155,9 +155,13 @@ tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
 void
 tfi_utf_finalize(struct tni_info *tinfo)
 {
-    utf_printf("%s: calling utf_finalize\n", __func__);
+    DEBUG(DLEVEL_INIFIN) {
+	utf_printf("%s: calling utf_finalize\n", __func__);
+    }
     utf_finalize(0);
-    utf_printf("%s: returning from utf_finalize\n", __func__);
+    DEBUG(DLEVEL_INIFIN) {
+	utf_printf("%s: returning from utf_finalize\n", __func__);
+    }
 }
 
 /*
@@ -457,9 +461,6 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
     explst = flags & FI_TAGGED ? &tfi_tag_explst : &tfi_msg_explst;
     msgsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 
-    utf_printf("[COMM] %s: flags(%s) sz(%ld) src(%ld) tag(%lx) data(%ld) context(%p) msg(%s)\n",
-	       __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data,
-	       msg->context, tofu_fi_msg_data(msg));
     DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC|DLEVEL_PROTO_AM) {
 	utf_printf("%s: flags(%s) sz(%ld) src(%ld) tag(%lx) data(%ld) context(%p) msg(%s)\n",
 		   __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data,
