@@ -652,6 +652,7 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	sbufp->pkt.hdr.pyldsz = MSG_FI_PYLDSZ;
 	req->type = REQ_SND_INPLACE_EAGER;
     } else { /* rendezvous */
+	utf_printf("%s: RENDEZVOUS !!!\n", __func__);
 	minfo->cntrtype = SNDCNTR_RENDEZOUS;
 	if (msg->iov_count == 1) {
 	    minfo->rgetaddr.nent = 1;
@@ -1345,7 +1346,11 @@ utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t fla
 	fc = -FI_EINVAL; goto bad;
     }
     /* RMA CQ is created */
+    //utf_printf("%s: YI@@@@@@ msglen=%ld rmalen=%ld\n", __func__, msglen, rmalen);
     cq = utf_rmacq_alloc();
+    if (cq == NULL) {
+	return -1;
+    }
     cq->ctx = ctx; cq->vcqh = *vcqh; cq->rvcqid = *rvcqid;
     cq->lstadd = *lstadd; cq->rstadd = *rstadd;
     cq->lmemaddr = msg->msg_iov[0].iov_base;
@@ -1393,6 +1398,8 @@ tfi_utf_read_post(struct tofu_ctx *ctx,
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_READ;
 	// utf_rmacq_waitappend(rma_cq);
+    } else {
+	fc = -FI_EAGAIN; goto err;
     }
     {
 	int i;
@@ -1401,6 +1408,7 @@ tfi_utf_read_post(struct tofu_ctx *ctx,
 	    tfi_utf_progress(tinfo);
 	}
     }
+err:
     return fc;
 }
 
@@ -1432,6 +1440,8 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
 	rma_cq->notify = tofu_catch_rma_lclnotify;
 	rma_cq->type = UTF_RMA_WRITE;
 	// utf_rmacq_waitappend(rma_cq);
+    } else {
+	fc = -FI_EAGAIN; goto err;
     }
     {
 	int i;
@@ -1441,6 +1451,7 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
 	    tfi_utf_progress(tinfo);
 	}
     }
+err:
     return fc;
 }
 
@@ -1465,9 +1476,10 @@ tfi_utf_write_inject(struct tofu_ctx *ctx, const void *buf, size_t len,
     utofu_stadd_t	rstadd;
     struct utf_rma_cq	*rma_cq;
 
+    // utf_printf("%s: YI@@@@@@ %ld\n", __func__, len);
     rma_cq = utf_rmacq_alloc();
     if (rma_cq == NULL) {
-	fc = -FI_ENOMEM; goto err;
+	fc = -FI_EAGAIN; goto err;
     }
     rma_cq->ctx = ctx;
     rvcqid = rma_cq->rvcqid = utf_info.vname[dst].vcqid;
