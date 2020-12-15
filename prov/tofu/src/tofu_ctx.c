@@ -450,6 +450,7 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
         fprintf(stderr, "%d: YI!!! my vcqh = %lx\n", utf_info.mypid, sep->sep_myvcqh);
         dbg_show_utof_vcqh(sep->sep_myvcqh);
     }
+#if 0
     /*
      * Initializing utf library
      */
@@ -471,6 +472,12 @@ tofu_ctx_ctrl_enab(int class, struct tofu_ctx *ctx)
             tfi_utf_init_2(sep->sep_av_, dom->tinfo, ctx->ctx_av->av_tab[0].nct);
         }
     }
+#else /* 2020/12/09 */
+        DEBUG(DLEVEL_INIFIN) {
+            fprintf(stderr, "[%d] %s YI!!!! no needs to call  tfi_utf_init_1 and _2 return %d\n", utf_info.myrank, __func__, uc);
+            dbg_show_utof_vcqh(sep->sep_myvcqh);
+        }
+#endif 
     ctx->ctx_enb = 1;
 bad:
     return uc;
@@ -574,19 +581,20 @@ tofu_ctx_setopt(fid_t fid, int level,  int optname,
 	if (optlen != sizeof (size_t)) {
 	    fc = -FI_EINVAL; goto bad;
 	}
-	if (((size_t *)optval)[0] <= 0) {
-	    fc = -FI_EINVAL; goto bad;
-	}
-	/* ctx_priv->min_multi_recv = ((size_t *)optval)[0]; */
         DEBUG(DLEVEL_INIFIN) {
             R_DBG("%s: YI###### FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
         }
+	if (((size_t *)optval)[0] <= 0) {
+	    // fc = -FI_EINVAL; goto bad;
+	}
+	/* ctx_priv->min_multi_recv = ((size_t *)optval)[0]; */
 	break;
     default:
 	fc = -FI_ENOPROTOOPT; goto bad;
     }
 
 bad:
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "return %d in %s\n", fc, __FILE__);
     return fc;
 }
 

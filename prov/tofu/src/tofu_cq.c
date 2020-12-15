@@ -96,6 +96,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     struct tofu_cq *cq;
     ssize_t        ent, i;
 
+    utf_tmr_begin(TMR_FI_CQREAD);
     FI_INFO(&tofu_prov, FI_LOG_CQ, " count(%ld) in %s\n", count, __FILE__);
     assert(fid_cq != 0);
 
@@ -119,6 +120,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
             struct fi_cq_tagged_entry *comp = ofi_cirque_head(cq->cq_ccq);
             assert(comp != 0);
             *cq_etag = *comp;
+            // fprintf(stdout, "YI!!! libfabric %s: tag = 0x%lx\n", __func__, cq_etag->tag); fflush(stdout);
             cq_etag++;
             ofi_cirque_discard(cq->cq_ccq);
         }
@@ -132,6 +134,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
         }
     }
     fastlock_release(&cq->cq_lck);
+    utf_tmr_end(TMR_FI_CQREAD);
     return ret;
 }
 
@@ -147,7 +150,8 @@ tofu_cq_readerr(struct fid_cq *fid_cq, struct fi_cq_err_entry *buf,
     ssize_t        ent;
     struct fi_cq_err_entry *comp;
     int fc;
-    
+
+    utf_tmr_begin(TMR_FI_CQREAD);    
     FI_INFO(&tofu_prov, FI_LOG_CQ, "in %s\n", __FILE__);
     assert(fid_cq != 0);
     cq = container_of(fid_cq, struct tofu_cq, cq_fid);
@@ -164,6 +168,7 @@ tofu_cq_readerr(struct fid_cq *fid_cq, struct fi_cq_err_entry *buf,
         fc = -FI_EAGAIN;
     }
     fastlock_release(&cq->cq_lck);
+    utf_tmr_end(TMR_FI_CQREAD);
     return fc;
 }
 

@@ -28,7 +28,7 @@ static int tofu_sep_close(struct fid *fid)
 }
 
 /*
- * fi_ep_bind
+ * fi_scalable_ep_bind
  */
 static int tofu_sep_bind(struct fid *fid, struct fid *bfid, uint64_t flags)
 {

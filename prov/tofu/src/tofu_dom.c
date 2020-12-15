@@ -115,7 +115,7 @@ static struct fi_ops_domain tofu_dom_ops = {
  */
 int
 tofu_domain_open(struct fid_fabric *fid_fab, struct fi_info *info,
-    struct fid_domain **fid_dom, void *context)
+                 struct fid_domain **fid_dom, void *context)
 {
     int fc = FI_SUCCESS;
     struct tofu_domain *dom = 0;

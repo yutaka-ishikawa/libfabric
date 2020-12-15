@@ -9,12 +9,6 @@
 #include <assert.h>
 
 extern struct fi_info tofu_prov_info; /* defined in tofu_attr.c */
-struct util_prov tofu_util_prov = {
-	.prov = &tofu_prov,
-	.info = &tofu_prov_info,
-	.flags = 0,
-};
-
 
 static int
 tofu_getinfo(uint32_t version, const char *node,
@@ -104,6 +98,24 @@ struct fi_provider *fi_prov_ini(void)
     return p;
 }
 
+static int tfi_confirm;
+static void
+tfi_update_caps(const char *attr, uint64_t flg)
+{
+    char        *cp = getenv(attr);
+    if (cp) {
+        int         val = atoi(cp);
+        if (val == 0) {
+            tofu_prov_info.caps = tofu_prov_info.caps & ~flg;
+        } else {
+            tofu_prov_info.caps = tofu_prov_info.caps | flg;
+        }
+        if (tfi_confirm) {
+            fprintf(stdout, "%s : %d\n", attr, val == 0 ? 0 : 1);
+        }
+    }
+}
+
 /**************************************************************************/
 extern void utf_redirect();
 extern int utf_dbg_progress(int);
@@ -172,6 +184,12 @@ TOFU_INI
     } else {
         tfi_progress_compl_pending = CONF_TOFU_FI_COMPL_PENDING;
     }
+    cp = getenv("TFI_CONFIRM");
+    if (cp) {
+        tfi_confirm = 1;
+    }
+    tfi_update_caps("TFI_ENABLE_TAGGED", FI_TAGGED);
+    tfi_update_caps("TFI_ENABLE_RMA", FI_RMA);
     DEBUG(DLEVEL_INIFIN) {
         fprintf(stderr, "TFI_COMPLETION_PENDING = %d\n", tfi_progress_compl_pending);
     }

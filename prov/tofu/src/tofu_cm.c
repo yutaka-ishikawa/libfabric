@@ -41,7 +41,7 @@ bad:
 /*
  * fi_getname
  */
-static int
+int
 tofu_sep_cm_getname(struct fid *fid, void *addr, size_t *addrlen)
 {
     int fc = FI_SUCCESS;

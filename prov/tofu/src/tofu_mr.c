@@ -54,7 +54,7 @@ static struct fi_ops tofu_mr_fi_ops = {
  *                                                      2019/04/29
  *  access : FI_REMOTE_READ, FI_REMOTE_READ|FI_REMOTE_WRITE
  */
-static int
+int
 tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
                        uint64_t access, uint64_t offset,
                        uint64_t requested_key,  uint64_t flags,

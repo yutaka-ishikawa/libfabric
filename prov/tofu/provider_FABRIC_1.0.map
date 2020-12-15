@@ -1,0 +1,38 @@
+/*
+ * used for exporting TOFU provider
+ * symbols when building to support FI_DIRECT
+ */
+	tofu_ctx_atm_readwritemsg;
+	tofu_ctx_atm_compwritemsg;
+	tofu_ctx_atm_readwritevalid;
+	tofu_ctx_atm_writevalid;
+	tofu_ctx_atm_compwritevalid;
+	tofu_sep_cm_getname;
+	tofu_domain_open;
+	tofu_cq_open;
+	tofu_cntr_open;
+	tofu_mr_reg;
+	tofu_av_open;
+	tofu_av_insert;
+	tofu_av_remove;
+	tofu_av_lookup;
+	tofu_av_straddr;
+	tofu_endpoint;
+	tofu_sep_open;
+	tofu_ctx_msg_recv;
+	tofu_ctx_msg_recvv;
+	tofu_ctx_msg_recvmsg;
+	tofu_ctx_msg_send_common;
+	tofu_ctx_msg_sendv;
+	tofu_ctx_msg_sendmsg;
+	tofu_ctx_msg_inject;
+	tofu_ctx_rma_read;
+	tofu_ctx_rma_readmsg;
+	tofu_ctx_rma_inject;
+	tofu_ctx_tag_recv;
+	tofu_ctx_tag_recvv;
+	tofu_ctx_msg_recvmsg;
+	tofu_ctx_msg_send;
+	tofu_ctx_tag_sendv;
+	tofu_ctx_msg_sendmsg;
+	tofu_ctx_msg_inject;

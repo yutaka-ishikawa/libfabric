@@ -50,7 +50,7 @@ static char *str_dtype[] = {
  * fi_atomicvalid()
  *      ep->atomic->writevalid(ep, datatype, op, count);
  */
-static int
+int
 tofu_ctx_atm_writevalid(struct fid_ep *ep, enum fi_datatype datatype,
                         enum fi_op op, size_t *count)
 {
@@ -103,7 +103,7 @@ bad:
  * fi_fetch_atomicvalid
  *      ep->atomic->readwritevalid(ep, datatype, op, count)
  */
-static int
+int
 tofu_ctx_atm_readwritevalid(struct fid_ep *ep, enum fi_datatype datatype,
                             enum fi_op op, size_t *count)
 {
@@ -157,7 +157,7 @@ bad:
  * fi_compare_atomicvalid
  *      ep->atomic->compwritevalid(ep, datatype, op, count)
  */
-static int
+int
 tofu_ctx_atm_compwritevalid(struct fid_ep *ep, enum fi_datatype datatype,
                             enum fi_op op, size_t *count)
 {
@@ -445,7 +445,7 @@ bad:
  * fi_fetch_atomicmsg()
  *      ep->atomic->readwritemsg(ep, msg, resultv, result_desc, result_count, flags)
  */
-static ssize_t
+ssize_t
 tofu_ctx_atm_readwritemsg(struct fid_ep *fid_ep,
                           const struct fi_msg_atomic *msg,
                           struct fi_ioc *resultv, void **result_desc,
@@ -531,7 +531,7 @@ bad:
 }
 
 /* fi_compare_atomicmsg() */
-static ssize_t
+ssize_t
 tofu_ctx_atm_compwritemsg(struct fid_ep *fid_ep,
                           const struct fi_msg_atomic *msg,
                           const struct fi_ioc *comparev,

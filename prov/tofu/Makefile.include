@@ -1,4 +1,7 @@
 if HAVE_TOFU
+
+AM_CPPFLAGS += -I$(top_srcdir)/prov/tofu/include -I$(top_srcdir)/prov/tofu
+
 _tofu_files =				\
 	    prov/tofu/src/tofu_addr.h	\
 	    prov/tofu/src/tofu_conf.h	\

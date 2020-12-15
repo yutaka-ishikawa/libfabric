@@ -65,7 +65,7 @@ static int  tofu_av_resize(struct tofu_av_tab *at, size_t count);
 /*
  * fi_av_insert
  */
-static int
+int
 tofu_av_insert(struct fid_av *fid_av_,  const void *addr,  size_t count,
                fi_addr_t *fi_addr,  uint64_t flags, void *context)
 {
@@ -135,7 +135,7 @@ bad:
     return fc;
 }
 
-static int
+int
 tofu_av_remove(struct fid_av *fid_av_,  fi_addr_t *fi_addr,
                size_t count, uint64_t flags)
 {
@@ -144,7 +144,7 @@ tofu_av_remove(struct fid_av *fid_av_,  fi_addr_t *fi_addr,
     return fc;
 }
 
-static int
+int
 tofu_av_lookup(struct fid_av *fid_av_,  fi_addr_t fi_addr,
                void *addr,  size_t *addrlen)
 {
@@ -159,7 +159,7 @@ tofu_av_lookup(struct fid_av *fid_av_,  fi_addr_t fi_addr,
     return fc;
 }
 
-static const char *
+const char *
 tofu_av_straddr(struct fid_av *fid_av_, const void *addr,
                 char *buf, size_t *len)
 {

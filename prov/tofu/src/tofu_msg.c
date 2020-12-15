@@ -87,7 +87,7 @@ bad:
 /*
  * fi_recv
  */
-static ssize_t 
+ssize_t 
 tofu_ctx_msg_recv(struct fid_ep *fid_ep, void *buf,  size_t len,
                   void *desc, fi_addr_t src_addr, void *context)
 {
@@ -96,6 +96,7 @@ tofu_ctx_msg_recv(struct fid_ep *fid_ep, void *buf,  size_t len,
     struct iovec iovs[1];
     void *dscs[1];
 
+    utf_tmr_begin(TMR_FI_RECV);
     iovs->iov_base  = buf;
     iovs->iov_len   = len;
 
@@ -119,6 +120,7 @@ tofu_ctx_msg_recv(struct fid_ep *fid_ep, void *buf,  size_t len,
     if (ret != 0) { goto bad; }
 
 bad:
+    utf_tmr_end(TMR_FI_RECV);
     return ret;
 
 }
@@ -126,7 +128,7 @@ bad:
 /*
  * fi_recvv
  */
-static ssize_t
+ssize_t
 tofu_ctx_msg_recvv(struct fid_ep *fid_ep,
                    const struct iovec *iov,
                    void **desc, size_t count, fi_addr_t src_addr,
@@ -135,6 +137,7 @@ tofu_ctx_msg_recvv(struct fid_ep *fid_ep,
     ssize_t ret = FI_SUCCESS;
     struct fi_msg_tagged tmsg;
 
+    utf_tmr_begin(TMR_FI_RECV);
     tmsg.msg_iov    = iov;
     tmsg.desc	    = desc;
     tmsg.iov_count  = count;
@@ -153,19 +156,21 @@ tofu_ctx_msg_recvv(struct fid_ep *fid_ep,
     if (ret != 0) { goto bad; }
 
 bad:
+    utf_tmr_end(TMR_FI_RECV);
     return ret;
 }
 
 /*
  * fi_recvmsg
  */
-static ssize_t
+ssize_t
 tofu_ctx_msg_recvmsg(struct fid_ep *fid_ep, const struct fi_msg *msg,
                      uint64_t flags)
 {
     ssize_t ret = FI_SUCCESS;
     struct fi_msg_tagged tmsg;
 
+    utf_tmr_begin(TMR_FI_RECV);
     tmsg.msg_iov    = msg->msg_iov;
     tmsg.desc	    = msg->desc;
     tmsg.iov_count  = msg->iov_count;
@@ -186,11 +191,12 @@ tofu_ctx_msg_recvmsg(struct fid_ep *fid_ep, const struct fi_msg *msg,
 
 bad:
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
+    utf_tmr_end(TMR_FI_RECV);
     return ret;
 }
 
 
-static ssize_t
+ssize_t
 tofu_ctx_msg_send_common(struct fid_ep *fid_ep,
                          const struct fi_msg_tagged *msg,
                          uint64_t flags)
@@ -227,13 +233,14 @@ bad:
 /*
  * fi_sendmsg
  */
-static ssize_t
+ssize_t
 tofu_ctx_msg_sendmsg(struct fid_ep *fid_ep,const struct fi_msg *msg,
 		     uint64_t flags)
 {
     ssize_t ret = FI_SUCCESS;
     struct fi_msg_tagged tmsg;
 
+    utf_tmr_begin(TMR_FI_SEND);
     tmsg.msg_iov    = msg->msg_iov;
     tmsg.desc	    = msg->desc;
     tmsg.iov_count  = msg->iov_count;
@@ -251,19 +258,21 @@ tofu_ctx_msg_sendmsg(struct fid_ep *fid_ep,const struct fi_msg *msg,
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
     if (ret != 0) { goto bad; }
 bad:
+    utf_tmr_end(TMR_FI_SEND);
     return ret;
 }
 
 /*
  * fi_sendv
  */
-static ssize_t
+ssize_t
 tofu_ctx_msg_sendv(struct fid_ep *fid_ep, const struct iovec *iov,
 		   void **desc, size_t count, fi_addr_t dest_addr, void *context)
 {
     ssize_t ret = FI_SUCCESS;
     struct fi_msg_tagged tmsg;
 
+    utf_tmr_begin(TMR_FI_SEND);
     tmsg.msg_iov    = iov;
     tmsg.desc	    = desc;
     tmsg.iov_count  = count;
@@ -282,13 +291,14 @@ tofu_ctx_msg_sendv(struct fid_ep *fid_ep, const struct iovec *iov,
     if (ret != 0) { goto bad; }
 
 bad:
+    utf_tmr_end(TMR_FI_SEND);
     return ret;
 }
 
 /*
  * fi_send
  */
-static ssize_t
+ssize_t
 tofu_ctx_msg_send(struct fid_ep *fid_ep, const void *buf, size_t len,
 		  void *desc, fi_addr_t dest_addr, void *context)
 {
@@ -297,6 +307,7 @@ tofu_ctx_msg_send(struct fid_ep *fid_ep, const void *buf, size_t len,
     struct iovec iovs[1];
     void *dscs[1];
 
+    utf_tmr_begin(TMR_FI_SEND);
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;
 
@@ -319,13 +330,14 @@ tofu_ctx_msg_send(struct fid_ep *fid_ep, const void *buf, size_t len,
     if (ret != 0) { goto bad; }
 
 bad:
+    utf_tmr_end(TMR_FI_SEND);
     return ret;
 }
 
 /*
  * fi_inject
  */
-static ssize_t
+ssize_t
 tofu_ctx_msg_inject(struct fid_ep *fid_ep,  const void *buf, size_t len,
 		    fi_addr_t dest_addr)
 {
@@ -334,9 +346,11 @@ tofu_ctx_msg_inject(struct fid_ep *fid_ep,  const void *buf, size_t len,
     struct iovec iovs[1];
     uint64_t flags = FI_INJECT;
 
+    utf_tmr_begin(TMR_FI_SEND);
     if (len > CONF_TOFU_INJECTSIZE) {
 	R_DBG("%s: Message size(%ld) is larger than the INJECT SIZE (%d)\n",
 	      __func__, len, CONF_TOFU_INJECTSIZE);
+	utf_tmr_end(TMR_FI_SEND);
 	return -FI_ENOMEM;
     }
     iovs->iov_base  = (void*) buf;
@@ -357,6 +371,7 @@ tofu_ctx_msg_inject(struct fid_ep *fid_ep,  const void *buf, size_t len,
 
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
 
+    utf_tmr_end(TMR_FI_SEND);
     return ret;
 }
 
@@ -379,7 +394,7 @@ struct fi_ops_msg tofu_ctx_ops_msg = {
 /*
  * fi_trecv
  */
-static ssize_t
+ssize_t
 tofu_ctx_tag_recv(struct fid_ep *fid_ep,
                   void *buf, size_t len, void *desc, fi_addr_t src_addr,
                   uint64_t tag, uint64_t ignore,  void *context)
@@ -389,6 +404,7 @@ tofu_ctx_tag_recv(struct fid_ep *fid_ep,
     uint64_t             flags;
     ssize_t              ret;
 
+    utf_tmr_begin(TMR_FI_TRECV);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
 
     iov.iov_base = buf; iov.iov_len = len;
@@ -406,14 +422,16 @@ tofu_ctx_tag_recv(struct fid_ep *fid_ep,
            src_addr, fi_addr2string(buf1, 128, src_addr, fid_ep),
            len, buf, tag, ignore, tofu_fi_flags_string(flags));
     ret = tofu_ctx_msg_recv_common(fid_ep, &tmsg, flags);
+
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
+    utf_tmr_end(TMR_FI_TRECV);
     return ret;
 }
 
 /*
  * fi_trecvv
  */
-static ssize_t
+ssize_t
 tofu_ctx_tag_recvv(struct fid_ep *fid_ep,
                    const struct iovec *iov,
                    void **desc, size_t count,
@@ -421,10 +439,15 @@ tofu_ctx_tag_recvv(struct fid_ep *fid_ep,
                    uint64_t tag, uint64_t ignore, void *context)
 {
     ssize_t ret = -FI_ENOSYS;
+
+    utf_tmr_begin(TMR_FI_TRECV);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+
     utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
     R_DBG0(RDBG_LEVEL3, "NEEDS TO IMPLEMENT: fi_recvv len(%ld) buf(%p) tag(0x%lx) ignore(0x%lx) flags(0)",
           iov[0].iov_len,iov[0].iov_base, tag, ignore);
+
+    utf_tmr_end(TMR_FI_TRECV);
     return ret;
 }
 
@@ -434,6 +457,7 @@ tofu_ctx_tag_recvmsg(struct fid_ep *fid_ep,
 {
     ssize_t ret = -FI_ENOSYS;
 
+    utf_tmr_begin(TMR_FI_TRECV);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
 
     flags |= FI_TAGGED;
@@ -443,7 +467,9 @@ tofu_ctx_tag_recvmsg(struct fid_ep *fid_ep,
            msg->msg_iov ? msg->msg_iov[0].iov_base : 0, tofu_fi_flags_string(flags));
 
     ret = tofu_ctx_msg_recv_common(fid_ep, msg, flags);
+
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s return %ld\n", __FILE__, ret);
+    utf_tmr_end(TMR_FI_TRECV);
     return ret;
 }
 
@@ -459,6 +485,7 @@ tofu_ctx_tag_send(struct fid_ep *fid_ep, const void *buf, size_t len,
     struct iovec iovs[1];
     uint64_t flags = FI_TAGGED | FI_COMPLETION | FI_SEND;
 
+    utf_tmr_begin(TMR_FI_TSEND);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     utf_printf("YI****** MUST CHECK THIS FUNCTION buf(%p) len(%ld)\n", buf, len);
 
@@ -474,46 +501,56 @@ tofu_ctx_tag_send(struct fid_ep *fid_ep, const void *buf, size_t len,
     tmsg.data	    = 0;
 
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
+    utf_tmr_end(TMR_FI_TSEND);
     return ret;
 }
 
 /*
  * fi_tsendv
  */
-static ssize_t
+ssize_t
 tofu_ctx_tag_sendv(struct fid_ep *fid_ep,
                    const struct iovec *iov,
                    void **desc, size_t count, fi_addr_t dest_addr,
                    uint64_t tag, void *context)
 {
     ssize_t ret = -FI_ENOSYS;
+
+    utf_tmr_begin(TMR_FI_TSEND);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+
     utf_printf("%s/%s TOFU: ######## NEEDS to implement\n", __func__, __FILE__);
     R_DBG1(RDBG_LEVEL3, "NEEDS to implement: fi_tsendv dest(%s) len(%ld) FI_COMPLETION",
           fi_addr2string(buf1, 128, dest_addr, fid_ep), iov[0].iov_len);
 
+    utf_tmr_end(TMR_FI_TSEND);
     return ret;
 }
 
 /*
  * fi_tsendmsg
  */
-static ssize_t
+ssize_t
 tofu_ctx_tag_sendmsg(struct fid_ep *fid_ep,
                      const struct fi_msg_tagged *msg, uint64_t flags)
 {
     ssize_t ret;
     uint64_t	myflgs;
+
+    utf_tmr_begin(TMR_FI_TSEND);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+
     myflgs = flags | FI_TAGGED;
     ret = tofu_ctx_msg_send_common(fid_ep, msg, myflgs);
+
+    utf_tmr_end(TMR_FI_TSEND);
     return ret;
 }
 
 /*
  * fi_tinject
  */
-static ssize_t
+ssize_t
 tofu_ctx_tag_inject(struct fid_ep *fid_ep,
                     const void *buf, size_t len,
                     fi_addr_t dest_addr, uint64_t tag)
@@ -523,6 +560,7 @@ tofu_ctx_tag_inject(struct fid_ep *fid_ep,
     struct iovec iovs[1];
     uint64_t flags = FI_INJECT;
 
+    utf_tmr_begin(TMR_FI_TSEND);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "%s in %s  len(%ld)\n", __func__, __FILE__, len);
     R_DBG1(RDBG_LEVEL3, "fi_inject dest(%s) len(%ld) buf(%p) FI_INJECT",
@@ -532,6 +570,7 @@ tofu_ctx_tag_inject(struct fid_ep *fid_ep,
     if (len > CONF_TOFU_INJECTSIZE) {
 	R_DBG("%s: Message size(%ld) is larger than the INJECT SIZE (%d)\n",
 	      __func__, len, CONF_TOFU_INJECTSIZE);
+	utf_tmr_end(TMR_FI_TSEND);
 	return -FI_ENOMEM;
     }
     iovs->iov_base  = (void*) buf;
@@ -546,6 +585,8 @@ tofu_ctx_tag_inject(struct fid_ep *fid_ep,
     tmsg.data	    = 0;
 
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
+
+    utf_tmr_end(TMR_FI_TSEND);
     return ret;
 }
 
@@ -564,6 +605,7 @@ tofu_ctx_tag_senddata(struct fid_ep *fid_ep,
     void                 *dscs[1];
     uint64_t             flags = FI_TAGGED | FI_REMOTE_CQ_DATA | FI_COMPLETION;
 
+    utf_tmr_begin(TMR_FI_TSEND);
     FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s data(%ld) len(%ld)\n", __FILE__, data, len);
 
     iovs->iov_base  = (void *)buf;
@@ -591,6 +633,8 @@ tofu_ctx_tag_senddata(struct fid_ep *fid_ep,
     }
 
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
+
+    utf_tmr_end(TMR_FI_TSEND);
     return ret;
 }
 
@@ -606,6 +650,8 @@ tofu_ctx_tag_injectdata(struct fid_ep *fid_ep,
     ssize_t ret = -FI_ENOSYS;
     struct fi_msg_tagged tmsg;
     struct iovec iovs[1];
+
+    utf_tmr_begin(TMR_FI_TSEND);
     uint64_t flags = FI_INJECT | FI_TAGGED | FI_REMOTE_CQ_DATA
 		    /* | TOFU_USE_OP_FLAG */ /* YYY */
 		    ;
@@ -630,6 +676,7 @@ tofu_ctx_tag_injectdata(struct fid_ep *fid_ep,
     ret = tofu_ctx_msg_send_common(fid_ep, &tmsg, flags);
 
     FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "fi_errno %ld in %s\n", ret, __FILE__);
+    utf_tmr_end(TMR_FI_TSEND);
     return ret;
 }
 
@@ -648,13 +695,3 @@ struct fi_ops_tagged tofu_ctx_ops_tag = {
     .senddata	    = tofu_ctx_tag_senddata,
     .injectdata	    = tofu_ctx_tag_injectdata,
 };
-
-
-
-int
-tofufab_resolve_addrinfo(void *av, int rank,
-                         utofu_vcq_id_t *vcqid, uint64_t *flgs)
-{
-    return tofu_av_lookup_vcqid_by_fia((struct tofu_av *) av,  (fi_addr_t) rank,
-				       vcqid, flgs);
-}
