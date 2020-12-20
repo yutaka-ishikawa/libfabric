@@ -619,22 +619,22 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
     minfo->mreq = req;
     minfo->scntr = usp;
     //QWE minfo->fi_context = msg->context;
-    sbufp->pkt.hdr = minfo->msghdr; /* header */
-    sbufp->pkt.pyld.fi_msg.data = msg->data; /* fi data */
+    sbufp->pkt[0].hdr = minfo->msghdr; /* header */
+    sbufp->pkt[0].pyld.fi_msg.data = msg->data; /* fi data */
     req->allflgs = 0;
-    if (size <= MSG_FI_EAGER_PIGBACK_SZ) {
+    if (size <= MSG_FI_EAGER_PIGBACK_SZ) { /* defined in utf_conf.h */
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER_PIGBACK;
 	if (msg->iov_count > 0) { /* if 0, null message */
-	    ofi_copy_from_iov(sbufp->pkt.pyld.fi_msg.msgdata,
+	    ofi_copy_from_iov(sbufp->pkt[0].pyld.fi_msg.msgdata,
 			      size, msg->msg_iov, msg->iov_count, 0);
 	}
-	sbufp->pkt.hdr.pyldsz = size;
+	sbufp->pkt[0].hdr.pyldsz = size;
 	req->type = REQ_SND_BUFFERED_EAGER;
     } else if (size <= MSG_FI_EAGER_SIZE) {
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
-	ofi_copy_from_iov(sbufp->pkt.pyld.fi_msg.msgdata,
+	ofi_copy_from_iov(sbufp->pkt[0].pyld.fi_msg.msgdata,
 			  size, msg->msg_iov, msg->iov_count, 0);
-	sbufp->pkt.hdr.pyldsz = size;
+	sbufp->pkt[0].hdr.pyldsz = size;
 	req->type = REQ_SND_BUFFERED_EAGER;
     } else if (size <= MSG_FI_EAGER_INPLACE_SZ
 	       || utf_mode_msg != MSG_RENDEZOUS
@@ -648,8 +648,9 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	    ofi_copy_from_iov(minfo->usrbuf, size, msg->msg_iov, msg->iov_count, 0);
 	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER2;
 	}
-	memcpy(sbufp->pkt.pyld.fi_msg.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ);
-	sbufp->pkt.hdr.pyldsz = MSG_FI_PYLDSZ;
+	/* no need to copy 2020/12/20 */
+	/* memcpy(sbufp->pkt.pyld.fi_msg.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ); */
+	sbufp->pkt[0].hdr.pyldsz = MSG_FI_PYLDSZ;
 	req->type = REQ_SND_INPLACE_EAGER;
     } else { /* rendezvous */
 	utf_printf("%s: RENDEZVOUS !!!\n", __func__);
@@ -657,28 +658,28 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	if (msg->iov_count == 1) {
 	    minfo->rgetaddr.nent = 1;
 	    minfo->usrbuf = msg->msg_iov[0].iov_base;
-	    sbufp->pkt.pyld.fi_msg.rndzdata.vcqid[0]
+	    sbufp->pkt[0].pyld.fi_msg.rndzdata.vcqid[0]
 		= minfo->rgetaddr.vcqid[0] = usp->svcqid;
-	    sbufp->pkt.pyld.fi_msg.rndzdata.stadd[0]
+	    sbufp->pkt[0].pyld.fi_msg.rndzdata.stadd[0]
 		= minfo->rgetaddr.stadd[0] = utf_mem_reg(utf_info.vcqh, minfo->usrbuf, size);
-	    sbufp->pkt.pyld.fi_msg.rndzdata.len[0] = size;
-	    sbufp->pkt.pyld.fi_msg.rndzdata.nent = 1;
+	    sbufp->pkt[0].pyld.fi_msg.rndzdata.len[0] = size;
+	    sbufp->pkt[0].pyld.fi_msg.rndzdata.nent = 1;
 	} else {
 	    int	i;
 	    minfo->rgetaddr.nent = 
-		sbufp->pkt.pyld.fi_msg.rndzdata.nent = msg->iov_count;
+		sbufp->pkt[0].pyld.fi_msg.rndzdata.nent = msg->iov_count;
 	    for (i = 0; i < msg->iov_count; i++) {
-		sbufp->pkt.pyld.fi_msg.rndzdata.vcqid[i]
+		sbufp->pkt[0].pyld.fi_msg.rndzdata.vcqid[i]
 		    = minfo->rgetaddr.vcqid[i] = usp->svcqid;
-		sbufp->pkt.pyld.fi_msg.rndzdata.stadd[i]
+		sbufp->pkt[0].pyld.fi_msg.rndzdata.stadd[i]
 		    = minfo->rgetaddr.stadd[i]
 		    = utf_mem_reg(utf_info.vcqh,
 				  msg->msg_iov[i].iov_base, msg->msg_iov[i].iov_len);
-		sbufp->pkt.pyld.fi_msg.rndzdata.len[i] = msg->msg_iov[i].iov_len;
+		sbufp->pkt[0].pyld.fi_msg.rndzdata.len[i] = msg->msg_iov[i].iov_len;
 	    }
 	}
-	sbufp->pkt.hdr.pyldsz = MSG_RCNTRSZ + sizeof(uint64_t); /* data area */
-	sbufp->pkt.hdr.rndz = MSG_RENDEZOUS;
+	sbufp->pkt[0].hdr.pyldsz = MSG_RCNTRSZ + sizeof(uint64_t); /* data area */
+	sbufp->pkt[0].hdr.rndz = MSG_RENDEZOUS;
 	req->type = REQ_SND_RENDEZOUS;
     }
     minfo->sndbuf = sbufp;
