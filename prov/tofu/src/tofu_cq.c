@@ -89,7 +89,7 @@ tofu_progress(struct tofu_cq *cq)
 /*
  * fi_cq_read
  */
-static ssize_t
+ssize_t
 tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 {
     ssize_t        ret = 0;
@@ -142,7 +142,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
  * fi_cq_readerr
  *                      flags ?
  */
-static ssize_t
+ssize_t
 tofu_cq_readerr(struct fid_cq *fid_cq, struct fi_cq_err_entry *buf,
                 uint64_t flags)
 {

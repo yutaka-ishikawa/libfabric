@@ -392,7 +392,7 @@ bad:
  * fi_atomicmsg()
  *      ep->atomic->writemsg(ep, msg, flags)
  */
-static ssize_t
+ssize_t
 tofu_ctx_atm_writemsg(struct fid_ep *fid_ep,
                       const struct fi_msg_atomic *msg,
                       uint64_t flags)

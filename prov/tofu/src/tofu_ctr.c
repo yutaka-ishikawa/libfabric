@@ -40,7 +40,7 @@ static struct fi_ops tofu_ctr_fi_ops = {
 /*
  * fi_cntr_read
  */
-static uint64_t
+uint64_t
 tofu_cntr_read(struct fid_cntr *cntr_fid)
 {
     uint64_t ret;
@@ -63,7 +63,7 @@ tofu_cntr_read(struct fid_cntr *cntr_fid)
 /*
  * fi_cntr_readerr
  */
-static uint64_t
+uint64_t
 tofu_cntr_readerr(struct fid_cntr *cntr_fid)
 {
     FI_INFO(&tofu_prov, FI_LOG_CNTR, "in %s\n", __FILE__);
@@ -75,7 +75,7 @@ tofu_cntr_readerr(struct fid_cntr *cntr_fid)
 /*
  * fi_cntr_add
  */
-static int
+int
 tofu_cntr_add(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -86,7 +86,7 @@ tofu_cntr_add(struct fid_cntr *cntr_fid, uint64_t value)
 /*
  * fi_cntr_adderr
  */
-static int
+int
 tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -99,7 +99,7 @@ tofu_cntr_adderr(struct fid_cntr *cntr_fid, uint64_t value)
 /*
  * fi_cntr_set
  */
-static int
+int
 tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -117,7 +117,7 @@ tofu_cntr_set(struct fid_cntr *cntr_fid, uint64_t value)
 /*
  * fi_cntr_seterr
  */
-static int
+int
 tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
 {
     int fc = FI_SUCCESS;
@@ -130,7 +130,7 @@ tofu_cntr_seterr(struct fid_cntr *cntr_fid, uint64_t value)
 /*
  * fi_cntr_wait
  */
-static int
+int
 tofu_cntr_wait(struct fid_cntr *cntr_fid, uint64_t threshold, int timeout)
 {
     int fc = FI_SUCCESS;

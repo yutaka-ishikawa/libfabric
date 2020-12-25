@@ -79,7 +79,7 @@ tofu_ctx_rma_readmsg(struct fid_ep *fid_ep,
 /*
  * fi_writemsg
  */
-static ssize_t 
+ssize_t 
 tofu_ctx_rma_writemsg(struct fid_ep *fid_ep,
                       const struct fi_msg_rma *msg, uint64_t flags)
 {

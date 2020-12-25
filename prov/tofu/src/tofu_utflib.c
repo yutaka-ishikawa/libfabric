@@ -650,7 +650,7 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	}
 	/* no need to copy 2020/12/20 */
 	/* memcpy(sbufp->pkt.pyld.fi_msg.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ); */
-	sbufp->pkt[0].hdr.pyldsz = MSG_FI_PYLDSZ;
+	/*sbufp->pkt[0].hdr.pyldsz = MSG_FI_PYLDSZ;*/
 	req->type = REQ_SND_INPLACE_EAGER;
     } else { /* rendezvous */
 	utf_printf("%s: RENDEZVOUS !!!\n", __func__);

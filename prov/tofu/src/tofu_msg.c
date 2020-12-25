@@ -451,7 +451,7 @@ tofu_ctx_tag_recvv(struct fid_ep *fid_ep,
     return ret;
 }
 
-static ssize_t
+ssize_t
 tofu_ctx_tag_recvmsg(struct fid_ep *fid_ep,
                      const struct fi_msg_tagged *msg, uint64_t flags)
 {
@@ -476,7 +476,7 @@ tofu_ctx_tag_recvmsg(struct fid_ep *fid_ep,
 /*
  * fi_tsend
  */
-static ssize_t
+ssize_t
 tofu_ctx_tag_send(struct fid_ep *fid_ep, const void *buf, size_t len,
                   void *desc, fi_addr_t dest_addr,  uint64_t tag, void *context)
 {
@@ -593,7 +593,7 @@ tofu_ctx_tag_inject(struct fid_ep *fid_ep,
 /*
  * fi_tsenddata
  */
-static ssize_t
+ssize_t
 tofu_ctx_tag_senddata(struct fid_ep *fid_ep,
                       const void *buf,  size_t len,
                       void *desc,  uint64_t data,
@@ -642,7 +642,7 @@ tofu_ctx_tag_senddata(struct fid_ep *fid_ep,
  * fi_tinjectdata
  *      remote CQ data is included
  */
-static ssize_t 
+ssize_t 
 tofu_ctx_tag_injectdata(struct fid_ep *fid_ep,
                         const void *buf, size_t len, uint64_t data,
                         fi_addr_t dest_addr, uint64_t tag)

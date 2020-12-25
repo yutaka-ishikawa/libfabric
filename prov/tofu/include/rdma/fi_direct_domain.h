@@ -108,7 +108,7 @@ fi_mr_regv(struct fid_domain *domain, const struct iovec *iov,
 			uint64_t offset, uint64_t requested_key,
 			uint64_t flags, struct fid_mr **mr, void *context)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 /*
@@ -118,7 +118,7 @@ static inline int
 fi_mr_regattr(struct fid_domain *domain, const struct fi_mr_attr *attr,
 			uint64_t flags, struct fid_mr **mr)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 static inline void *fi_mr_desc(struct fid_mr *mr)
@@ -254,6 +254,7 @@ fi_av_straddr(struct fid_av *av, const void *addr, char *buf, size_t *len)
 	return tofu_av_straddr(av, addr, buf, len);
 }
 
+static inline fi_addr_t
 fi_rx_addr(fi_addr_t fi_addr, int rx_index, int rx_ctx_bits)
 {
 	return (fi_addr_t) (((uint64_t) rx_index << (64 - rx_ctx_bits)) | fi_addr);

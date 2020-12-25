@@ -9,7 +9,8 @@ extern ssize_t	tofu_ctx_msg_recv(struct fid_ep *fid_ep, void *buf,  size_t len, 
 extern ssize_t	tofu_ctx_msg_recvv(struct fid_ep *fid_ep, const struct iovec *iov,
 				   void **desc, size_t count, fi_addr_t src_addr, void *context);
 extern ssize_t	tofu_ctx_msg_recvmsg(struct fid_ep *fid_ep, const struct fi_msg *msg, uint64_t flags);
-extern ssize_t	tofu_ctx_msg_send_common(struct fid_ep *fid_ep, const struct fi_msg_tagged *msg, uint64_t flags);
+extern ssize_t	tofu_ctx_msg_send(struct fid_ep *fid_ep, const void *buf, size_t len,
+				  void *desc, fi_addr_t dest_addr, void *context);
 extern ssize_t	tofu_ctx_msg_sendv(struct fid_ep *fid_ep, const struct iovec *iov, void **desc,
 				   size_t count, fi_addr_t dest_addr, void *context);
 extern ssize_t	tofu_ctx_msg_sendmsg(struct fid_ep *fid_ep,const struct fi_msg *msg, uint64_t flags);
@@ -107,38 +108,38 @@ fi_getopt(fid_t fid, int level, int optname, void *optval, size_t *optlen)
 static inline int fi_ep_alias(struct fid_ep *ep, struct fid_ep **alias_ep,
 			      uint64_t flags)
 {
-	int ret;
-	struct fid *fid;
-	ret = fi_alias(&ep->fid, &fid, flags);
-	if (!ret)
-		*alias_ep = container_of(fid, struct fid_ep, fid);
-	return ret;
+    int ret;
+    struct fid *fid;
+    ret = fi_alias(&ep->fid, &fid, flags);
+    if (!ret)
+	*alias_ep = container_of(fid, struct fid_ep, fid);
+    return ret;
 }
 
 static inline int
 fi_tx_context(struct fid_ep *ep, int index, struct fi_tx_attr *attr,
 	      struct fid_ep **tx_ep, void *context)
 {
-    return -FI_NOSYS;
+    return ep->ops->tx_ctx(ep, index, attr, tx_ep, context);
 }
 
 static inline int
 fi_rx_context(struct fid_ep *ep, int index, struct fi_rx_attr *attr,
 	      struct fid_ep **rx_ep, void *context)
 {
-    return -FI_NOSYS;
+    return ep->ops->rx_ctx(ep, index, attr, rx_ep, context);
 }
 
 static inline FI_DEPRECATED_FUNC ssize_t
 fi_rx_size_left(struct fid_ep *ep)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 static inline FI_DEPRECATED_FUNC ssize_t
 fi_tx_size_left(struct fid_ep *ep)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 
@@ -146,7 +147,7 @@ static inline int
 fi_stx_context(struct fid_domain *domain, struct fi_tx_attr *attr,
 	       struct fid_stx **stx, void *context)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 static inline int
@@ -231,7 +232,7 @@ static inline ssize_t
 fi_senddata(struct fid_ep *ep, const void *buf, size_t len, void *desc,
 	      uint64_t data, fi_addr_t dest_addr, void *context)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 /*
@@ -241,7 +242,7 @@ static inline ssize_t
 fi_injectdata(struct fid_ep *ep, const void *buf, size_t len,
 		uint64_t data, fi_addr_t dest_addr)
 {
-    return -FI_NOSYS
+    return -FI_ENOSYS;
 }
 
 #endif /* FI_DIRECT_ENDPOINT */

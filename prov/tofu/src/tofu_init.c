@@ -18,7 +18,6 @@ tofu_getinfo(uint32_t version, const char *node,
     struct fi_info *fiinfo = 0;
     int fc = -FI_ENOMEM;
 
-    // fprintf(stderr, "**** YI %s\n", __func__);
     FI_INFO(&tofu_prov, FI_LOG_CORE, "in %s ; version %08x\n",
             __FILE__, version);
 
@@ -50,7 +49,7 @@ tofu_getinfo(uint32_t version, const char *node,
             "\t   info->domain_attr->name: 0x%p\n"
             "\tinfo->fabric_attr: 0x%p\n"
             "\t   info->fabric_attr->name: 0x%p\n"
-            "\t   info->fabric_attr->prov_name: 0x%p\n"
+            "\t   info->fabric_attr->prov_name: 0x%p (%s)\n"
             "\tinfo->nic: 0x%p\n",
             fiinfo, fiinfo->src_addr, fiinfo->dest_addr, fiinfo->tx_attr,
             fiinfo->rx_attr, fiinfo->ep_attr,
@@ -61,6 +60,7 @@ tofu_getinfo(uint32_t version, const char *node,
             fiinfo->fabric_attr,
             fiinfo->fabric_attr ? fiinfo->fabric_attr->name : 0,
             fiinfo->fabric_attr ? fiinfo->fabric_attr->prov_name : 0,
+            fiinfo->fabric_attr ? fiinfo->fabric_attr->prov_name : "NULL",
             fiinfo->nic);
     //fprintf(stderr, "**** YI %s return %d\n", __func__, fc);
     return fc;

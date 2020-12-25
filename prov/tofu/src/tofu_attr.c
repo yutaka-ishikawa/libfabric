@@ -252,7 +252,7 @@ static struct fi_domain_attr tofu_domain_attr = {
 static struct fi_fabric_attr tofu_fabric_attr = {
     .fabric = NULL, /* XXX */
     .name = "tofu", /* YYY TOFU_FABRIC_NAME */
-    .prov_name = NULL,
+    .prov_name = "tofu",
     .prov_version = FI_TOFU_VERSION,
     .api_version = FI_VERSION(1,7),
 };
@@ -301,7 +301,7 @@ tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
             "\tdomain_attr->name: 0x%p\n"
             "\tfabric_attr: 0x%p\n"
             "\tfabric_attr->name: 0x%p\n"
-            "\tfabric_attr->prov_name: 0x%p\n"
+            "\tfabric_attr->prov_name: 0x%p (%s)\n"
             "\tnic: 0x%p\n",
             getpid(), hints, hints->src_addr, hints->dest_addr, hints->tx_attr,
             hints->rx_attr, hints->ep_attr,
@@ -312,9 +312,9 @@ tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
             hints->fabric_attr,
             hints->fabric_attr ? hints->fabric_attr->name : 0,
             hints->fabric_attr ? hints->fabric_attr->prov_name : 0,
+            hints->fabric_attr ? hints->fabric_attr->prov_name : "NULL",
             hints->nic);
 
-    
     if ((hints->fabric_attr != 0)
 	&& (hints->fabric_attr->name != 0)
 	&& (strcasecmp(hints->fabric_attr->name, prov_fa->name) == 0)) {

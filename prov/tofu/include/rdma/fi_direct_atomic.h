@@ -3,6 +3,8 @@
 #define FI_DIRECT_ATOMIC_H
 #define FABRIC_DIRECT_ATOMIC
 
+extern ssize_t	tofu_ctx_atm_writemsg(struct fid_ep *fid_ep, const struct fi_msg_atomic *msg,
+				      uint64_t flags);
 extern ssize_t	tofu_ctx_atm_readwritemsg(struct fid_ep *fid_ep, const struct fi_msg_atomic *msg,
 					  struct fi_ioc *resultv, void **result_desc, size_t result_count, uint64_t flags);
 extern ssize_t	tofu_ctx_atm_compwritemsg(struct fid_ep *fid_ep, const struct fi_msg_atomic *msg,

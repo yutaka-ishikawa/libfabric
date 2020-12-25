@@ -5,7 +5,8 @@
 
 extern ssize_t	tofu_ctx_rma_read(struct fid_ep *fid_ep, void *buf, size_t len, void *desc,
 				  fi_addr_t src_addr, uint64_t addr, uint64_t key, void *context);
-extern ssize_t	tofu_ctx_rma_readmsg(struct fid_ep *fid_ep, const struct fi_msg_rma *msg, uint64_t flags)
+extern ssize_t	tofu_ctx_rma_readmsg(struct fid_ep *fid_ep, const struct fi_msg_rma *msg, uint64_t flags);
+extern ssize_t	tofu_ctx_rma_writemsg(struct fid_ep *fid_ep, const struct fi_msg_rma *msg, uint64_t flags);
 extern ssize_t	tofu_ctx_rma_inject(struct fid_ep *fid_ep, const void *buf, size_t len,
 				    fi_addr_t dest_addr, uint64_t addr, uint64_t key);
 
@@ -21,7 +22,7 @@ fi_readv(struct fid_ep *ep, const struct iovec *iov, void **desc,
 	 size_t count, fi_addr_t src_addr, uint64_t addr, uint64_t key,
 	 void *context)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 static inline ssize_t
@@ -34,7 +35,7 @@ static inline ssize_t
 fi_write(struct fid_ep *ep, const void *buf, size_t len, void *desc,
 	 fi_addr_t dest_addr, uint64_t addr, uint64_t key, void *context)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 static inline ssize_t
@@ -42,7 +43,7 @@ fi_writev(struct fid_ep *ep, const struct iovec *iov, void **desc,
 	 size_t count, fi_addr_t dest_addr, uint64_t addr, uint64_t key,
 	 void *context)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 static inline ssize_t
@@ -63,14 +64,14 @@ fi_writedata(struct fid_ep *ep, const void *buf, size_t len, void *desc,
 	       uint64_t data, fi_addr_t dest_addr, uint64_t addr, uint64_t key,
 	       void *context)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 static inline ssize_t
 fi_inject_writedata(struct fid_ep *ep, const void *buf, size_t len,
 		uint64_t data, fi_addr_t dest_addr, uint64_t addr, uint64_t key)
 {
-    return -FI_NOSYS;
+    return -FI_ENOSYS;
 }
 
 #endif /* FI_DIRECT_RMA_H */
