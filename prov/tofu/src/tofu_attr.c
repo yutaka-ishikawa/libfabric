@@ -101,7 +101,8 @@ static struct fi_tx_attr tofu_tx_attr = {
 		/* | FI_ORDER_DATA */
 	    ,
     .inject_size = CONF_TOFU_INJECTSIZE,
-    .size = 4, /* minimum number of transmit without returning -FI_EAGAIN */
+    // .size = COM_SCNTR_MINF_SZ, /* minimum number of transmit without returning -FI_EAGAIN */
+    .size = 1,
     .iov_limit = 1, /* XXX TOFU_IOV_LIMIT */
     .rma_iov_limit = 1, /* XXX TOFU_IOV_LIMIT */
 };
@@ -251,10 +252,10 @@ static struct fi_domain_attr tofu_domain_attr = {
 
 static struct fi_fabric_attr tofu_fabric_attr = {
     .fabric = NULL, /* XXX */
-    .name = "tofu", /* YYY TOFU_FABRIC_NAME */
-    .prov_name = "tofu",
+    .name = "tofu", /* TOFU_FABRIC_NAME */
+    .prov_name = 0, /* do not need to specify "tofu" here 2020/12/26 */
     .prov_version = FI_TOFU_VERSION,
-    .api_version = FI_VERSION(1,7),
+    .api_version = (FI_MAJOR(0) | FI_MINOR(0))
 };
 
 /* === struct fi_info ================================================= */
@@ -302,7 +303,8 @@ tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
             "\tfabric_attr: 0x%p\n"
             "\tfabric_attr->name: 0x%p\n"
             "\tfabric_attr->prov_name: 0x%p (%s)\n"
-            "\tnic: 0x%p\n",
+            "\tnic: 0x%p\n"
+            "\ttofu_attr->prov_name: %s\n",
             getpid(), hints, hints->src_addr, hints->dest_addr, hints->tx_attr,
             hints->rx_attr, hints->ep_attr,
             hints->ep_attr ? hints->ep_attr->auth_key : 0,
@@ -313,7 +315,8 @@ tofu_init_prov_info(const struct fi_info *hints, struct fi_info **infos)
             hints->fabric_attr ? hints->fabric_attr->name : 0,
             hints->fabric_attr ? hints->fabric_attr->prov_name : 0,
             hints->fabric_attr ? hints->fabric_attr->prov_name : "NULL",
-            hints->nic);
+            hints->nic,
+            tofu_fabric_attr.prov_name);
 
     if ((hints->fabric_attr != 0)
 	&& (hints->fabric_attr->name != 0)
@@ -343,7 +346,7 @@ skip_checks:
     // fc = -FI_ENODATA;
     fc = (head == 0)? -FI_ENODATA: 0;
     *infos = head;
-    
+
     return fc;
 }
 

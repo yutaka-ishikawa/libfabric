@@ -86,6 +86,7 @@ tofu_progress(struct tofu_cq *cq)
     return ment;
 }
 
+
 /*
  * fi_cq_read
  */
@@ -120,7 +121,6 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
             struct fi_cq_tagged_entry *comp = ofi_cirque_head(cq->cq_ccq);
             assert(comp != 0);
             *cq_etag = *comp;
-            // fprintf(stdout, "YI!!! libfabric %s: tag = 0x%lx\n", __func__, cq_etag->tag); fflush(stdout);
             cq_etag++;
             ofi_cirque_discard(cq->cq_ccq);
         }
@@ -183,6 +183,8 @@ static struct fi_ops_cq tofu_cq_ops = {
     .strerror	    = fi_no_cq_strerror,
 };
 
+struct tofu_ccirq *tofu_dbg_ccq;
+
 /*
  * fi_cq_open
  */
@@ -244,6 +246,7 @@ int tofu_cq_open(struct fid_domain *fid_dom, struct fi_cq_attr *attr,
     if (cq_priv->cq_ccq == 0) {
         fc = -FI_ENOMEM; goto bad;
     }
+    tofu_dbg_ccq = cq_priv->cq_ccq;     /* for debugging 2020/12/28 */
     /* for fi_cq_err_entry */
     cq_priv->cq_cceq = tofu_ccireq_create(CONF_TOFU_CQSIZE);
     if (cq_priv->cq_cceq == 0) {
@@ -262,4 +265,22 @@ ok:
         fprintf(stderr, "%s: YYI!!!!!!! return %d\n", __func__, fc); fflush(stderr);
     }
     return fc;
+}
+
+void
+tofu_cq_show()
+{
+    struct tofu_ccirq   *cq = tofu_dbg_ccq;
+    size_t i;
+
+    if (cq == NULL) {
+        utf_printf("***** tofu_dbg_ccq is NULL  ****\n");
+        return;
+    }
+    utf_printf("***** CQ entries rcnt(%ld) wcnt(%ld) ****\n", cq->rcnt, cq->wcnt);
+    for (i = 0; i < cq->wcnt; i++) {
+        struct fi_cq_tagged_entry *cqe = &cq->buf[i];
+        utf_printf("cq-%d cntxt(%p) flags(0x%lx) len(0x%lx) buf(%p) data(%d) tag(0x%lx)\n",
+                   i, cqe->op_context, cqe->flags, cqe->len, cqe->buf, cqe->data, cqe->tag);
+    }
 }

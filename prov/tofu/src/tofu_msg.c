@@ -282,7 +282,7 @@ tofu_ctx_msg_sendv(struct fid_ep *fid_ep, const struct iovec *iov,
     tmsg.context    = context;
     tmsg.data	    = 0;
 
-    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "in %s\n", __FILE__);
+    FI_INFO( &tofu_prov, FI_LOG_EP_CTRL, "count(%ld) iov[0].iov_len=%ld iov[0].iov_base=%p %s\n", count, iov[0].iov_len, iov[0].iov_base, __FILE__);
     R_DBG1(RDBG_LEVEL3, "fi_sendv dest(%s) len(%ld) buf(%p) FI_COMPLETION",
           fi_addr2string(buf1, 128, dest_addr, fid_ep),
           iov[0].iov_len, iov[0].iov_base);

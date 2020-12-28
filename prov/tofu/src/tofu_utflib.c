@@ -178,7 +178,7 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     struct fi_cq_err_entry cq_e[1], *comp;
 
     utf_printf("%s: CQERROR context(%p), flags(%s) len(%ld) data(%ld) tag(%lx)\n", __func__, context, tofu_fi_flags_string(flags), len, data, tag);
-    DEBUG(DLEVEL_ADHOC) utf_printf("%s:DONE error len(%ld) olen(%ld) err(%d)\n", __func__, len, olen, err);
+    DEBUG(DLEVEL_COMM|DLEVEL_ADHOC) utf_printf("%s:DONE error len(%ld) olen(%ld) err(%d)\n", __func__, len, olen, err);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no receive completion is generated\n",  __func__);
@@ -223,7 +223,7 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     struct fi_cq_tagged_entry cq_e[1], *comp;
 
     // utf_printf("YI*** reg_rcvcq tag(%ld=0x%lx)\n", tag, tag);
-    DEBUG(DLEVEL_PROTOCOL) {
+    DEBUG(DLEVEL_COMM|DLEVEL_PROTOCOL) {
 	utf_printf("%s: cq(%p) context(%p) flags = %s bufp(%p) len(%ld) data(%ld) cq_rsel(%p) buf(%s)\n",
 		   __func__, cq, context, tofu_fi_flags_string(flags), bufp, len, data, cq->cq_rsel,
 		   tofu_data_dump(bufp, len));
@@ -257,6 +257,10 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     /* advance w.p. by one  */
     ofi_cirque_commit(cq->cq_ccq);
     fastlock_release(&cq->cq_lck);
+    //utf_printf("[COMM20201227] %s cmpl\n", __func__);
+    //fprintf(stderr, "[%d] cmpl\n", utf_info.myrank);
+    //fprintf(stderr, "C\n");
+    //getpid();
     DEBUG(DLEVEL_COMM) {
 	utf_printf("\t[COMM] %s: RECV COMPLETION. context(%lx) len(%ld) data(%ld) tag(%lx) buf(%p) flags(%s)\n",
 		   __func__, context, len, data, tag, bufp, tofu_fi_flags_string(flags));
@@ -284,7 +288,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req, int reent)
 	utf_printf("%s: CHANGED TO EXP req(%p) DONE\n", __func__, dbg_fly);
 	dbg_fly = 0;
     }
-    DEBUG(DLEVEL_PROTO_AM) {
+    DEBUG(DLEVEL_COMM|DLEVEL_PROTO_AM) {
 	if (req->fi_flgs & FI_MULTI_RECV) {
 	    utf_printf("%s: NOTIFY SRC(%d) req(%p) rsize(%ld) buf(%p)\n", __func__, req->hdr.src, req, req->rsize, req->buf);
 	}
@@ -317,7 +321,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req, int reent)
 	&& (req->fi_msg[0].iov_len - req->fi_recvd - req->rsize) < 16384) {
 	/* overvflow */
 	flags |= FI_MULTI_RECV;
-	DEBUG(DLEVEL_PROTOCOL|DLEVEL_PROTO_AM) {
+	DEBUG(DLEVEL_COMM|DLEVEL_PROTOCOL|DLEVEL_PROTO_AM) {
 	    utf_printf("%s: RAISE FI_MULTI_RECV flags(%s) req->fi_flgs(%s) req(%p) len(%ld) rcvd(%ld) + now(%ld)\n", __func__, tofu_fi_flags_string(flags), tofu_fi_flags_string(req->fi_flgs), req, req->fi_msg[0].iov_len, req->fi_recvd, req->rsize);
 	}
     }
@@ -382,7 +386,7 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     cq_e->data		= data;
     cq_e->tag		= tag;
 
-    DEBUG(DLEVEL_PROTOCOL) {
+    DEBUG(DLEVEL_COMM|DLEVEL_PROTOCOL) {
 	utf_printf("%s: context(%p), newflags(%s) len(%ld) data(%ld) tag(%lx) cq(%p)->cq_ccq(%p) cq_ssel(%d)\n",
 		   __func__, context, tofu_fi_flags_string(cq_e->flags), len, data, tag, cq, cq->cq_ccq, cq->cq_ssel);
     }
@@ -710,7 +714,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 
     // INITCHECK();
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
-    DEBUG(DLEVEL_PROTOCOL) {
+    DEBUG(DLEVEL_COMM|DLEVEL_PROTOCOL) {
 	utf_printf("%s: SRC DST(%d) LEN(%ld) buf(%p) flags(%s) tag(0x%lx) data(%ld) context(%p)\n",
 		   __func__, dst, msgsize, msg->msg_iov[0].iov_base, tofu_fi_flags_string(flags),
 		   msg->tag, msg->data, msg->context);
