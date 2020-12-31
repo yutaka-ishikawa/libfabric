@@ -277,8 +277,9 @@ tofu_cq_show()
         utf_printf("***** tofu_dbg_ccq is NULL  ****\n");
         return;
     }
-    utf_printf("***** CQ entries rcnt(%ld) wcnt(%ld) ****\n", cq->rcnt, cq->wcnt);
-    for (i = 0; i < cq->wcnt; i++) {
+    utf_printf("cq->rcnt(%d) cq->size_mask(0x%lx) cq->size(0x%lx: %ld)\n",  cq->rcnt, cq->size_mask, cq->size);
+    utf_printf("***** CQ entries rcnt(%ld) wcnt(%ld) ****\n", cq->rcnt & cq->size_mask, cq->wcnt & cq->size_mask);
+    for (i = 0; i < cq->size; i++) {
         struct fi_cq_tagged_entry *cqe = &cq->buf[i];
         utf_printf("cq-%d cntxt(%p) flags(0x%lx) len(0x%lx) buf(%p) data(%d) tag(0x%lx)\n",
                    i, cqe->op_context, cqe->flags, cqe->len, cqe->buf, cqe->data, cqe->tag);

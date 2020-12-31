@@ -281,6 +281,70 @@ bad:
     return;
 }
 
+void
+tfi_allmsglist_show()
+{
+    utf_printf("***** Tagged Message Expected List *****\n");
+    utf_msglist_show("exp-tagged", &tfi_tag_explst);
+    utf_printf("***** Multi-recv Message Expected List *****\n");
+    utf_msglist_show("exp-multi", &tfi_msg_explst);
+
+    utf_printf("***** Tagged Message Unexpected list *****\n");
+    utf_msglist_show("unexp-tagged", &tfi_tag_uexplst);
+    utf_printf("***** Multi-recv Unexpected List *****\n");
+    utf_msglist_show("unexp-multi", &tfi_msg_uexplst);
+}
+
+
+#include <signal.h>
+#include<sys/time.h>
+int	tfi_dbg_timer;
+int	tfi_dbg_timact;
+
+void
+handle_sigtimer(int signum, siginfo_t *info, void *p)
+{
+    extern void utf_injcnt_show();
+    extern void tofu_cq_show();
+
+    utf_injcnt_show();
+    tfi_allmsglist_show();
+    utf_sendctr_show();
+    utf_recvcntr_show(stderr);
+    tofu_cq_show();
+}
+
+void
+tfi_dbg_init()
+{
+    struct sigaction	sigact;
+    struct itimerval	tim;
+    int ret;
+
+    if (tfi_dbg_timer == 0) return;
+
+    sigemptyset(&sigact.sa_mask);
+    sigact.sa_flags = SA_SIGINFO;
+    sigact.sa_sigaction = handle_sigtimer;
+    sigaction(SIGALRM, &sigact, NULL);
+    tim.it_value.tv_sec = tfi_dbg_timer;
+    tim.it_value.tv_usec = 0;
+    tim.it_interval.tv_sec = tfi_dbg_timer;
+    tim.it_interval.tv_usec = 0;
+    ret = setitimer(ITIMER_REAL, &tim, NULL);
+    if (ret < 0) {
+	utf_printf("%s: setimer cannot set\n", __func__);
+	perror(__func__);
+    } else {
+	DEBUG(DLEVEL_INIFIN) {
+	    if (utf_info.myrank == 0) {
+		utf_printf("%s: setimer %d sec, action is %d\n", __func__, tfi_dbg_timer, tfi_dbg_timact);
+	    }
+	}
+    }
+}
+
+
 char *tofu_fi_class_string[] = {
 	"FI_CLASS_UNSPEC", "FI_CLASS_FABRIC", "FI_CLASS_DOMAIN", "FI_CLASS_EP",
 	"FI_CLASS_SEP", "FI_CLASS_RX_CTX", "FI_CLASS_SRX_CTX", "FI_CLASS_TX_CTX",

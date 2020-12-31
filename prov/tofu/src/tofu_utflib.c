@@ -712,6 +712,13 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     struct utf_msgreq	*req;
     struct utf_egr_sbuf	*sbufp;
 
+#define UTF_DEBUG_20201231
+#ifdef UTF_DEBUG_20201231
+    if (utf_tcq_count) utf_tcqprogress();
+#endif
+#ifdef UTF_DEBUG_20201229
+    utf_printf("%s:\t\tutf-dst(%d)\n", __func__, dst);
+#endif
     // INITCHECK();
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     DEBUG(DLEVEL_COMM|DLEVEL_PROTOCOL) {
@@ -734,6 +741,25 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	// utf_printf("%s: YI!!!!! return sender cntrl fail: -FI_ENOMEM = %d\n", __func__, fc);
 	goto err2;
     }
+//#define DEBUG_20201230
+#ifdef DEBUG_20201230
+    if (usp->inflight > 0) {
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("send: EAGAIN dst(%d) tag(0xx%lx)\n", dst, msg->tag);
+	}
+	fc = -FI_EAGAIN;
+	goto err2;
+    }
+#else
+    if (usp->inflight >= COM_SCNTR_MINF_SZ) {
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("send: EAGAIN dst(%d) tag(0xx%lx)\n", dst, msg->tag);
+	}
+	fc = -FI_EAGAIN;
+	goto err2;
+    }
+#endif
+#if 0 /* 20201230 */
     if (usp->inflight > MSGREQ_SENDMAX_INFLIGHT) {
 	/* rendevous messages more than MSGREQ_SENDMAX_INFLIGHT */
 	DEBUG(DLEVEL_ERR) {
@@ -742,6 +768,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	fc = -FI_EAGAIN;
 	goto err2;
     }
+#endif
     /* wait for completion of previous send massages */
     for (retry = 0; retry < 3; retry++) {
 	minfo = &usp->msginfo[usp->mient];
@@ -884,6 +911,7 @@ recv_multi_progress(int idx, struct tofu_ctx *ctx,
 	    dbg_fly = req;
 	    if (req->rcntr != NULL && req->rcntr->req != req) {
 		assert(req->rcntr != NULL && req->rcntr->req != req);
+		abort();
 	    }
 	    goto out;
 	}
@@ -959,6 +987,9 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 		utf_printf("%s: ENTER CLAIM SRC(%d) tag(%lx) flags(%s) context(%lx)\n",
 			   __func__, src, tag, tofu_fi_flags_string(flags), msg->context);
 	    }
+#ifdef UTF_DEBUG_20201229
+	    utf_printf("%s:\t\tutf-src(%d) claimed\n", __func__, src);
+#endif
 	    goto do_claimed_req;
 	}
     } else {
@@ -1037,6 +1068,9 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    if (flags & (FI_PEEK|FI_CLAIM)) { /* re-insert */
 		utf_msglst_insert(uexplst, req);
 		fc = -FI_ENOMSG;
+#ifdef UTF_DEBUG_20201229
+		utf_printf("%s:\t\tutf-src(%d) FI_PEEK\n", __func__, src);
+#endif
 		goto ext;
 	    }
 	    goto req_setup;
@@ -1078,6 +1112,9 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, req->hdr.size,
 			   req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
 	}
+#ifdef UTF_DEBUG_20201229
+	utf_printf("%s:\t\tutf-src(%d) found\n", __func__, src);
+#endif
 	goto ext;
     }
 req_setup:
@@ -1097,19 +1134,19 @@ req_setup:
 		fc = -FI_EAGAIN; goto ext;
 	    }
 	    req->hdr.src = src;
-	    /* req->hdr.size will be set at message arrival */
+	    req->hdr.size = msgsize; /* will be set the correct size at message arrival */
 	    // req->fi_data = data;
 	    req->hdr.tag = tag;
 	    req->allflgs = 0;
 	    req->rsize = 0;
 	    req->state = REQ_NONE;
-	    req->usrreqsz = req->rcvexpsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+	    req->usrreqsz = req->rcvexpsz = msgsize; /* ofi_total_iov_len(msg->msg_iov, msg->iov_count);*/
 	    iovecinfo_dup(req, msg);
 	    req->buf = NULL;
 	} else {
 	    /* moving unexp to expected state, but no registration is needed 2020/04/25
 	     * expsize is reset though req was in unexp queue */
-	    req->usrreqsz = req->rcvexpsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
+	    req->usrreqsz = req->rcvexpsz = msgsize; /* ofi_total_iov_len(msg->msg_iov, msg->iov_count);*/
 	    iovecinfo_dup(req, msg);
 	    /*
 	     * 2020/04/23: checking
@@ -1130,6 +1167,9 @@ req_setup:
 		req->buf = 0;
 		req->alloc = 0;
 	    }
+#ifdef UTF_DEBUG_20201229
+	    utf_printf("%s: \t\tutf-src(%d) rcntr(%p)->state(%d)\n", __func__, src, req->rcntr, req->rcntr != NULL ? req->rcntr->state : -1);
+#endif
 	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) utf_printf("%s: rz(%ld) reqsz(%ld) src(%d) stat(%d) NOT MOVING\n", __func__, req->usrreqsz, req->rsize, src, req->state);
 	}
 	if (req->usrreqsz > CONF_TOFU_INJECTSIZE && utf_mode_msg == MSG_RENDEZOUS) {
@@ -1164,6 +1204,13 @@ req_setup:
 		}
 	    } else DEBUG(DLEVEL_PROTOCOL) {
 		    utf_printf("%s:\tAppend Explist req(%p)->fi_ucontext(%p) SRC(%d) sz(%ld) fi_flgs(%s)\n", __func__, req, req->fi_ucontext, src, req->usrreqsz, tofu_fi_flags_string(req->fi_flgs));
+	    }
+	    {
+		utfslist_entry_t	*cur = tfi_tag_explst.head;
+		struct utf_msglst	*msl = container_of(cur, struct utf_msglst, slst);
+#ifdef UTF_DEBUG_20201229
+		utf_printf("%s:\t\tutf-src(%d) newent(%p)\n", __func__, src, msl);
+#endif
 	    }
 	}
     } else {

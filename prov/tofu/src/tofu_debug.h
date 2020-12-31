@@ -15,6 +15,8 @@ extern char     *tofu_fi_class_string[];
 extern char     *tofu_fi_err_string(int);
 
 extern int rdbgf, rdbgl;
+extern int tfi_dbg_timer;
+extern int tfi_dbg_timact;
 
 #define RDEBUG 1
 #ifdef RDEBUG

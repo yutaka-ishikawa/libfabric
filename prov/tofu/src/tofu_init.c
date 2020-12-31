@@ -184,6 +184,16 @@ TOFU_INI
     } else {
         tfi_progress_compl_pending = CONF_TOFU_FI_COMPL_PENDING;
     }
+    {
+        extern int utf_getenvint(char*);
+        extern void tfi_dbg_init();
+        int     i;
+        i = utf_getenvint("UTF_DBGTIMER_INTERVAL");
+        tfi_dbg_timer = i;
+        i = utf_getenvint("UTF_DBGTIMER_ACTION");
+        tfi_dbg_timact = i;
+        tfi_dbg_init();
+    }
     cp = getenv("TFI_CONFIRM");
     if (cp) {
         tfi_confirm = 1;
