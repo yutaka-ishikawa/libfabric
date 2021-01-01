@@ -186,7 +186,7 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     }
     fastlock_acquire(&cq->cq_lck);
     if (ofi_cirque_isfull(cq->cq_cceq)) {
-	utf_printf("%s: YI########### cq(%p) CQE is full\n",  __func__, cq);
+	utf_printf("%s: TOFU cq(%p) CQE is full\n",  __func__, cq);
 	fc = -FI_EAGAIN; goto bad;
     }
     /* FI_CLAIM is not set because no FI_BUFFERED_RECV is set*/
@@ -482,7 +482,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
     } else {
 	if ((snd_req = utf_sendreq_alloc()) == NULL) { // rc = ERR_NOMORE_REQBUF;
 	    DEBUG(DLEVEL_ERR) {
-		utf_printf("%s: YI########### EAGAIN no more sendreq resource\n", __func__);
+		utf_printf("%s: TOFU EAGAIN no more sendreq resource self(%d) tag(0x%lx)\n", __func__, src, tag);
 	    }
 	    fc = -FI_EAGAIN; goto ext;
 	}
@@ -550,7 +550,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	}
 	if ((rcv_req = utf_recvreq_alloc()) == NULL) {
 	    DEBUG(DLEVEL_ERR) {
-		utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+		utf_printf("%s: TOFU EAGAIN no more recvreq resource self(%d) tag(0x%lx)\n", __func__, src, tag);
 	    }
 	    if (snd_req) {
 		utf_sendreq_free(snd_req);
@@ -731,7 +731,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	/*rc = UTF_ERR_NOMORE_REQBUF; */
 	// utf_printf("%s: YI!!!!! return msgreq alloc fail: -FI_EAGAIN = %d\n", __func__, fc);
 	DEBUG(DLEVEL_ERR) {
-	    utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+	    utf_printf("%s: TOFU EAGAIN no more sendreq resource dst(%d) tag(0x%lx)\n", __func__, dst, msg->tag);
 	}
 	fc = -FI_EAGAIN; goto err1;
     }
@@ -743,7 +743,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     }
 //#define DEBUG_20201230
 #ifdef DEBUG_20201230
-    if (usp->inflight > 0) {
+    if (usp->inflight > utf_asend_count) {
 	DEBUG(DLEVEL_ERR) {
 	    utf_printf("send: EAGAIN dst(%d) tag(0xx%lx)\n", dst, msg->tag);
 	}
@@ -763,7 +763,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     if (usp->inflight > MSGREQ_SENDMAX_INFLIGHT) {
 	/* rendevous messages more than MSGREQ_SENDMAX_INFLIGHT */
 	DEBUG(DLEVEL_ERR) {
-	    utf_printf("%s: YI########### EAGAIN MAX FLIGHT\n", __func__);
+	    utf_printf("%s: TOFU EAGAIN MAX FLIGHT\n", __func__);
 	}
 	fc = -FI_EAGAIN;
 	goto err2;
@@ -776,7 +776,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	tfi_utf_progress(NULL);
     }
     DEBUG(DLEVEL_ERR) {
-	utf_printf("%s: YI########### EAGAIN no more sendctr send area\n", __func__);
+	utf_printf("%s: TOFU EAGAIN no more sendctr send area\n", __func__);
     }
     fc = -FI_EAGAIN;
     goto err2;
@@ -972,6 +972,13 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
     size_t	msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     utfslist_t *uexplst;
 
+#if 0
+    DEBUG(DLEVEL_ERR) {
+	if (flags & FI_PEEK) {
+	    utf_printf("recv: FI_PEEK src(%d) tag(0xx%lx)\n", src, tag);
+	}
+    }
+#endif
     if (flags & FI_TAGGED) {
 	uexplst =  &tfi_tag_uexplst;
 	if (flags & FI_PEEK) {
@@ -1068,9 +1075,9 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    if (flags & (FI_PEEK|FI_CLAIM)) { /* re-insert */
 		utf_msglst_insert(uexplst, req);
 		fc = -FI_ENOMSG;
-#ifdef UTF_DEBUG_20201229
-		utf_printf("%s:\t\tutf-src(%d) FI_PEEK\n", __func__, src);
-#endif
+		DEBUG(DLEVEL_ERR) {
+		    utf_printf("recv: FI_ENOMSG at FI_PEEK src(%d) tag(0xx%lx)\n", src, tag);
+		}
 		goto ext;
 	    }
 	    goto req_setup;
@@ -1129,7 +1136,7 @@ req_setup:
 	    req_new = 1;
 	    if ((req = utf_recvreq_alloc()) == NULL) {
 		DEBUG(DLEVEL_ERR) {
-		    utf_printf("%s: YI########### EAGAIN no more recvreq resource\n", __func__);
+		    utf_printf("%s: TOFU EAGAIN no more recvreq resource src(%d) tag(0x%lx)\n", __func__, src, tag);
 		}
 		fc = -FI_EAGAIN; goto ext;
 	    }
@@ -1175,7 +1182,8 @@ req_setup:
 	if (req->usrreqsz > CONF_TOFU_INJECTSIZE && utf_mode_msg == MSG_RENDEZOUS) {
 	    /* rendezous */
 	    if (msg->iov_count > 1) {
-		utf_printf("%s: iov is not supported now\n", __func__);
+		utf_printf("%s: iov is not supported currently. aborting\n", __func__);
+		abort();
 		fc = -FI_EAGAIN; goto ext;
 	    }
 	    /* receiver's memory area, bufinfo,  will be initialized at utf_rget_start */
@@ -1205,13 +1213,13 @@ req_setup:
 	    } else DEBUG(DLEVEL_PROTOCOL) {
 		    utf_printf("%s:\tAppend Explist req(%p)->fi_ucontext(%p) SRC(%d) sz(%ld) fi_flgs(%s)\n", __func__, req, req->fi_ucontext, src, req->usrreqsz, tofu_fi_flags_string(req->fi_flgs));
 	    }
+#ifdef UTF_DEBUG_20201229
 	    {
 		utfslist_entry_t	*cur = tfi_tag_explst.head;
 		struct utf_msglst	*msl = container_of(cur, struct utf_msglst, slst);
-#ifdef UTF_DEBUG_20201229
 		utf_printf("%s:\t\tutf-src(%d) newent(%p)\n", __func__, src, msl);
-#endif
 	    }
+#endif
 	}
     } else {
 	/* FI_PEEK with no message, Generating CQ Error */
@@ -1225,6 +1233,9 @@ req_setup:
 	 */
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s:\t No message arrives. just return FI_ENOMSG. Is this OK ?\n", __func__);
+	}
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("recv: FI_ENOMSG at FI_PEEK src(%d) tag(0xx%lx)\n", src, tag);
 	}
 	fc = -FI_ENOMSG;
     }
@@ -1451,7 +1462,10 @@ tfi_utf_read_post(struct tofu_ctx *ctx,
 	rma_cq->type = UTF_RMA_READ;
 	// utf_rmacq_waitappend(rma_cq);
     } else {
-	fc = -FI_EAGAIN; goto err;
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("%s: TOFU return (%ld:0x%lx)\n", __func__, fc, fc);
+	}
+	goto err;
     }
     {
 	int i;
@@ -1493,7 +1507,10 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
 	rma_cq->type = UTF_RMA_WRITE;
 	// utf_rmacq_waitappend(rma_cq);
     } else {
-	fc = -FI_EAGAIN; goto err;
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("%s: TOFU return (%ld:0x%lx)\n", __func__, fc, fc);
+	}
+	goto err;
     }
     {
 	int i;
@@ -1531,6 +1548,9 @@ tfi_utf_write_inject(struct tofu_ctx *ctx, const void *buf, size_t len,
     // utf_printf("%s: YI@@@@@@ %ld\n", __func__, len);
     rma_cq = utf_rmacq_alloc();
     if (rma_cq == NULL) {
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("%s: TOFU EAGAIN no more RMA CQ resource dst(%d)\n", __func__, dst);
+	}
 	fc = -FI_EAGAIN; goto err;
     }
     rma_cq->ctx = ctx;
