@@ -741,9 +741,9 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	// utf_printf("%s: YI!!!!! return sender cntrl fail: -FI_ENOMEM = %d\n", __func__, fc);
 	goto err2;
     }
-//#define DEBUG_20201230
+#define DEBUG_20201230
 #ifdef DEBUG_20201230
-    if (usp->inflight > utf_asend_count) {
+    if (usp->inflight >= utf_asend_count) {
 	DEBUG(DLEVEL_ERR) {
 	    utf_printf("send: EAGAIN dst(%d) tag(0xx%lx)\n", dst, msg->tag);
 	}
