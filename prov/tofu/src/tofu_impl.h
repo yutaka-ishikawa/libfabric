@@ -86,6 +86,7 @@ struct tofu_ctx {
     struct tofu_cntr   *ctx_recv_ctr; /* recv operation */
     struct tofu_av     *ctx_av;       /* copy of ctx_sep->sep_av_ */
     struct tni_info    *ctx_tinfo;    /* copy of ctx_sep->sep_dom->tinfo */
+    size_t              min_multi_recv; /* set by fi_setopt */
 };
 
 /*

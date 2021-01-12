@@ -58,6 +58,7 @@ tofu_ctx_init(int index, struct tofu_ctx *ctx, struct tofu_sep *sep,
     ctx->ctx_idx = index;
     ctx->ctx_av = sep->sep_av_;  /* copy of sep->sep_av_ */
     ctx->ctx_tinfo = sep->sep_dom->tinfo; /* dopy of domain tinfo */
+    ctx->min_multi_recv = CONF_TOFU_MIN_MULTI_RECV;
 
     fastlock_init(&ctx->ctx_lck);
     ctx->ctx_xop_flg = (attr == 0)? 0UL :
@@ -581,13 +582,29 @@ tofu_ctx_setopt(fid_t fid, int level,  int optname,
 	if (optlen != sizeof (size_t)) {
 	    fc = -FI_EINVAL; goto bad;
 	}
-        DEBUG(DLEVEL_INIFIN) {
-            R_DBG("%s: YI###### FI_OPT_MIN_MULTI_RECV %ld", __func__, ((size_t *)optval)[0]);
-        }
 	if (((size_t *)optval)[0] <= 0) {
-	    // fc = -FI_EINVAL; goto bad;
+	    fc = -FI_EINVAL; goto bad;
 	}
-	/* ctx_priv->min_multi_recv = ((size_t *)optval)[0]; */
+#define DEBUG_20210112
+#ifdef DEBUG_20210112
+        {
+            char *cp = getenv("TOFU_MIN_MULTI_RECV");
+            if (cp && atol(cp) > 0) {
+                ctx_priv->min_multi_recv = atol(cp);
+                if (utf_info.myrank == 0) {
+                    utf_printf("%s: min_multi_recv is set to %ld, though requested size is %ld\n",
+                               __func__, ctx_priv->min_multi_recv, ((size_t *)optval)[0]);
+                }
+            } else {
+                ctx_priv->min_multi_recv = ((size_t *)optval)[0];
+            }
+        }
+#else
+	ctx_priv->min_multi_recv = ((size_t *)optval)[0];
+#endif
+        DEBUG(DLEVEL_INIFIN) {
+            R_DBG("%s: YI###### FI_OPT_MIN_MULTI_RECV %ld", __func__, ctx_priv->min_multi_recv);
+        }
 	break;
     default:
 	fc = -FI_ENOPROTOOPT; goto bad;

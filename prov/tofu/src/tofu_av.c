@@ -26,7 +26,6 @@ tofu_av_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
     struct tofu_av *av_priv;
-    int i;
 
     FI_INFO(&tofu_prov, FI_LOG_AV, "in %s\n", __FILE__);
     assert(fid != 0);

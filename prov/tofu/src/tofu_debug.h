@@ -13,10 +13,12 @@ struct fi_msg_tagged;
 extern char     *tofu_fi_msg_string(const struct fi_msg_tagged *msgp);
 extern char     *tofu_fi_class_string[];
 extern char     *tofu_fi_err_string(int);
+extern void     tfi_info_show();
 
 extern int rdbgf, rdbgl;
 extern int tfi_dbg_timer;
 extern int tfi_dbg_timact;
+extern int tfi_dbg_info;
 
 #define RDEBUG 1
 #ifdef RDEBUG

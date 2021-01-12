@@ -14,6 +14,7 @@
 
 //#define CONF_TOFU_CMPID         0x7
 //#define CONF_TOFU_CMPID         0x6
+#define CONF_TOFU_MIN_MULTI_RECV        16384
 #define CONF_TOFU_CTXC  	8   /* fi_ep_attr . [rt]x_ctx_cnt */
 #define CONF_TOFU_CQSIZE        65536 /* MUST BE power of 2
                                        * MUST BE larger than MSGREQ_SEND_SZ + MSG_REA_RECV_SZ.

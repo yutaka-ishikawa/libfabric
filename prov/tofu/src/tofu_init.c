@@ -193,6 +193,8 @@ TOFU_INI
         i = utf_getenvint("UTF_DBGTIMER_ACTION");
         tfi_dbg_timact = i;
         tfi_dbg_init();
+        i = utf_getenvint("TOFU_COMDEBUG");
+        tfi_dbg_info = i;
     }
     cp = getenv("TFI_CONFIRM");
     if (cp) {

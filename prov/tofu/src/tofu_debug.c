@@ -291,27 +291,50 @@ tfi_allmsglist_show()
 
     utf_printf("***** Tagged Message Unexpected list *****\n");
     utf_msglist_show("unexp-tagged", &tfi_tag_uexplst);
-    utf_printf("***** Multi-recv Unexpected List *****\n");
+    utf_printf("***** Multi-recv Message Unexpected List *****\n");
     utf_msglist_show("unexp-multi", &tfi_msg_uexplst);
 }
 
-
-#include <signal.h>
-#include<sys/time.h>
-int	tfi_dbg_timer;
-int	tfi_dbg_timact;
+struct utf_msgreq	*fi_tofu_dbgreq;
 
 void
-handle_sigtimer(int signum, siginfo_t *info, void *p)
+tfi_queue_show()
+{
+    utf_printf("***** QUEUE INFO *****\n");
+    utf_printf("mrecv-wait-queue: %p\n", fi_tofu_dbgreq);
+    utf_printf("utf_sreq_count: %d\n", utf_sreq_count);
+    utf_printf("utf_rreq_count: %d\n", utf_rreq_count);
+    if (utf_sreq_count > 0) {
+	extern void utf_msgreq_show(utfslist_t *slst);
+	utf_msgreq_show(&utf_sreq_busylst);
+    }
+}
+
+void
+tfi_info_show()
 {
     extern void utf_injcnt_show();
     extern void tofu_cq_show();
 
     utf_injcnt_show();
+    tfi_queue_show();
     tfi_allmsglist_show();
     utf_sendctr_show();
     utf_recvcntr_show(stderr);
     tofu_cq_show();
+}
+
+#include <signal.h>
+#include<sys/time.h>
+int	tfi_dbg_timer;
+int	tfi_dbg_timact;
+int	tfi_dbg_info;
+
+void
+handle_sigtimer(int signum, siginfo_t *info, void *p)
+{
+    utf_printf("####### TIMER SHOW (%d sec)#######\n", tfi_dbg_timer);
+    tfi_info_show();
 }
 
 void

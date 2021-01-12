@@ -89,16 +89,16 @@ static int tofu_sep_ctrl(struct fid *fid, int command, void *arg)
     int fc = FI_SUCCESS;
     struct tofu_sep *sep;
 
-    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "command(%d) arg(%p) in %s\n", command, arg, __FILE__);
     assert(fid != 0);
     sep = container_of(fid, struct tofu_sep, sep_fid.fid);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "sep(%p) command(%d) arg(%p) in %s\n", sep, command, arg, __FILE__);
 
     switch (command) {
     case FI_ENABLE: /* 6 */
         // R_DBG("YI***** FI_ENABLE arg(%p)", arg);
 	break;
     default:
-        R_DBG("YI***** FI_ENABLE arg(%p)", arg);
+        R_DBG("%s: FI_ENOSYS FI_ENABLE arg(%p)", __func__, arg);
 	fc = -FI_ENOSYS; goto bad;
     }
 
