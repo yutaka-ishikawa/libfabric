@@ -48,6 +48,10 @@ utf_scntr_svd_recvidx(int idx) {
     }
 };
 
+/*
+ * tfi_utf_egr_sbuf_alloc(utofu_stadd_t *stadd) is copied utf_egr_sbuf_alloc(utofu_stadd_t *stadd)
+ *  Should call the original one. 2021/01/19
+ */
 static inline struct utf_egr_sbuf *
 tfi_utf_egr_sbuf_alloc(utofu_stadd_t *stadd)
 {
@@ -80,6 +84,7 @@ tfi_utf_scntr_purge()
 			   __func__, idx, utf_rank2scntridx[idx], idx);
 		continue;
 	    }
+	    /* its really free depends on state. see utf_scntr_free() */
 	    utf_scntr_free(dst);
 	}
     }
