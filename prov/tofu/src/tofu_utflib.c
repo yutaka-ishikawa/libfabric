@@ -20,6 +20,7 @@ extern struct utf_send_cntr	utf_scntr[SND_CNTRL_MAX]; /* sender control */
 extern struct utf_msgreq	utf_msgrq[MSGREQ_SIZE];
 extern struct utf_rma_cq	utf_rmacq_pool[COM_RMACQ_SIZE];
 extern utofu_stadd_t		utf_rmacq_stadd;
+extern struct utf_sndctr_svd	*utf_scntr_svp;
 
 __attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
 void	*fi_tofu_dbgvalue;
@@ -33,6 +34,17 @@ static int tfi_utf_initialized;
 #define REQ_FISTATE_SELFSEND	1
 #define REQ_MREC_CONT_MULTI_RECV	0
 #define REQ_MREC_RAISE_MULTI_RECV	1
+
+static inline uint32_t
+utf_scntr_svd_recvidx(int idx) {
+    if (utf_scntr_svp[idx].valid == 1) {
+	//utf_printf("%s: dst=%d recvidx=%d\n", __func__, idx, utf_scntr_svp[idx].recvidx);
+	return utf_scntr_svp[idx].recvidx;
+    } else {
+	//utf_printf("%s: dst=%d recvidx=0\n", __func__, idx, __func__);
+	return 0;
+    }
+};
 
 static inline struct utf_egr_sbuf *
 tfi_utf_egr_sbuf_alloc(utofu_stadd_t *stadd)
@@ -50,6 +62,29 @@ tfi_utf_egr_sbuf_alloc(utofu_stadd_t *stadd)
     return uesp;
 }
 
+static utfslist_entry_t *
+tfi_utf_scntr_purge()
+{
+    int	idx, dst;
+    utfslist_entry_t *slst;
+
+    for (idx = 0; idx < SND_CNTRL_MAX; idx++) {
+	//utf_printf("%s: [%d] inflight=%d, state=%d\n", __func__, idx, utf_scntr[idx].inflight, utf_scntr[idx].state);
+	if (utf_scntr[idx].inflight == 0
+	    && utf_scntr[idx].state == S_NONE) {
+	    dst = utf_scntr[idx].dst;
+	    if (idx != utf_rank2scntridx[dst]) {
+		utf_printf("%s: TOFU internal error => utf_rank2scntridx[%d] == %d, not %d\n",
+			   __func__, idx, utf_rank2scntridx[idx], idx);
+		continue;
+	    }
+	    utf_scntr_free(dst);
+	}
+    }
+    slst = utfslist_remove(&utf_scntr_freelst);
+    return slst;
+}
+
 static inline int
 tfi_utf_scntr_alloc(int dst, struct utf_send_cntr **uspp)
 {
@@ -64,8 +99,11 @@ tfi_utf_scntr_alloc(int dst, struct utf_send_cntr **uspp)
 	/* No head */
 	utfslist_entry_t *slst = utfslist_remove(&utf_scntr_freelst);
 	if (slst == NULL) {
-	    fc = -FI_ENOMEM;
-	    goto err;
+	    slst = tfi_utf_scntr_purge();
+	    if (slst == NULL) {
+		fc = -FI_ENOMEM;
+		goto err;
+	    }
 	}
 	scp = container_of(slst, struct utf_send_cntr, slst);
 	utf_rank2scntridx[dst]  = scp->mypos;
@@ -76,6 +114,7 @@ tfi_utf_scntr_alloc(int dst, struct utf_send_cntr **uspp)
 	scp->svcqid = utf_info.vcqid;
 	scp->rvcqid = utf_info.vname[dst].vcqid;
 	scp->mient = 0;
+	scp->recvidx = utf_scntr_svd_recvidx(dst);
 	DEBUG(DLEVEL_UTOFU) {
 	    utf_printf("%s: dst(%d) flag_path(0x%lx)\n", __func__, dst, scp->flags);
 	}
@@ -780,7 +819,8 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     /* av = ctx->ctx_sep->sep->sep_av */
     fc = tfi_utf_scntr_alloc(dst, &usp);
     if (fc != FI_SUCCESS) {
-	// utf_printf("%s: YI!!!!! return sender cntrl fail: -FI_ENOMEM = %d\n", __func__, fc);
+	/* -FI_ENOMEM is returned. eventually resource will be obtained. 2021/01/13 */
+	fc = -FI_EAGAIN;
 	goto err2;
     }
 #define DEBUG_20201230
