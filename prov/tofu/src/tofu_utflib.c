@@ -21,6 +21,8 @@ extern struct utf_msgreq	utf_msgrq[MSGREQ_SIZE];
 extern struct utf_rma_cq	utf_rmacq_pool[COM_RMACQ_SIZE];
 extern utofu_stadd_t		utf_rmacq_stadd;
 extern struct utf_sndctr_svd	*utf_scntr_svp;
+extern int utf_rma_cq_cnt;
+extern int utf_rma_max_inflight;
 
 __attribute__((visibility ("default"), EXTERNALLY_VISIBLE))
 void	*fi_tofu_dbgvalue;
@@ -1456,8 +1458,10 @@ utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t fla
     //utf_printf("%s: YI@@@@@@ msglen=%ld rmalen=%ld\n", __func__, msglen, rmalen);
     cq = utf_rmacq_alloc();
     if (cq == NULL) {
-	utf_printf("%s: ERROR nomore rmqcq\n", __func__);
-	abort();
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("%s: TOFU EAGAIN no more RMA CQ resource\n", __func__);
+	}
+	fc = -FI_EAGAIN; goto bad;
     }
     cq->ctx = ctx; cq->vcqh = *vcqh; cq->rvcqid = *rvcqid;
     cq->lstadd = *lstadd; cq->rstadd = *rstadd;
@@ -1494,6 +1498,10 @@ tfi_utf_read_post(struct tofu_ctx *ctx,
 		   ctx->ctx_send_ctr, ctx->ctx_recv_ctr);
 	tofu_dbg_show_rma(__func__, msg, flags);
     }
+    if (utf_rma_cq_cnt >= utf_rma_max_inflight) {
+	fc = -FI_EAGAIN;
+	goto progress;
+    }
 
     fc = utf_rma_prepare(ctx, msg, flags,
 			  &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq, &len);
@@ -1508,15 +1516,17 @@ tfi_utf_read_post(struct tofu_ctx *ctx,
 	// utf_rmacq_waitappend(rma_cq);
     } else {
 	DEBUG(DLEVEL_ERR) {
-	    utf_printf("%s: TOFU return (%ld:0x%lx)\n", __func__, fc, fc);
+	    utf_printf("%s: TOFU return %s (%ld:0x%lx)\n", __func__, fc == -FI_EAGAIN ? "-FI_EAGAIN" : "", fc, fc);
 	}
 	goto err;
     }
+progress:
     {
 	int i;
 	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
 	for (i = 0; i < 10; i++) {
 	    tfi_utf_progress(tinfo);
+	    if (utf_rma_cq_cnt == 0) break;
 	}
     }
 err:
@@ -1535,6 +1545,10 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd = 0, rstadd = 0;
     struct utf_rma_cq	*rma_cq;
 
+    if (utf_rma_cq_cnt >= utf_rma_max_inflight) {
+	fc = -FI_EAGAIN;
+	goto progress;
+    }
     fc = utf_rma_prepare(ctx, msg, flags,
 			 &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq, &len);
     DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
@@ -1553,16 +1567,19 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
 	// utf_rmacq_waitappend(rma_cq);
     } else {
 	DEBUG(DLEVEL_ERR) {
-	    utf_printf("%s: TOFU return (%ld:0x%lx)\n", __func__, fc, fc);
+	    utf_printf("%s: TOFU return %s (%ld:0x%lx)\n", __func__, fc == -FI_EAGAIN ? "-FI_EAGAIN" : "", fc, fc);
 	}
+	utf_printf("%s: TOFU return %s (%ld:0x%lx)\n", __func__, fc == -FI_EAGAIN ? "-FI_EAGAIN" : "", fc, fc);
 	goto err;
     }
+progress:
     {
 	int i;
 	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
 	
 	for (i = 0; i < 10; i++) {
 	    tfi_utf_progress(tinfo);
+	    if (utf_rma_cq_cnt == 0) break;
 	}
     }
 err:
