@@ -203,13 +203,18 @@ tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
 void
 tfi_utf_finalize(struct tni_info *tinfo)
 {
+    extern int utf_getenvint(char*);
     DEBUG(DLEVEL_INIFIN) {
 	utf_printf("%s: calling utf_finalize\n", __func__);
     }
     if (tfi_dbg_info) {
 	tfi_info_show();
     }
-    utf_finalize(0);
+    if (utf_getenvint("TFI_FIN_WIPE") == 1) {
+	utf_finalize(1);
+    } else {
+	utf_finalize(0);
+    }
     DEBUG(DLEVEL_INIFIN) {
 	utf_printf("%s: returning from utf_finalize\n", __func__);
     }
@@ -884,7 +889,7 @@ has_room:
     }
     req->fi_data = msg->data;
     usp->inflight++;
-    usp->dbg_idx = 0; /* for debugging */
+    // usp->dbg_idx = 0; /* for debugging */
     if (usp->state == S_NONE) {
 	utf_send_start(usp, minfo);
     }
