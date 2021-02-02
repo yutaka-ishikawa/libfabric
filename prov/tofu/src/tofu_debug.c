@@ -314,9 +314,11 @@ void
 tfi_info_show()
 {
     extern void utf_injcnt_show();
+    extern void utf_rmacq_show();
     extern void tofu_cq_show();
 
     utf_injcnt_show();
+    utf_rmacq_show();
     tfi_queue_show();
     tfi_allmsglist_show();
     utf_sendctr_show();

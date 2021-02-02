@@ -38,14 +38,20 @@ static int tfi_utf_initialized;
 #define REQ_MREC_RAISE_MULTI_RECV	1
 
 static inline uint32_t
-utf_scntr_svd_recvidx(int idx) {
-    if (utf_scntr_svp[idx].valid == 1) {
-	//utf_printf("%s: dst=%d recvidx=%d\n", __func__, idx, utf_scntr_svp[idx].recvidx);
-	return utf_scntr_svp[idx].recvidx;
+utf_scntr_svd_recvidx(int dst) {
+    if (utf_scntr_svp[dst].valid == 1) {
+	//utf_printf("%s: dst=%d recvidx=%d\n", __func__, dst, utf_scntr_svp[dst].recvidx);
+	return utf_scntr_svp[dst].recvidx;
     } else {
-	//utf_printf("%s: dst=%d recvidx=0\n", __func__, idx, __func__);
+	//utf_printf("%s: dst=%d recvidx=0\n", __func__, dst, __func__);
 	return 0;
     }
+};
+
+static inline void
+utf_scntr_set_recvidx(int dst, uint32_t recvidx) {
+    utf_scntr_svp[dst].valid = 1;
+    utf_scntr_svp[dst].recvidx = recvidx;
 };
 
 /*
@@ -84,6 +90,7 @@ tfi_utf_scntr_purge()
 			   __func__, idx, utf_rank2scntridx[idx], idx);
 		continue;
 	    }
+	    utf_scntr_set_recvidx(dst, utf_scntr[dst].recvidx);
 	    /* its really free depends on state. see utf_scntr_free() */
 	    utf_scntr_free(dst);
 	}
