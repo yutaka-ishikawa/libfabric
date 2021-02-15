@@ -47,8 +47,13 @@ tofu_progress(struct tofu_cq *cq)
      * when some posted send/receive operation is completed. It happens
      * inside the utf_progress function or the send/receive functions.
      */
+#define DEBUG20210207
+#ifdef DEBUG20210207
+    {
+#else
     ment = ofi_cirque_usedcnt(cq->cq_ccq);
     if (ment == 0) {
+#endif
         /* transmit progress */
         head = &cq->cq_htx;
         dlist_foreach_safe(head, curr, next) {
@@ -103,6 +108,10 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
 
     cq = container_of(fid_cq, struct tofu_cq, cq_fid);
 
+#define DEBUG20210207
+#ifdef DEBUG20210207
+    ent = tofu_progress(cq);
+#else
     ent = ofi_cirque_usedcnt(cq->cq_ccq);
     if (ent < tfi_progress_compl_pending) {
         /*
@@ -112,8 +121,8 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
         tofu_progress(cq);
         ent = ofi_cirque_usedcnt(cq->cq_ccq);
     }
+#endif
     ent = (ent > count) ? count : ent;
-    //fprintf(stderr, "%s: COUNT(%ld) ENT(%ld) TOTAL(%ld)\n", __func__, count, ent, ofi_cirque_usedcnt(cq->cq_ccq)); fflush(stderr);
     fastlock_acquire(&cq->cq_lck);
     if (ent > 0) {
         struct fi_cq_tagged_entry *cq_etag = (struct fi_cq_tagged_entry *) buf;
@@ -121,6 +130,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
             struct fi_cq_tagged_entry *comp = ofi_cirque_head(cq->cq_ccq);
             assert(comp != 0);
             *cq_etag = *comp;
+            // if (utf_info.myrank == 0) {fprintf(stderr, "CQ(%d)\n", cq_etag->data, cq_etag->tag);}
             cq_etag++;
             ofi_cirque_discard(cq->cq_ccq);
         }
@@ -128,6 +138,8 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
     } else {
         ssize_t eent = ofi_cirque_usedcnt(cq->cq_cceq);
         if (eent > 0) {
+            /* 2021/02/07 */
+            fprintf(stderr, "%s: TOFU ERROR eent(%d)\n", __func__, eent);
             ret = -FI_EAVAIL;
         } else {
             ret = -FI_EAGAIN;

@@ -5,6 +5,9 @@
 #include "tofu_addr.h"
 #include <rdma/fabric.h>
 
+extern int tofu_barrier_cnt, tofu_barrier_do, tofu_barrier_src, tofu_barrier_dst;
+extern int tofu_gatherv_do, tofu_gatherv_cnt;
+
 extern void	utf_scntr_free(int idx);
 extern void	utf_sendreq_free(struct utf_msgreq *req);
 extern void	utf_recvreq_free(struct utf_msgreq *req);
@@ -241,7 +244,7 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     struct fi_cq_err_entry cq_e[1], *comp;
 
     utf_printf("%s: CQERROR context(%p), flags(%s) len(%ld) olen(%ld) data(%ld) tag(%lx)\n", __func__, context, tofu_fi_flags_string(flags), len, olen, data, tag);
-    DEBUG(DLEVEL_COMM|DLEVEL_ADHOC) utf_printf("%s:DONE error len(%ld) olen(%ld) err(%d)\n", __func__, len, olen, err);
+    DEBUG(DLEVEL_COMM) utf_printf("%s:DONE error len(%ld) olen(%ld) err(%d)\n", __func__, len, olen, err);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
 	utf_printf("%s: no receive completion is generated\n",  __func__);
@@ -278,7 +281,12 @@ bad:
     return fc;
 }
 
+#define DEBUG_20210215
+#ifdef DEBUG_20210215
+int
+#else
 static inline int
+#endif
 tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 	       void *bufp, uint64_t data, uint64_t tag)
 {
@@ -298,10 +306,9 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
 	return fc;
     }
     fastlock_acquire(&cq->cq_lck);
-    //if (ofi_cirque_isfull(cq->cq_ccq)) {
-    if (ofi_cirque_usedcnt(cq->cq_ccq) >= CONF_TOFU_CQSIZE) {
+    if (ofi_cirque_isfull(cq->cq_ccq)) {
 	/* Never hapens if configuration is correct */
-	utf_printf("%s: YI############# ERROR cq(%p) CQ is full usedcnt(%ld)\n",  __func__, cq, ofi_cirque_usedcnt(cq->cq_ccq));
+	utf_printf("%s: TOFU ERROR cq(%p) CQ is full usedcnt(%ld)\n",  __func__, cq, ofi_cirque_usedcnt(cq->cq_ccq));
 	utf_printf("%s: checking CONF_TOFU_CQSIZE, MSGREQ_SEND_SZ, MSGREQ_RECV_SZ\n",  __func__);
 	abort();
     }
@@ -324,6 +331,11 @@ tofu_reg_rcvcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     //fprintf(stderr, "[%d] cmpl\n", utf_info.myrank);
     //fprintf(stderr, "C\n");
     //getpid();
+    DEBUG(DLEVEL_LOG2) {
+	if (tofu_gatherv_do) {
+	    utf_log("G(%d)RS(%d)\n", tofu_gatherv_cnt, data);
+	}
+    }
     DEBUG(DLEVEL_COMM) {
 	utf_printf("\t[COMM] %s: RECV COMPLETION. context(%lx) len(%ld) data(%ld) tag(%lx) buf(%p) flags(%s)\n",
 		   __func__, context, len, data, tag, bufp, tofu_fi_flags_string(flags));
@@ -377,6 +389,18 @@ tofu_catch_rcvnotify(struct utf_msgreq *req, int aux)
     }
     ctx = req->fi_ctx;
     /* received data has been already copied to the specified buffer */
+#if 0
+    /* src represents physical rank# and fi_data represents rank# on a communicator
+     * Thus they may differ */
+    if (!(req->fi_flgs&FI_MULTI_RECV) && (req->hdr.src != req->fi_data)) {
+	utf_printf("%s: TOFU ERROR hdr.src(%d) data(%lld) tag(0x%llx)\n", __func__, req->hdr.src, req->fi_data, req->hdr.tag);
+    }
+#endif
+    DEBUG(DLEVEL_LOG2) {
+	if (!(req->fi_flgs&FI_MULTI_RECV)) {
+	    utf_log("Ntfy:B(%d)hdr(%d)d(%ld) tag(0x%llx)\n", tofu_barrier_cnt, req->hdr.src, req->fi_data, req->hdr.tag);
+	}
+    }
     if (req->overrun) {
 	tofu_reg_rcveq(ctx->ctx_recv_cq, req->fi_ucontext,
 		       flags,
@@ -481,7 +505,7 @@ tofu_reg_sndcq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     }
     if ((flags & FI_INJECT)
 	|| (cq->cq_ssel && !(flags & (FI_COMPLETION|FI_TRANSMIT_COMPLETE|FI_DELIVERY_COMPLETE)))) {
-	DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: YI################ no send completion is generated\n",  __func__);
 	}
 	DEBUG(DLEVEL_COMM) {
@@ -555,7 +579,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
     explst = flags & FI_TAGGED ? &tfi_tag_explst : &tfi_msg_explst;
     msgsz = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
 
-    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC|DLEVEL_PROTO_AM) {
+    DEBUG(DLEVEL_PROTOCOL|DLEVEL_PROTO_AM) {
 	utf_printf("%s: flags(%s) sz(%ld) src(%ld) tag(%lx) data(%ld) context(%p) msg(%s)\n",
 		   __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data,
 		   msg->context, tofu_fi_msg_data(msg));
@@ -818,7 +842,32 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     struct utf_msgreq	*req;
     struct utf_egr_sbuf	*sbufp;
 
-    if (utf_tcq_count) utf_tcqprogress();
+    DEBUG(DLEVEL_ADHOC) {
+	utf_log("Post dst(%d) src(%d) D(%d) tag(0x%llx) ",
+		dst, ctx->ctx_sep->sep_myrank, msg->data, msg->tag, flags);
+	utf_log(" flags(0x%llx)\n", flags);
+    }
+    DEBUG(DLEVEL_LOG2) {
+	if (tofu_gatherv_do) {
+	    utf_log("G(%d)SD(%d)D(%d)\n", tofu_gatherv_cnt, dst, msg->data);
+	} else {
+	    if (msg->data != ctx->ctx_sep->sep_myrank) {
+		utf_log("Post-d dst(%d) src(%d) D(%d) tag(0x%llx) ", dst, ctx->ctx_sep->sep_myrank, msg->data, msg->tag, flags);
+	    } else {
+		utf_log("Post-s dst(%d) src(%d) D(%d) tag(0x%llx) ", dst, ctx->ctx_sep->sep_myrank, msg->data, msg->tag, flags);
+	    }
+	    utf_log(" flags(0x%llx)\n", flags);
+	}
+    }
+#ifdef TOFU_DEBUG
+    if (tofu_barrier_do) {
+	utf_log("S(%d:%d)D(%d)T(%llx)\n", tofu_barrier_cnt, tofu_barrier_dst, dst, msg->tag);
+    }
+#endif
+    /* at least one shot progress */
+    do {
+	utf_tcqprogress();
+    } while (utf_tcq_count > 0);
     // INITCHECK();
     msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     DEBUG(DLEVEL_COMM|DLEVEL_PROTOCOL) {
@@ -829,7 +878,6 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     }
     if ((req = utf_sendreq_alloc()) == NULL) {
 	/*rc = UTF_ERR_NOMORE_REQBUF; */
-	// utf_printf("%s: YI!!!!! return msgreq alloc fail: -FI_EAGAIN = %d\n", __func__, fc);
 	DEBUG(DLEVEL_ERR) {
 	    utf_printf("%s: TOFU EAGAIN no more sendreq resource dst(%d) tag(0x%lx)\n", __func__, dst, msg->tag);
 	}
@@ -839,6 +887,9 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     fc = tfi_utf_scntr_alloc(dst, &usp);
     if (fc != FI_SUCCESS) {
 	/* -FI_ENOMEM is returned. eventually resource will be obtained. 2021/01/13 */
+	DEBUG(DLEVEL_ERR) {
+	    utf_printf("%s: TOFU EAGAIN no more send cntr dst(%d) tag(0x%lx)\n", __func__, dst, msg->tag);
+	}
 	fc = -FI_EAGAIN;
 	goto err2;
     }
@@ -846,7 +897,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 #ifdef DEBUG_20201230
     if (usp->inflight >= utf_asend_count) {
 	DEBUG(DLEVEL_ERR) {
-	    utf_printf("send: EAGAIN dst(%d) tag(0x%lx)\n", dst, msg->tag);
+	    utf_printf("send: TOFU EAGAIN dst(%d) tag(0x%lx)\n", dst, msg->tag);
 	}
 	fc = -FI_EAGAIN;
 	goto err2;
@@ -854,7 +905,7 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 #else
     if (usp->inflight >= COM_SCNTR_MINF_SZ) {
 	DEBUG(DLEVEL_ERR) {
-	    utf_printf("send: EAGAIN dst(%d) tag(0xx%lx)\n", dst, msg->tag);
+	    utf_printf("send: TOFU EAGAIN dst(%d) tag(0xx%lx)\n", dst, msg->tag);
 	}
 	fc = -FI_EAGAIN;
 	goto err2;
@@ -868,6 +919,11 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	}
 	fc = -FI_EAGAIN;
 	goto err2;
+    }
+#endif
+#if 0
+    if (utf_info.myrank == 0 && dst == 1) {
+	utf_printf("%s: TOFU dst(%d) tag(0x%lx) state(%d) inflight(%d) recvidx(%d)\n", __func__, dst, msg->tag, usp->state, usp->inflight, usp->recvidx);
     }
 #endif
     /* wait for completion of previous send massages */
@@ -886,12 +942,13 @@ has_room:
     sbufp = (minfo->sndbuf == NULL) ?
 	tfi_utf_egr_sbuf_alloc(&minfo->sndstadd) : minfo->sndbuf;
     if (sbufp == NULL) {/*rc = UTF_ERR_NOMORE_SNDBUF;*/
-	utf_printf("%s: YI######## FI_ENOMEM usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
+	utf_printf("%s: TOFU FI_ENOMEM usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
 	fc = -FI_ENOMEM; goto err2;
     }
     fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
     if (fc != FI_SUCCESS) {
-	/* error message was shown in minfo_setup */
+	/* Always success */
+	utf_printf("%s: TOFU something wrong usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
 	goto err2;
     }
     req->fi_data = msg->data;
@@ -1009,6 +1066,11 @@ reqexp_set_reg(struct tofu_ctx *ctx, const struct fi_msg_tagged *msg, uint64_t f
     explst = (flags & FI_TAGGED) ? &tfi_tag_explst : &tfi_msg_explst;
     mlst = utf_msglst_append(explst, req);
     mlst->fi_ignore = msg->ignore;
+    DEBUG(DLEVEL_LOG2) {
+	if (tofu_gatherv_do) {
+	    utf_log("G(%d)P(%d:%d:%d)\n", tofu_gatherv_cnt, mlst->hdr.src, req->hdr.src, mlst->reqidx);
+	}
+    }
     DEBUG(DLEVEL_COMM) {
 	if (src == -1) {
 	    utf_printf("%s:\tAppend Explist req(%p)->fi_ucontext(%p) SRC(%d) sz(%ld) fi_flgs(%s)\n",
@@ -1176,7 +1238,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    req = claimed_req; claimed_req = NULL;
 	    req->fi_ctx = ctx; req->fi_ucontext = msg->context;
 	    req->fi_flgs = flags;
-	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: ENTER CLAIM SRC(%d) tag(%lx) flags(%s) context(%lx)\n",
 			   __func__, src, tag, tofu_fi_flags_string(flags), msg->context);
 	    }
@@ -1196,6 +1258,9 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	size_t	sz;
 	uint64_t myflags;
 
+#if 0
+	if (tag == 0xf880000004) { fprintf(stderr, "F(%d) ", src); }
+#endif
 	if (flags & FI_MULTI_RECV) { /* buf is now pointing to user buffer */
 	    if (msg->iov_count != 1) {
 		utf_printf("%s: ERROR cannot handle IOV count (%d) in MULTI_RECV\n", __func__, msg->iov_count);
@@ -1320,7 +1385,7 @@ tofu_catch_rma_rmtnotify(void *fi_ctx)
 {
     struct tofu_ctx *ctx = (struct tofu_ctx*) fi_ctx;
 
-    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA) {
 	utf_printf("%s: ctx(%p) class(%s)\n", __func__, ctx, tofu_fi_class_string[ctx->ctx_fid.fid.fclass]);
     }
 #if 0
@@ -1330,7 +1395,7 @@ tofu_catch_rma_rmtnotify(void *fi_ctx)
     }
     if (ctx->ctx_send_ctr) { /* counter */
 	struct tofu_cntr *ctr = ctx->ctx_send_ctr;
-	DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
+	DEBUG(DLEVEL_PROTO_RMA) {
 	    utf_printf("%s: cntr->ctr_tsl(%d)\n", __func__, ctr->ctr_tsl);
 	}
 	if (ctr->ctr_tsl && !(flags & FI_COMPLETION)) {
@@ -1350,7 +1415,7 @@ tofu_catch_rma_lclnotify(struct utf_rma_cq *cq)
     struct tofu_ctx *ctx = cq->ctx;
     uint64_t	flags = cq->fi_flags;
 
-    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_PROTOCOL) {
 	utf_printf("%s: RMA notification received type(%d) cq(%p)->ctx(%p): addr(%lx) vcqh(%lx) "
 		   "lstadd(%lx) rstadd(%lx) lmemaddr(%p) len(%lx) flags(%lx: %s)\n",
 		   __func__, cq->type, cq, cq->ctx, cq->addr, cq->vcqh, cq->lstadd, cq->rstadd,
@@ -1508,7 +1573,7 @@ tfi_utf_read_post(struct tofu_ctx *ctx,
     utofu_stadd_t	lstadd, rstadd;
     struct utf_rma_cq	*rma_cq;
 
-    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA) {
 	utf_printf("%s: ctx(%p)->ctx_send_cq(%p) "
 		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p)\n",
 		   __func__, ctx, ctx->ctx_send_cq, ctx->ctx_recv_cq, 
@@ -1568,7 +1633,7 @@ tfi_utf_write_post(struct tofu_ctx *ctx,
     }
     fc = utf_rma_prepare(ctx, msg, flags,
 			 &vcqh, &rvcqid, &lstadd, &rstadd, &flgs, &rma_cq, &len);
-    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA) {
 	utf_printf("%s: calling remote_put ctx(%p)->ctx_send_cq(%p) "
 		   "ctx_recv_cq(%p) ctx_send_ctr(%p) ctx_recv_ctr(%p) "
 		   "vcqh(%lx) rvcqid(%lx) lstadd(%lx) rstadd(%lx) len(0x%x) edata(0x%x) cq(%p)\n",
@@ -1606,7 +1671,7 @@ err:
 void
 tofu_catch_rma_inject(struct utf_rma_cq *cq)
 {
-    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_PROTOCOL|DLEVEL_ADHOC) {
+    DEBUG(DLEVEL_PROTO_RMA|DLEVEL_PROTOCOL) {
 	utf_printf("%s: RMA WRITE INJECTION notification received cq(%p) cq->mypos(%d)\n",
 		   __func__, cq, cq->mypos);
     }

@@ -317,6 +317,7 @@ tfi_info_show()
     extern void utf_rmacq_show();
     extern void tofu_cq_show();
 
+    utf_log_show(stderr);
     utf_injcnt_show();
     utf_rmacq_show();
     tfi_queue_show();
@@ -328,14 +329,23 @@ tfi_info_show()
 
 #include <signal.h>
 #include<sys/time.h>
+#include <execinfo.h>
 int	tfi_dbg_timer;
 int	tfi_dbg_timact;
 int	tfi_dbg_info;
+#define TRBUF_SZ 1024
+void	*trbuf[TRBUF_SZ];
 
 void
 handle_sigtimer(int signum, siginfo_t *info, void *p)
 {
+    int sz = backtrace(trbuf, TRBUF_SZ);
+
     utf_printf("####### TIMER SHOW (%d sec)#######\n", tfi_dbg_timer);
+    utf_printf("####### BACK TRACE (%d) #######\n", sz);
+    backtrace_symbols_fd(trbuf, sz, 2); /* stderr */
+
+    utf_printf("####### INFO #######\n");
     tfi_info_show();
 }
 
