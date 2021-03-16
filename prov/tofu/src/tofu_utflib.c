@@ -755,6 +755,9 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
     //QWE minfo->fi_context = msg->context;
     sbufp->pkt[0].hdr = minfo->msghdr; /* header */
     sbufp->pkt[0].pyld.fi_msg.data = msg->data; /* fi data */
+#ifdef UTF_MARKER_TAIL
+    sbufp->pkt[0].pyld.fi_msg.mrk_tail = 0;
+#endif /* UTF_MARKER_TAIL */
     req->allflgs = 0;
     if (size <= MSG_FI_EAGER_PIGBACK_SZ) { /* defined in utf_conf.h */
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER_PIGBACK;
