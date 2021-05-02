@@ -3,6 +3,7 @@
  */
 #include "tofu_impl.h"
 #include "tofu_addr.h"
+#include "utf/src/include/utf_makekey.h"
 #include <rdma/fabric.h>
 
 extern int tofu_barrier_cnt, tofu_barrier_do, tofu_barrier_src, tofu_barrier_dst;
@@ -1524,7 +1525,7 @@ utf_rma_prepare(struct tofu_ctx *ctx, const struct fi_msg_rma *msg, uint64_t fla
     if (fc != FI_SUCCESS) {
 	goto bad;
     }
-    *rstadd = CALC_STADD(msg->rma_iov[0].key, msg->rma_iov[0].addr);
+    *rstadd = calc_stadd(msg->rma_iov[0].key, (char*) msg->rma_iov[0].addr);
     DEBUG(DLEVEL_PROTO_RMA) {
 	utf_printf("%s: KEY(0x%lx) VIRT(0x%lx) STADD(0x%lx)\n", __func__, msg->rma_iov[0].key, msg->rma_iov[0].addr, *rstadd);
     }
@@ -1703,7 +1704,7 @@ tfi_utf_write_inject(struct tofu_ctx *ctx, const void *buf, size_t len,
     vcqh = rma_cq->vcqh = sep->sep_myvcqh;
     memcpy(rma_cq->inject, buf, len);
     rma_cq->lstadd = utf_rmacq_stadd + ((uint64_t)rma_cq - (uint64_t) utf_rmacq_pool) + (uint64_t) &((struct utf_rma_cq*)0)->inject;
-    rstadd = CALC_STADD(key, addr);
+    rstadd = calc_stadd(key, (char*) addr);
     remote_put(vcqh, rvcqid, rma_cq->lstadd, rstadd, len, EDAT_RMA | rma_cq->mypos, 0, rma_cq);
 
     DEBUG(DLEVEL_PROTO_RMA) {

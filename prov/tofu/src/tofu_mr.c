@@ -2,7 +2,7 @@
 /* vim: set ts=8 sts=4 sw=4 noexpandtab : */
 
 #include "tofu_impl.h"
-
+#include "utf/src/include/utf_makekey.h"
 #include <stdlib.h>	    /* for calloc(), free */
 #include <assert.h>	    /* for assert() */
 
@@ -25,7 +25,7 @@ tofu_mr_close(struct fid *fid)
     }
     fastlock_destroy( &mr_priv->mr_lck );
 
-    stadd = EXTRCT_STADD(mr_priv->mr_fid.key);
+    stadd = extrct_stadd(mr_priv->mr_fid.key);
     DEBUG(DLEVEL_PROTO_RMA) {
         utf_printf("%s: vcqh(%lx) key(%lx) KEY_TO_STADD(%lx)\n",
                    __func__, mr_priv->mr_dom->myvcqh, mr_priv->mr_fid.key, stadd);
@@ -93,7 +93,7 @@ tofu_mr_reg(struct fid *fid, const void *buf,  size_t len,
         fprintf(stderr, "%s: utofu_reg_mem error uc(%d)\n", __func__, uc);
         fc = -FI_ENOMEM; goto bad;
     }
-    key = MAKE_KEY(stadd, buf);
+    key = make_key(stadd, buf);
     DEBUG(DLEVEL_PROTO_RMA) {
         utf_printf("%s: size(%ld/0x%lx) vcqh(%lx) buf(%p) stadd(%lx) KEY(%lx)\n",
                    __func__, len, len, dom_priv->myvcqh, buf, stadd, key);

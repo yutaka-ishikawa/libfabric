@@ -27,7 +27,7 @@ _tofu_files =				\
 	    prov/tofu/src/tofu_trigger.c \
 	    prov/tofu/src/tofu_utflib.c \
 	    prov/tofu/src/process_map_info.h	\
-	    prov/tofu/src/utflib.h
+	    prov/tofu/src/tofu_utflib.h
 
 if HAVE_TOFU_DL
 pkglib_LTLIBRARIES += libtofu-fi.la
