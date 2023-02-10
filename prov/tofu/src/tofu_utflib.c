@@ -211,17 +211,34 @@ tfi_utf_init_2(struct tofu_av *av, struct tni_info *tinfo, int nprocs)
     }
 }
 
+/*
+ * An old utf_getenvint function is copied: 2023/02/10
+ */
+int
+tofu_getenvint(char *envp)
+{
+    int	val = 0;
+    char	*cp = getenv(envp);
+    if (cp) {
+	if (!strncmp(cp, "0x", 2)) {
+	    sscanf(cp, "%x", &val);
+	} else {
+	    val = atoi(cp);
+	}
+    }
+    return val;
+}
+
 void
 tfi_utf_finalize(struct tni_info *tinfo)
 {
-    extern int utf_getenvint(char*);
     DEBUG(DLEVEL_INIFIN) {
 	utf_printf("%s: calling utf_finalize\n", __func__);
     }
     if (tfi_dbg_info) {
 	tfi_info_show();
     }
-    if (utf_getenvint("TFI_FIN_WIPE") == 1) {
+    if (tofu_getenvint("TFI_FIN_WIPE") == 1) {
 	utf_finalize(1);
     } else {
 	utf_finalize(0);

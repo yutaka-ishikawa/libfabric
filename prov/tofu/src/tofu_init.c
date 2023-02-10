@@ -185,15 +185,15 @@ TOFU_INI
         tfi_progress_compl_pending = CONF_TOFU_FI_COMPL_PENDING;
     }
     {
-        extern int utf_getenvint(char*);
+        extern int tofu_getenvint(char*);
         extern void tfi_dbg_init();
         int     i;
-        i = utf_getenvint("UTF_DBGTIMER_INTERVAL");
+        i = tofu_getenvint("UTF_DBGTIMER_INTERVAL");
         tfi_dbg_timer = i;
-        i = utf_getenvint("UTF_DBGTIMER_ACTION");
+        i = tofu_getenvint("UTF_DBGTIMER_ACTION");
         tfi_dbg_timact = i;
         tfi_dbg_init();
-        i = utf_getenvint("TOFU_COMDEBUG");
+        i = tofu_getenvint("TOFU_COMDEBUG");
         tfi_dbg_info = i;
     }
     cp = getenv("TFI_CONFIRM");
