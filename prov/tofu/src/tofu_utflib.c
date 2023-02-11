@@ -754,7 +754,7 @@ ext:
 
 
 static inline int
-minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct fi_msg_tagged *msg,
+tofu_minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct fi_msg_tagged *msg,
 	    uint64_t size, uint64_t fi_flgs, struct utf_egr_sbuf *sbufp,
 	    struct utf_send_cntr *usp, struct utf_msgreq *req)
 {
@@ -774,6 +774,9 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
     sbufp->pkt[0].hdr = minfo->msghdr; /* header */
     sbufp->pkt[0].pyld.fi_msg.data = msg->data; /* fi data */
     req->allflgs = 0;
+#define CHG_20230207 1
+#if CHG_20230207
+#else
     if (size <= MSG_FI_EAGER_PIGBACK_SZ) { /* defined in utf_conf.h */
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER_PIGBACK;
 	if (msg->iov_count > 0) { /* if 0, null message */
@@ -782,7 +785,9 @@ minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const struct f
 	}
 	sbufp->pkt[0].hdr.pyldsz = size;
 	req->type = REQ_SND_BUFFERED_EAGER;
-    } else if (size <= MSG_FI_EAGER_SIZE) {
+    } else
+#endif
+	if (size <= MSG_FI_EAGER_SIZE) {
 	minfo->cntrtype = SNDCNTR_BUFFERED_EAGER;
 	ofi_copy_from_iov(sbufp->pkt[0].pyld.fi_msg.msgdata,
 			  size, msg->msg_iov, msg->iov_count, 0);
@@ -939,11 +944,6 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
 	goto err2;
     }
 #endif
-#if 0
-    if (utf_info.myrank == 0 && dst == 1) {
-	utf_printf("%s: TOFU dst(%d) tag(0x%lx) state(%d) inflight(%d) recvidx(%d)\n", __func__, dst, msg->tag, usp->state, usp->inflight, usp->recvidx);
-    }
-#endif
     /* wait for completion of previous send massages */
     for (retry = 0; retry < 3; retry++) {
 	minfo = &usp->msginfo[usp->mient];
@@ -956,14 +956,18 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     fc = -FI_EAGAIN;
     goto err2;
 has_room:
+    /* mient is advanced */
     usp->mient = (usp->mient + 1) % COM_SCNTR_MINF_SZ; /* advanced */
     sbufp = (minfo->sndbuf == NULL) ?
 	tfi_utf_egr_sbuf_alloc(&minfo->sndstadd) : minfo->sndbuf;
+    DEBUG(DLEVEL_COMM) {
+	utf_printf("[COMM] %s: HAS_ROOM usp(%p)->mient(%d) sbufp(%p)\n", __func__, usp, usp->mient, sbufp);
+    }
     if (sbufp == NULL) {/*rc = UTF_ERR_NOMORE_SNDBUF;*/
 	utf_printf("%s: TOFU FI_ENOMEM usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
 	fc = -FI_ENOMEM; goto err2;
     }
-    fc = minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
+    fc = tofu_minfo_setup(minfo, ctx, msg, msgsize, flags, sbufp, usp, req);
     if (fc != FI_SUCCESS) {
 	/* Always success */
 	utf_printf("%s: TOFU something wrong usp(%p)->mient(%d)\n", __func__, usp, usp->mient);
