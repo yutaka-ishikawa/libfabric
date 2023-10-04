@@ -1783,3 +1783,29 @@ tfi_utf_cancel(struct tofu_ctx *ctx, void *context)
     }
     return FI_SUCCESS;
 }
+
+void
+tfi_utf_lastprogress()
+{
+    struct utf_send_cntr *usp;
+
+    utf_printf("%s: DEBUG PRINT\n", __func__);
+    utf_sendctr_show();
+    utf_printf("%s: CHEKING utf_scntr\n", __func__);
+    do {
+	int idx, nbusy = 0;
+	for (idx = 0; idx < SND_CTRL_MAX; idx++) {
+	    usp = &utf_scntr[idx];
+	    if (usp->state == S_FREE || usp->state == S_NONE) {
+		continue;
+	    }
+	    utf_printf("%s: utf_scntr[%d] state(%d:%s) ostate(%d:%s)\n",
+		       __func__, idx,
+		       usp->state, sstate_symbol[usp->state],
+		       usp->ostate, sstate_symbol[usp->ostate]);
+	    nbusy++;
+	}
+	utf_progress();
+    } while (nbusy);
+    return;
+}

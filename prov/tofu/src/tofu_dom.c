@@ -13,6 +13,8 @@ utf_get_peers(uint64_t **fi_addr, int *npp, int *ppnp, int *rnkp);
 extern int
 tofu_queue_work(struct tofu_domain *domain, void *vp_dw);
 
+extern void tfi_utf_lastprogress(); /* especcially for chain mode */
+
 static int tofu_domain_close(struct fid *fid)
 {
     int fc = FI_SUCCESS;
@@ -29,6 +31,12 @@ static int tofu_domain_close(struct fid *fid)
      *     prior to calling fi_close,
      *     otherwise the call will return -FI_EBUSY.
      */
+    /*
+     * Needs to wait for completion of asynchoronous message progressing,
+     * i.e., in the chain mode. 2023/10/04 (yi)
+     */
+    tfi_utf_lastprogress();
+    /* finally closing utf */
     tfi_utf_finalize(dom_priv->tinfo);
     if (ofi_atomic_get32( &dom_priv->dom_ref ) != 0) {
 	fc = -FI_EBUSY; goto bad;
