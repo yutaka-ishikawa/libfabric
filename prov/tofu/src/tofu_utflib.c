@@ -1788,12 +1788,14 @@ void
 tfi_utf_lastprogress()
 {
     struct utf_send_cntr *usp;
+    int	nbusy;
 
     utf_printf("%s: DEBUG PRINT\n", __func__);
     utf_sendctr_show();
     utf_printf("%s: CHEKING utf_scntr\n", __func__);
     do {
-	int idx, nbusy = 0;
+	int idx;
+	nbusy = 0;
 	for (idx = 0; idx < SND_CTRL_MAX; idx++) {
 	    usp = &utf_scntr[idx];
 	    if (usp->state == S_FREE || usp->state == S_NONE) {
