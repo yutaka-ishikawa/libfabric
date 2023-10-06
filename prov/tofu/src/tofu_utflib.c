@@ -1784,6 +1784,15 @@ tfi_utf_cancel(struct tofu_ctx *ctx, void *context)
     return FI_SUCCESS;
 }
 
+/*
+ * Quick hack. Must be changed. 2023/10/06
+ */
+static char *sstate_symbol[] =
+{	"S_FREE", "S_NONE", "S_REQ_ROOM", "S_HAS_ROOM",
+	"S_DO_EGR", "S_DO_EGR_WAITCMPL", "S_DONE_EGR", "S_REQ_RDVR",
+	"S_DO_RDVR", "S_RDVDONE", "S_DONE", "S_WAIT_BUFREADY",
+	"S_WAIT_EGRSEND", "S_WAIT_RESETCHN", "S_WAIT_NEXTUPDT", "S_WAIT_BUFREADY_CHND" };
+
 void
 tfi_utf_lastprogress()
 {
@@ -1796,7 +1805,7 @@ tfi_utf_lastprogress()
     do {
 	int idx;
 	nbusy = 0;
-	for (idx = 0; idx < SND_CTRL_MAX; idx++) {
+	for (idx = 0; idx < SND_CNTRL_MAX; idx++) {
 	    usp = &utf_scntr[idx];
 	    if (usp->state == S_FREE || usp->state == S_NONE) {
 		continue;
