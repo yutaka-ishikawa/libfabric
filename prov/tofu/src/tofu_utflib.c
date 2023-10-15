@@ -1784,14 +1784,6 @@ tfi_utf_cancel(struct tofu_ctx *ctx, void *context)
     return FI_SUCCESS;
 }
 
-/*
- * Quick hack. Must be changed. 2023/10/06
- */
-static char *sstate_symbol[] =
-{	"S_FREE", "S_NONE", "S_REQ_ROOM", "S_HAS_ROOM",
-	"S_DO_EGR", "S_DO_EGR_WAITCMPL", "S_DONE_EGR", "S_REQ_RDVR",
-	"S_DO_RDVR", "S_RDVDONE", "S_DONE", "S_WAIT_BUFREADY",
-	"S_WAIT_EGRSEND", "S_WAIT_RESETCHN", "S_WAIT_NEXTUPDT", "S_WAIT_BUFREADY_CHND" };
 
 void
 tfi_utf_lastprogress()
@@ -1799,9 +1791,11 @@ tfi_utf_lastprogress()
     struct utf_send_cntr *usp;
     int	nbusy;
 
-    utf_printf("%s: DEBUG PRINT\n", __func__);
-    utf_sendctr_show();
-    utf_printf("%s: CHEKING utf_scntr\n", __func__);
+    DEBUG(DLEVEL_INIFIN) {
+	utf_printf("%s: DEBUG PRINT\n", __func__);
+	utf_sendctr_show();
+	utf_printf("%s: CHEKING utf_scntr\n", __func__);
+    }
     do {
 	int idx;
 	nbusy = 0;
@@ -1810,10 +1804,10 @@ tfi_utf_lastprogress()
 	    if (usp->state == S_FREE || usp->state == S_NONE) {
 		continue;
 	    }
-	    utf_printf("%s: utf_scntr[%d] state(%d:%s) ostate(%d:%s)\n",
-		       __func__, idx,
-		       usp->state, sstate_symbol[usp->state],
-		       usp->ostate, sstate_symbol[usp->ostate]);
+	    DEBUG(DLEVEL_INIFIN) {
+		utf_printf("%s: utf_scntr[%d] state(%d) ostate(%d)\n",
+			   __func__, idx, usp->state, usp->ostate);
+	    }
 	    nbusy++;
 	}
 	utf_progress();
