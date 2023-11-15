@@ -1280,9 +1280,6 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	size_t	sz;
 	uint64_t myflags;
 
-#if 0
-	if (tag == 0xf880000004) { fprintf(stderr, "F(%d) ", src); }
-#endif
 	if (flags & FI_MULTI_RECV) { /* buf is now pointing to user buffer */
 	    if (msg->iov_count != 1) {
 		utf_printf("%s: ERROR cannot handle IOV count (%d) in MULTI_RECV\n", __func__, msg->iov_count);
@@ -1315,7 +1312,13 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 		goto ext;
 	    }
 	    if (req->rcntr == NULL || req->rcntr->req != req) {
-		utf_printf("%s: ERROR internal error\n", __func__);
+		/* 2023/11/14 */
+		utf_printf("%s: ERROR internal error\nreq(%p)->rctr(%p) "
+			   "hdr.size(%d) rsize(%d) state(%d) "
+			   "buf(%p) alloc(%d) rcvexpsz(%d)\n",
+			   __func__, req, req->rcntr,
+			   req->hdr.size, req->rsize,  req->state,
+			   req->buf, req->alloc, req->rcvexpsz);
 		abort();
 	    }
 	    /* This message is being received. The req is changed to an expected req
@@ -1356,8 +1359,11 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 		    utf_printf("%s: ERROR claimed_req is not NULL\n", __func__);
 		}
 		claimed_req = req;
+#if 0	/* 2023/11/15: peek = 1 means that req still raimain uexplst.
+	 * That is, no need to insert it to the list */
 	    } else { /* must be checked 2021/01/10 */
 		utf_msglst_insert(uexplst, req);
+#endif
 	    }
 	    myflags = (req->hdr.flgs & TFI_FIFLGS_CQDATA ? FI_REMOTE_CQ_DATA : 0)
 		    | (req->hdr.flgs & TFI_FIFLGS_TAGGED ? FI_TAGGED : 0)
