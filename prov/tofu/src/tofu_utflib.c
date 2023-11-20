@@ -433,6 +433,7 @@ tofu_catch_rcvnotify(struct utf_msgreq *req, int aux)
 		       rpt_buf,
 		       req->fi_data, req->hdr.tag);
     }
+    //utf_printf("%s: 2023/11/19 req(%p)\n", __func__, req);
     utf_recvreq_free(req);
     return 0;
 }
@@ -1303,27 +1304,40 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	}
 	if (req->state != REQ_DONE) {
 	    /* return value is -FI_ENOMSG */
-	    if (flags & (FI_PEEK|FI_CLAIM)) { /* re-insert */
-		utf_msglst_insert(uexplst, req);
+	    if (flags & (FI_PEEK|FI_CLAIM)) {
+		//utf_printf("%s: 2023/11/20 req(%p) no_rm(%d) re-insert ?\n", __func__, req, no_rm);
+		/* Do not reinsert 2023/11/20 */
+		// utf_msglst_insert(uexplst, req);
 		fc = -FI_ENOMSG;
 		DEBUG(DLEVEL_ERR) {
 		    utf_printf("recv: FI_ENOMSG at FI_PEEK src(%d) tag(0xx%lx)\n", src, tag);
 		}
 		goto ext;
 	    }
+	    /* Here is no peek (peek = 0 and no_rm =  0) */
 	    if (req->rcntr == NULL || req->rcntr->req != req) {
 		/* 2023/11/14 */
 		utf_printf("%s: ERROR internal error\nreq(%p)->rctr(%p) "
-			   "hdr.size(%d) rsize(%d) state(%d) "
+			   "rctr->req(%p) "
+			   "hdr.size(%d) hdr.tag(%x) hdr.rndz(%d) hdr.flgs(%x) hdr.sidx(%d) "
+			   "rsize(%d) state(%d) "
 			   "buf(%p) alloc(%d) rcvexpsz(%d)\n",
 			   __func__, req, req->rcntr,
-			   req->hdr.size, req->rsize,  req->state,
+			   req->rcntr != 0 ? req->rcntr->req : 0,
+			   req->hdr.size, req->hdr.tag, req->hdr.rndz,
+			   req->hdr.flgs, req->hdr.sidx,
+			   req->rsize,  req->state,
 			   req->buf, req->alloc, req->rcvexpsz);
 		abort();
 	    }
-	    /* This message is being received. The req is changed to an expected req
-	     * so that the completion notification will be produced */
-	    fc = requexp_exp(ctx, msg, flags, req, msgsize);
+	    /* This message is being received. The req is changed to
+	     * an expected req so that the completion notification will
+	     be produced */
+	    // utf_printf("%s: 2023/11/20 req(%p)\n", __func__, req);
+	    //fc = requexp_exp(ctx, msg, flags, req, msgsize);
+	    requexp_exp(ctx, msg, flags, req, msgsize);
+	    /* not yet all data is received 2023/11/20 */
+	    fc = -FI_ENOMSG;
 	    goto ext;
 	}
 	/* received data is copied to the specified buffer */
@@ -1344,10 +1358,12 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	req->fi_flgs = flags;
 	req->fi_ucontext = msg->context;
 	/* CQ is immediately generated */
+	//utf_printf("%s: 2023/11/19 peek(%d) claim(%d) no_rm(%d) req(%p)\n", __func__, peek, flags & FI_CLAIM, no_rm, req);
 	if (peek == 0) { /* req will be freed */
 	    tofu_catch_rcvnotify(req, 0);
 	} else {
 	    /* PEEK */
+	    //utf_printf("%s: 2023/11/19 peek = 1 req(%p)\n", __func__, req);
 	    DEBUG(DLEVEL_PROTOCOL) {
 		utf_printf("%s: PEEK req->state(%d) REG_RCVCQ SRC(%d) "
 			   "%s, expected size(%ld) req->rsize(%ld) sz(%ld) req->hdr.size(%ld) \n",
@@ -1785,6 +1801,7 @@ tfi_utf_cancel(struct tofu_ctx *ctx, void *context)
 		       FI_ECANCELED, FI_ECANCELED,	/* not negative value here */
 		       0,				/* bufp */
 		       req->fi_data, req->hdr.tag);
+	//utf_printf("%s: 2023/11/19 req(%p)\n", __func__, req);
 	utf_recvreq_free(req);
     }
     return FI_SUCCESS;
