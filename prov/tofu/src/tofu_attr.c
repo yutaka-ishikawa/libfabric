@@ -202,7 +202,8 @@ static struct fi_ep_attr tofu_ep_attr = {
 static struct fi_domain_attr tofu_domain_attr = {
     .domain = NULL,
     .name = "tofu", /* YYY TOFU_DOMAIN_NAME */
-    .threading = FI_THREAD_FID,
+    .threading = FI_THREAD_DOMAIN, /* Fix for MPICH-4.1.2(FID=>DOMAIN) */
+                /* = FI_THREAD_FID */
 		/* = FI_THREAD_SAFE */
 		/* = FI_THREAD_ENDPOINT */
 		/* = FI_THREAD_UNSPEC */
