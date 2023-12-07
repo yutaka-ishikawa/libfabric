@@ -139,7 +139,8 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
         ssize_t eent = ofi_cirque_usedcnt(cq->cq_cceq);
         if (eent > 0) {
             /* 2021/02/07 */
-            fprintf(stderr, "%s: TOFU ERROR eent(%d)\n", __func__, eent);
+            /* debug message is disabled 2023/11/21 */
+            // fprintf(stderr, "%s: TOFU ERROR eent(%d)\n", __func__, eent);
             ret = -FI_EAVAIL;
         } else {
             ret = -FI_EAGAIN;

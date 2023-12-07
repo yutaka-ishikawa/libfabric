@@ -380,6 +380,33 @@ tfi_dbg_init()
 }
 
 
+void
+handle_sigsegv(int signum, siginfo_t *info, void *p)
+{
+    int sz = backtrace(trbuf, TRBUF_SZ);
+
+    utf_printf("####### SIGSEGV #######\n", sz);
+    utf_printf("####### BACK TRACE (%d) #######\n", sz);
+    backtrace_symbols_fd(trbuf, sz, 2); /* stderr */
+    utf_printf("####### INFO #######\n");
+    tfi_info_show();
+}
+
+void
+tfi_sigsegv_init()
+{
+    struct sigaction	sigact;
+    int	rc;
+    sigemptyset(&sigact.sa_mask);
+    sigact.sa_flags = SA_SIGINFO;
+    sigact.sa_sigaction = handle_sigsegv;
+    rc = sigaction(SIGALRM, &sigact, NULL);
+    if (rc < 0) {
+	utf_printf("%s: sigaction returns %d (%s)\n", __func__, errno, strerror(errno));
+    }
+}
+
+
 char *tofu_fi_class_string[] = {
 	"FI_CLASS_UNSPEC", "FI_CLASS_FABRIC", "FI_CLASS_DOMAIN", "FI_CLASS_EP",
 	"FI_CLASS_SEP", "FI_CLASS_RX_CTX", "FI_CLASS_SRX_CTX", "FI_CLASS_TX_CTX",

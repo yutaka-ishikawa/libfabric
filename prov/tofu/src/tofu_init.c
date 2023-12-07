@@ -187,6 +187,7 @@ TOFU_INI
     {
         extern int tofu_getenvint(char*);
         extern void tfi_dbg_init();
+        extern void tfi_sigsegv_init();
         int     i;
         i = tofu_getenvint("UTF_DBGTIMER_INTERVAL");
         tfi_dbg_timer = i;
@@ -195,6 +196,8 @@ TOFU_INI
         tfi_dbg_init();
         i = tofu_getenvint("TOFU_COMDEBUG");
         tfi_dbg_info = i;
+        /* always sigsegv catch 2023/11/24 */
+        tfi_sigsegv_init();
     }
     cp = getenv("TFI_CONFIRM");
     if (cp) {

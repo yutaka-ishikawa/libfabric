@@ -261,7 +261,8 @@ tofu_reg_rcveq(struct tofu_cq *cq, void *context, uint64_t flags, size_t len,
     int fc = FI_SUCCESS;
     struct fi_cq_err_entry cq_e[1], *comp;
 
-    utf_printf("%s: CQERROR context(%p), flags(%s) len(%ld) olen(%ld) data(%ld) tag(%lx)\n", __func__, context, tofu_fi_flags_string(flags), len, olen, data, tag);
+    // debug message is diable. 2023/11/21
+    //utf_printf("%s: CQERROR context(%p), flags(%s) len(%ld) olen(%ld) data(%ld) tag(%lx)\n", __func__, context, tofu_fi_flags_string(flags), len, olen, data, tag);
     DEBUG(DLEVEL_COMM) utf_printf("%s:DONE error len(%ld) olen(%ld) err(%d)\n", __func__, len, olen, err);
     if (cq->cq_rsel && !(flags & FI_COMPLETION)) {
 	/* no needs to completion */
@@ -433,7 +434,8 @@ tofu_catch_rcvnotify(struct utf_msgreq *req, int aux)
 		       rpt_buf,
 		       req->fi_data, req->hdr.tag);
     }
-    //utf_printf("%s: 2023/11/19 req(%p)\n", __func__, req);
+ext:
+    //utf_printf("%s: 2023/11/19 req(%p) aux(%d)\n", __func__, req, aux);
     utf_recvreq_free(req);
     return 0;
 }
@@ -662,6 +664,9 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	    } else {
 		/* This is a naive copy. we should optimize this copy */
 		char	*cp = utf_malloc(sndsz);
+		DEBUG(DLEVEL_MEMORY) {
+		    utf_printf("[MEMORY] %s: alloc cp(%p) size(%lx)\n", __func__, cp, sndsz);
+		}
 		if (cp == NULL) {
 		    fc = -FI_ENOMEM; goto ext;
 		}
@@ -669,6 +674,9 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 				  msg->msg_iov, msg->iov_count, 0);
 		ofi_copy_to_iov(rcv_req->fi_msg, rcv_req->fi_iov_count, 0,
 				cp, sndsz);
+		DEBUG(DLEVEL_MEMORY) {
+		    utf_printf("[MEMORY] %s: free cp(%p)\n", __func__, cp);
+		}
 		utf_free(cp);
 	    }
 	}
@@ -685,6 +693,9 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	if (rcv_req->notify) rcv_req->notify(rcv_req, 1);
     } else { /* insert the new req into the unexpected message queue */
 	uint8_t	*cp = utf_malloc(msgsz);
+	DEBUG(DLEVEL_MEMORY) {
+	    utf_printf("[MEMORY] %s: alloc cp(%p) size(%lx)\n", __func__, cp, msgsz);
+	}
 	if (cp == NULL) {
 	    fc = -FI_ENOMEM; goto ext;
 	}
@@ -721,10 +732,14 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	/* rcv_req->fi_min_mrecv = ctx->min_multi_recv; no needs to set here */
 	if (flags & FI_TAGGED) {
 	    explst = &tfi_tag_uexplst;
-	    utf_printf("%s: new unexp-tagged req(%p)\n", __func__, rcv_req);
+	    DEBUG(DLEVEL_PROTOCOL) { /* 2023/11/24 */
+		utf_printf("%s: new unexp-tagged req(%p)\n", __func__, rcv_req);
+	    }
 	} else {
 	    explst = &tfi_msg_uexplst;
-	    utf_printf("%s: new unexp-multi req(%p)\n", __func__, rcv_req);
+	    DEBUG(DLEVEL_PROTOCOL) { /* 2023/11/24 */
+		utf_printf("%s: new unexp-multi req(%p)\n", __func__, rcv_req);
+	    }
 	}
 	utf_msglst_append(explst, rcv_req);
     }
@@ -805,6 +820,9 @@ tofu_minfo_setup(struct utf_send_msginfo *minfo, struct tofu_ctx *ctx, const str
 	    minfo->usrbuf = utf_malloc(size);
 	    ofi_copy_from_iov(minfo->usrbuf, size, msg->msg_iov, msg->iov_count, 0);
 	    minfo->cntrtype = SNDCNTR_INPLACE_EAGER2;
+	    DEBUG(DLEVEL_MEMORY) { /* 2023/11/24 */
+		utf_printf("[MEMORY] %s: req(%p) alloc minfo->usrbuf(%p) size(%lx) where it is freed ??\n", __func__, req, minfo->usrbuf, size);
+	    }
 	}
 	/* no need to copy 2020/12/20 */
 	/* memcpy(sbufp->pkt.pyld.fi_msg.msgdata, minfo->usrbuf, MSG_FI_PYLDSZ); */
@@ -1139,7 +1157,11 @@ recv_multi_progress(int idx, struct tofu_ctx *ctx,
 	if (req->alloc != 1) {
 	    utf_printf("%s: ERROR req->alloc must be 1\n", __func__);
 	} else {
+	    DEBUG(DLEVEL_MEMORY) {
+		utf_printf("[MEMORY] %s: req(%p) free req->buf(%p)\n", __func__, req, req->buf);
+	    }
 	    utf_free(req->buf);
+	    req->buf = 0;
 	    req->alloc = 0;
 	}
 	/* The exepected message size is rcvexpsz */
@@ -1229,6 +1251,9 @@ requexp_exp(struct tofu_ctx *ctx,
 	ofi_copy_to_iov(req->fi_msg, req->fi_iov_count, 0,
 			req->buf, cpysz);
 	assert(req->alloc == 1);
+	DEBUG(DLEVEL_MEMORY) {
+	    utf_printf("[MEMORY] %s: req(%p) free req->buf(%p)\n", __func__, req, req->buf);
+	}
 	utf_free(req->buf);
 	req->buf = 0;
 	req->alloc = 0;
@@ -1236,6 +1261,9 @@ requexp_exp(struct tofu_ctx *ctx,
     return fc;
 }
 
+/*
+ * 2023/11/24 NEEDS TO clean up tfi_utf_recv_post() code.
+ */
 int
 tfi_utf_recv_post(struct tofu_ctx *ctx,
 		  const struct fi_msg_tagged *msg, uint64_t flags)
@@ -1250,12 +1278,17 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
     size_t	msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     utfslist_t *uexplst;
 
+    DEBUG(DLEVEL_CQHANDLE) {
+	utf_printf("%s: 2023/11/29 SRC(%d) tag(%lx) size(%ld) flags(%s) context(%lx)\n",
+		   __func__, src, tag, msgsize, tofu_fi_flags_string(flags), msg->context);
+    }
     if (flags & FI_TAGGED) {
 	uexplst =  &tfi_tag_uexplst;
 	if (flags & FI_PEEK) {
-	    peek = 1;
+	    peek = 1; no_rm = 1;
+	    /* 2023/11/28: This is wrong interpretation */
 	    /* if FI_CLAIM is also set, the entry must be removed */
-	    no_rm = (flags & FI_CLAIM) ? 0 : 1;
+	    // no_rm = (flags & FI_CLAIM) ? 0 : 1;
 	} else if ((flags & FI_CLAIM)
 		   && (claimed_req->fi_ucontext == msg->context)) {
 	    req = claimed_req; claimed_req = NULL;
@@ -1282,6 +1315,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	uint64_t myflags;
 
 	if (flags & FI_MULTI_RECV) { /* buf is now pointing to user buffer */
+	    // utf_printf("%s: 2023/11/29 MULTI_RECV SRC(%d) tag(%lx) size(%ld) flags(%s) context(%lx)\n", __func__, src, tag, msgsize, tofu_fi_flags_string(flags), msg->context);
 	    if (msg->iov_count != 1) {
 		utf_printf("%s: ERROR cannot handle IOV count (%d) in MULTI_RECV\n", __func__, msg->iov_count);
 		abort();
@@ -1330,24 +1364,30 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 			   req->buf, req->alloc, req->rcvexpsz);
 		abort();
 	    }
+	    /* This is a wrong interpretation. 203/11/27 */
 	    /* This message is being received. The req is changed to
 	     * an expected req so that the completion notification will
 	     be produced */
-	    // utf_printf("%s: 2023/11/20 req(%p)\n", __func__, req);
 	    //fc = requexp_exp(ctx, msg, flags, req, msgsize);
-	    requexp_exp(ctx, msg, flags, req, msgsize);
-	    /* not yet all data is received 2023/11/20 */
+	    /* re-insert unexpected queue  2023/11/27 */
+	    // utf_printf("%s: 2023/11/27 req(%p) FI_COMPLETION(%d) partial arriving req->rsize(%ld) req->rcvexpsz(%ld)\n", __func__, req,  flags & FI_COMPLETION, req->rsize, req->rcvexpsz);
+	    utf_msglst_insert(uexplst, req);
 	    fc = -FI_ENOMSG;
 	    goto ext;
 	}
+	/* all data has been received */
 	/* received data is copied to the specified buffer */
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0, req->buf, req->rsize);
 	/* now user request size is set */
 	req->usrreqsz = msgsize;
-	if (peek == 0 && req->buf && req->alloc) { /* reclaim unexpected resources */
+	if ((peek == 0 || (peek == 1 && (flags&FI_CLAIM)))
+	    && req->buf && req->alloc) { /* reclaim unexpected resources */
 	    DEBUG(DLEVEL_COMM) {
 		utf_printf("[COMM]%s:\t EAGER BUF free src(%d) buf(%p) req->rsize(%ld) sz(%ld=0x%x) newbuf(%p)\n",
 			   __func__, src, req->buf, req->rsize, sz, sz, msg->msg_iov[0].iov_base);
+	    }
+	    DEBUG(DLEVEL_MEMORY) {
+		utf_printf("[MEMORY] %s: req(%p) free req->buf(%p)\n", __func__, req, req->buf);
 	    }
 	    utf_free(req->buf); /* allocated dynamically and must be free */
 	    req->alloc = 0;
@@ -1364,30 +1404,48 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	} else {
 	    /* PEEK */
 	    //utf_printf("%s: 2023/11/19 peek = 1 req(%p)\n", __func__, req);
-	    DEBUG(DLEVEL_PROTOCOL) {
-		utf_printf("%s: PEEK req->state(%d) REG_RCVCQ SRC(%d) "
+	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_CQHANDLE) {
+		utf_printf("%s: PEEK(ARRIVED) req->state(%d) REG_RCVCQ SRC(%d) "
 			   "%s, expected size(%ld) req->rsize(%ld) sz(%ld) req->hdr.size(%ld) \n",
 			   __func__, req->state, req->hdr.src, msgsize != req->rsize ? "TRUNCATED" : "",
 			   msgsize, req->rsize, sz, req->hdr.size);
 	    }
+#if 0	/* 2023/11/15 and 11/28: peek = 1 means that req still ramain uexplst.
+	 * That is, no need to insert it to the list */
 	    if (flags & FI_CLAIM) {
 		if (claimed_req != NULL) {
 		    utf_printf("%s: ERROR claimed_req is not NULL\n", __func__);
 		}
 		claimed_req = req;
-#if 0	/* 2023/11/15: peek = 1 means that req still raimain uexplst.
-	 * That is, no need to insert it to the list */
 	    } else { /* must be checked 2021/01/10 */
 		utf_msglst_insert(uexplst, req);
-#endif
 	    }
+#endif
 	    myflags = (req->hdr.flgs & TFI_FIFLGS_CQDATA ? FI_REMOTE_CQ_DATA : 0)
 		    | (req->hdr.flgs & TFI_FIFLGS_TAGGED ? FI_TAGGED : 0)
 		    | (flags&FI_MULTI_RECV);
+	    /* message arrived */
 	    tofu_reg_rcvcq(ctx->ctx_recv_cq, msg->context, myflags, req->hdr.size,
 			   req->fi_msg[0].iov_base, req->fi_data, req->hdr.tag);
+	    /* 2023/11/28
+	     * here is FI_CLAIM and PEEK */
+	    if (flags & FI_CLAIM) {
+		if (claimed_req != NULL) {
+		    utf_printf("%s: ERROR claimed_req is not NULL\n", __func__);
+		}
+		claimed_req = req;
+		/* remove request entry from unexpected queue */
+		no_rm = 0; /* remove */
+		if ((idx=tfi_utf_uexplst_match(uexplst, src, tag, ignore, no_rm)) != -1) {
+		    struct utf_msgreq	*tmreq = utf_idx2msgreq(idx);
+		    if (tmreq != req) {
+			utf_printf("%s: ERROR req(%p) is not tmpeq(%p)\n",
+				   __func__, req, tmreq);
+		    }
+		}
+	    }
 	}
-	goto ext;
+	goto ext_fin;
     }
     /* No message arrives */
     if (peek == 1) {
@@ -1399,24 +1457,87 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	 * tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context, flags,
 	 *		0, 0, FI_ENOMSG, -1, 0, data, req->hdr.tag);
 	 */
+#if 0
 	DEBUG(DLEVEL_COMM) {
 	    utf_printf("[COMM] %s:\t No message arrives. just return FI_ENOMSG. Is this OK ?\n", __func__);
 	}
-	DEBUG(DLEVEL_ERR) {
-	    utf_printf("recv: FI_ENOMSG at FI_PEEK src(%d) tag(0xx%lx)\n", src, tag);
-	}
+#endif
 	fc = -FI_ENOMSG;
     } else {
 	/* new expected message is enqueued */
 	fc = reqexp_set_reg(ctx, msg, flags, msgsize, msgsize);
     }
 ext:
+    if (fc == -FI_ENOMSG) {
+	/*
+	 * 2023/11/22
+	 * fi_trecv() does not generate CQ while fi_trecvmsg() depends on flags
+	 * fi_trecv() uses
+	 *	- MPIDI_OFI_do_irecv(), defined in ofi_recv.h,
+	 *	  if the flag of its argument is 0.
+	 *	  It refers to -FI_EAGAIN
+	 *	#define MPIDI_OFI_CALL_RETRY(FUNC,vci_,STR,EAGAIN) 
+	 * fi_trecvmsg() uses
+	 *	- MPIDI_OFI_do_iprobe(), defined in src/mpid/ch4/netmod/ofi/ofi_probe.h
+	 *		it refers to -FI_EAGAIN in
+	 *		      MPIDI_OFI_CALL_RETRY_RETURN() macro.
+	 *		But it refers to -FI_NOMSG later. THIS MIGHT BE BUG.
+	 *	- MPIDI_OFI_do_irecv(), defined in ofi_recv.h,
+	 *	      if the flag of its argument is not 0.
+	 *	- MPIDI_OFI_recv_iov()
+	 *		
+	 */
+	/* generating error message */
+	if (peek) {
+	    DEBUG(DLEVEL_CQHANDLE) { /* 0x200000 */
+		utf_printf("%s: 2023/11/22 peek(%d) no message. req(%p) flags(%s)\n", __func__, peek, req, tofu_fi_flags_string(flags));
+	    }
+	    if (flags & FI_COMPLETION) {
+		void	*rpt_buf = NULL;
+		if (req) {
+		    if (req->fi_flgs&FI_MULTI_RECV) {
+			rpt_buf = req->buf;
+		    } else {
+			rpt_buf = req->fi_msg[0].iov_base;
+		    }
+		    DEBUG(DLEVEL_CQHANDLE) {
+			utf_printf("%s: rise CQERR(eq=%p)\n", __func__, peek, req);
+		    }
+		    /* receive EQ notify */
+		    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context,
+				   flags,
+				   0, /* len */
+				   0, /* olen */
+				   FI_ENOMSG, FI_ENOMSG,  /* not negative value here */
+				   rpt_buf,
+				   req->fi_data, req->hdr.tag);
+		} else {
+		    tofu_reg_rcveq(ctx->ctx_recv_cq, msg->context,
+				   flags,
+				   0, /* len */
+				   0, /* olen */
+				   FI_ENOMSG, FI_ENOMSG,  /* not negative value here */
+				   0,
+				   msg->data, msg->tag);
+		}
+	    }
+	}
+	//fc= FI_SUCCESS;
+	/* According to the specification, -FI_EAGAIN must be generated,
+	 * not -FI_NOMSG 2023/11/22 */
+	fc= -FI_EAGAIN;
+    }
+ext_fin: /* case of message arrived */
     DEBUG(DLEVEL_COMM) {
 	utf_printf("[COMM] %s: SRC(%d) tag(%lx) ignore(%lx) LEN(%ld) buf(%p) data(%lx) "
 		   " flags(%s) peek(%d) context(%lx) return %d\n",
 		   __func__, src, tag, ignore, msgsize,
 		   msg->iov_count > 0 ? msg->msg_iov[0].iov_base : 0, data,
 		   tofu_fi_flags_string(flags), peek, msg->context, fc);
+    }
+    if (fc == -FI_EAGAIN) { /* 2023/12/06 progress */
+	void	*tinfo = ctx->ctx_sep->sep_dom->tinfo;
+	tfi_utf_progress(tinfo);
     }
     return fc;
 }
@@ -1506,12 +1627,12 @@ tofu_dbg_show_rma(const char *fname, const struct fi_msg_rma *msg, uint64_t flag
 	snprintf(&buf[i*3], 4, ":%02x", bp[i]);
     }
     utf_printf("%s: YI**** RMA src(%ld) "
-	       "desc(%p) msg_iov(%p) msgsz(%ld) iov_count(%ld) "
+	       "desc(%p) msg_iov(%p) msg_iov.base(%p) msgsz(%ld) iov_count(%ld) "
 	       "rma_iov(%p) rma_iov_count(%ld) "
 	       "rma_iov[0].addr(%p) rma_iov[0].len(0x%lx) rma_iov[0].key(0x%lx) "
 	       "context(%p) data(%ld) flags(%lx: %s) data(%p) %s\n",
 	       fname, msg->addr,
-	       msg->desc, msg->msg_iov, msgsz, msg->iov_count,
+	       msg->desc, msg->msg_iov, msg->msg_iov->iov_base, msgsz, msg->iov_count,
 	       msg->rma_iov, msg->rma_iov_count,
 	       msg->rma_iov[0].addr, msg->rma_iov[0].len, msg->rma_iov[0].key,
 	       msg->context, msg->data, flags, tofu_fi_flags_string(flags),
