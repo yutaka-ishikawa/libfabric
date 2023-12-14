@@ -1278,7 +1278,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
     size_t	msgsize = ofi_total_iov_len(msg->msg_iov, msg->iov_count);
     utfslist_t *uexplst;
 
-    DEBUG(DLEVEL_CQHANDLE) {
+    DEBUG(DLEVEL_CQHANDLE|DLEVEL_PEEK) {
 	utf_printf("%s: 2023/11/29 SRC(%d) tag(%lx) size(%ld) flags(%s) context(%lx)\n",
 		   __func__, src, tag, msgsize, tofu_fi_flags_string(flags), msg->context);
     }
@@ -1289,8 +1289,18 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	    /* 2023/11/28: This is wrong interpretation */
 	    /* if FI_CLAIM is also set, the entry must be removed */
 	    // no_rm = (flags & FI_CLAIM) ? 0 : 1;
+	    if (claimed_req != NULL
+		&& (flags & FI_CLAIM)
+		&& (claimed_req->fi_ucontext == msg->context)) {
+		/* claimed request is used 2023/12/14 */
+		req = claimed_req;
+		req->fi_ctx = ctx; req->fi_ucontext = msg->context;
+		req->fi_flgs = flags;
+		goto do_claimed_req;
+	    }
 	} else if ((flags & FI_CLAIM)
 		   && (claimed_req->fi_ucontext == msg->context)) {
+	    /* claimed request is consumed because of no PEEK */
 	    req = claimed_req; claimed_req = NULL;
 	    req->fi_ctx = ctx; req->fi_ucontext = msg->context;
 	    req->fi_flgs = flags;
@@ -1380,7 +1390,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	sz = ofi_copy_to_iov(msg->msg_iov, msg->iov_count, 0, req->buf, req->rsize);
 	/* now user request size is set */
 	req->usrreqsz = msgsize;
-	if ((peek == 0 || (peek == 1 && (flags&FI_CLAIM)))
+	if ((peek == 0 /*2023/12/14 || (peek == 1 && (flags&FI_CLAIM))*/)
 	    && req->buf && req->alloc) { /* reclaim unexpected resources */
 	    DEBUG(DLEVEL_COMM) {
 		utf_printf("[COMM]%s:\t EAGER BUF free src(%d) buf(%p) req->rsize(%ld) sz(%ld=0x%x) newbuf(%p)\n",
@@ -1404,7 +1414,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	} else {
 	    /* PEEK */
 	    //utf_printf("%s: 2023/11/19 peek = 1 req(%p)\n", __func__, req);
-	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_CQHANDLE) {
+	    DEBUG(DLEVEL_PROTOCOL|DLEVEL_CQHANDLE|DLEVEL_PEEK) {
 		utf_printf("%s: PEEK(ARRIVED) req->state(%d) REG_RCVCQ SRC(%d) "
 			   "%s, expected size(%ld) req->rsize(%ld) sz(%ld) req->hdr.size(%ld) \n",
 			   __func__, req->state, req->hdr.src, msgsize != req->rsize ? "TRUNCATED" : "",
@@ -1431,16 +1441,20 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
 	     * here is FI_CLAIM and PEEK */
 	    if (flags & FI_CLAIM) {
 		if (claimed_req != NULL) {
-		    utf_printf("%s: ERROR claimed_req is not NULL\n", __func__);
-		}
-		claimed_req = req;
-		/* remove request entry from unexpected queue */
-		no_rm = 0; /* remove */
-		if ((idx=tfi_utf_uexplst_match(uexplst, src, tag, ignore, no_rm)) != -1) {
-		    struct utf_msgreq	*tmreq = utf_idx2msgreq(idx);
-		    if (tmreq != req) {
-			utf_printf("%s: ERROR req(%p) is not tmpeq(%p)\n",
-				   __func__, req, tmreq);
+		    /* PEEK & FI_CLAIM flags continue  */
+		    DEBUG(DLEVEL_PEEK) {
+			utf_printf("%s: claimed_req (%p) is used again\n", __func__, claimed_req);
+		    }
+		} else { /* new claimed */
+		    claimed_req = req;
+		    /* remove request entry from unexpected queue */
+		    no_rm = 0; /* remove */
+		    if ((idx=tfi_utf_uexplst_match(uexplst, src, tag, ignore, no_rm)) != -1) {
+			struct utf_msgreq	*tmreq = utf_idx2msgreq(idx);
+			if (tmreq != req) {
+			    utf_printf("%s: ERROR req(%p) is not tmpeq(%p)\n",
+				       __func__, req, tmreq);
+			}
 		    }
 		}
 	    }
@@ -1489,7 +1503,7 @@ ext:
 	 */
 	/* generating error message */
 	if (peek) {
-	    DEBUG(DLEVEL_CQHANDLE) { /* 0x200000 */
+	    DEBUG(DLEVEL_CQHANDLE|DLEVEL_PEEK) { /* 0x200000 */
 		utf_printf("%s: 2023/11/22 peek(%d) no message. req(%p) flags(%s)\n", __func__, peek, req, tofu_fi_flags_string(flags));
 	    }
 	    if (flags & FI_COMPLETION) {
