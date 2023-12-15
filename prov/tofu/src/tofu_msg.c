@@ -606,7 +606,7 @@ tofu_ctx_tag_senddata(struct fid_ep *fid_ep,
     uint64_t             flags = FI_TAGGED | FI_REMOTE_CQ_DATA | FI_COMPLETION;
 
     utf_tmr_begin(TMR_FI_TSEND);
-    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s data(%ld) len(%ld)\n", __FILE__, data, len);
+    FI_INFO(&tofu_prov, FI_LOG_EP_CTRL, "in %s data(%ld) tag(%lx) len(%ld)\n", __FILE__, data, tag, len);
 
     iovs->iov_base  = (void *)buf;
     iovs->iov_len   = len;

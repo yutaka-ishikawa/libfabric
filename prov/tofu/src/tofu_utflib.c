@@ -382,9 +382,9 @@ tofu_catch_rcvnotify(struct utf_msgreq *req, int aux)
 	    utf_printf("[COMM] %s: multi-NOTIFY SRC(%d) req(%p) rsize(%ld) buf(%p)\n",
 		       __func__, req->hdr.src, req, req->rsize, req->buf);
 	} else {
-	    utf_printf("[COMM] %s: tagged-NOTIFY SRC(%d) type(%d) rsize(%ld) overrun(%d) req(%p)->buf(%p), "
+	    utf_printf("[COMM] %s: tagged-NOTIFY SRC(%d) tag(0x%lx) type(%d) rsize(%ld) overrun(%d) req(%p)->buf(%p), "
 		   "req->fi_flags(%s) flags(%s) iov_base(%p) iov_len(%ld) fi_recvd(%ld), context(%p)\n",
-		   __func__,  req->hdr.src, req->type, req->rsize, req->overrun,
+		       __func__,  req->hdr.src, req->hdr.tag, req->type, req->rsize, req->overrun,
 		   req, req->buf, tofu_fi_flags_string(req->fi_flgs),
 		   tofu_fi_flags_string(flags),
 		   req->fi_msg[0].iov_base,
@@ -608,7 +608,7 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	utf_printf("[COMM] %s: flags(%s) sz(%ld) src(%ld) tag(%lx) data(%ld) context(%p) msg(%s)\n",
 		   __func__, tofu_fi_flags_string(flags), msgsz, src, tag, data,
 		   msg->context, tofu_fi_msg_data(msg));
-	}
+    }
     if (flags & FI_INJECT) {
 	DEBUG(DLEVEL_PROTOCOL) {
 	    utf_printf("%s: YI################ no send completion is generated\n",  __func__);
@@ -681,6 +681,10 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	    }
 	}
 	/** rcv_req->fi_flgs |= flags & (FI_REMOTE_CQ_DATA|FI_TAGGED);**/
+	/* 2023/12/19
+	 * sender's tag is requireed.
+	 */
+	rcv_req->hdr.tag = tag;
 	rcv_req->fi_data = data;
 	rcv_req->rsize = sndsz; /* actual received size */
 	rcv_req->hdr.src = src;
@@ -765,6 +769,9 @@ tfi_utf_sendmsg_self(struct tofu_ctx *ctx,
 	}
     }
 ext:
+    DEBUG(DLEVEL_COMM) {
+	utf_printf("[COMM] %s: RETURN %d\n", __func__, fc);
+    }
     return fc;
 }
 
@@ -884,6 +891,10 @@ tfi_utf_send_post(struct tofu_ctx *ctx,
     struct utf_msgreq	*req;
     struct utf_egr_sbuf	*sbufp;
 
+    DEBUG(DLEVEL_COMM) {
+	utf_printf("[COMM] %s: flags(%s) dst(%ld) tag(%lx) context(%p)\n",
+		   __func__, tofu_fi_flags_string(flags), dst, msg->tag, ctx);
+    }
     DEBUG(DLEVEL_ADHOC) {
 	utf_log("Post dst(%d) src(%d) D(%d) tag(0x%llx) ",
 		dst, ctx->ctx_sep->sep_myrank, msg->data, msg->tag, flags);
@@ -1480,6 +1491,7 @@ tfi_utf_recv_post(struct tofu_ctx *ctx,
     } else {
 	/* new expected message is enqueued */
 	fc = reqexp_set_reg(ctx, msg, flags, msgsize, msgsize);
+	/* fc = -FI_ENOMSG; NOT 2023/12/14 */
     }
 ext:
     if (fc == -FI_ENOMSG) {

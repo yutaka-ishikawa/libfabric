@@ -147,6 +147,7 @@ tofu_cq_read(struct fid_cq *fid_cq, void *buf, size_t count)
         }
     }
     fastlock_release(&cq->cq_lck);
+    FI_INFO(&tofu_prov, FI_LOG_CQ, " return ret(%ld) in %s\n", ret, __FILE__);
     utf_tmr_end(TMR_FI_CQREAD);
     return ret;
 }
